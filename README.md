@@ -1,10 +1,10 @@
-# Instale as dependências
+Instale as dependências
 npm install
 
-# Iniciar o projeto
+Iniciar o projeto
 npx expo start
 
-# Ou use um dos comandos específicos:
+Ou use um dos comandos específicos:
 npx expo start --android  # Para Android
 npx expo start --ios      # Para iOS (apenas Mac)
 npx expo start --web      # Para Web
