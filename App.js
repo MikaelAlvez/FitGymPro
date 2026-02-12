@@ -1,29 +1,39 @@
-import React from 'react';
-import { StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
 import Login from './assets/src/screens/Login';
 import Register from './assets/src/screens/Register';
+import UserTypeSelection from './assets/src/screens/Usertypeselection';
 import { colors } from './assets/src/theme';
 
-const Stack = createNativeStackNavigator();
-
 export default function App() {
+  const [currentScreen, setCurrentScreen] = useState('Login'); // 'Login', 'Register', 'UserTypeSelection'
+
+  const renderScreen = () => {
+    switch (currentScreen) {
+      case 'Login':
+        return <Login setCurrentScreen={setCurrentScreen} />;
+      case 'Register':
+        return <Register setCurrentScreen={setCurrentScreen} />;
+      case 'UserTypeSelection':
+        return <UserTypeSelection setCurrentScreen={setCurrentScreen} />;
+      default:
+        return <Login setCurrentScreen={setCurrentScreen} />;
+    }
+  };
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <Stack.Navigator
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
-          <Stack.Screen name="Login" component={Login} />
-          <Stack.Screen name="Register" component={Register} />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <View style={styles.container}>
+        {renderScreen()}
+      </View>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+});

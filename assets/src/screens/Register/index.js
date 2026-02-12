@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Input, Button } from '../../components';
 import styles from './styles';
 
-const Register = ({ navigation }) => {
+const Register = ({ navigation, setCurrentScreen }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -67,20 +67,23 @@ const Register = ({ navigation }) => {
 
     setLoading(true);
     
+    // Simula processamento
     setTimeout(() => {
       setLoading(false);
-      Alert.alert(
-        'Cadastro realizado!',
-        `Bem-vindo, ${formData.name}!`,
-        [
-          { 
-            text: 'OK',
-            onPress: () => {
-              // navigation.goBack();
-            }
-          }
-        ]
-      );
+      
+      // Navega para a tela de seleção de tipo de usuário
+      if (setCurrentScreen) {
+        setCurrentScreen('UserTypeSelection');
+      } else {
+        // Se tiver react-navigation:
+        // navigation.navigate('UserTypeSelection', { userData: formData });
+        
+        Alert.alert(
+          'Sucesso!',
+          'Cadastro realizado. Indo para seleção de tipo...',
+          [{ text: 'OK' }]
+        );
+      }
     }, 1500);
   };
 
@@ -100,7 +103,16 @@ const Register = ({ navigation }) => {
   };
 
   const handleGoBack = () => {
-    navigation.goBack();
+    if (setCurrentScreen) {
+      setCurrentScreen('Login');
+    } else {
+      Alert.alert(
+        'Voltar',
+        'Funcionalidade de navegação em desenvolvimento',
+        [{ text: 'OK' }]
+      );
+      // navigation.goBack();
+    }
   };
 
   return (

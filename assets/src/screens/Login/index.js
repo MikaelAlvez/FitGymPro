@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
-
 import { 
   View, 
   Text, 
@@ -15,8 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Logo, Input, Button } from '../../components';
 import styles from './styles';
 
-const Login = () => {
-  const navigation = useNavigation();
+const Login = ({ navigation, setCurrentScreen }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -65,10 +62,17 @@ const Login = () => {
   };
 
   const handleRegister = () => {
-    navigation.navigate('Register');
+    if (setCurrentScreen) {
+      setCurrentScreen('Register');
+    } else {
+      Alert.alert(
+        'Cadastrar-se',
+        'Funcionalidade de navegação em desenvolvimento',
+        [{ text: 'OK' }]
+      );
+      // navigation.navigate('Register');
+    }
   };
-
-
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -88,7 +92,7 @@ const Login = () => {
             <View style={styles.inputsContainer}>
               <Input
                 label="Usuário"
-                placeholder="Usuário"
+                placeholder="Digite seu usuário"
                 value={username}
                 onChangeText={(text) => {
                   setUsername(text);
@@ -103,7 +107,7 @@ const Login = () => {
 
               <Input
                 label="Senha"
-                placeholder="Senha"
+                placeholder="Digite sua senha"
                 value={password}
                 onChangeText={(text) => {
                   setPassword(text);
