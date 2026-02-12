@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components';
 import styles from './styles';
 
-const UserTypeSelection = ({ navigation, setCurrentScreen }) => {
+const UserTypeSelection = ({ navigation, setCurrentScreen, setUserType }) => {
   const [selectedType, setSelectedType] = useState(null); // 'trainer' ou 'student'
 
   const handleContinue = () => {
@@ -27,18 +27,32 @@ const UserTypeSelection = ({ navigation, setCurrentScreen }) => {
       return;
     }
 
-    Alert.alert(
-      'Tipo selecionado',
-      selectedType === 'trainer' ? 'Personal Trainer' : 'Aluno',
-      [
-        { 
-          text: 'OK',
-          onPress: () => {
+    // Salvar tipo de usuário (se necessário)
+    if (setUserType) {
+      setUserType(selectedType);
+    }
 
-          }
-        }
-      ]
-    );
+    // Navegar para a tela correta baseado na seleção
+    if (setCurrentScreen) {
+      if (selectedType === 'trainer') {
+        setCurrentScreen('TrainerBodyData');
+      } else {
+        setCurrentScreen('StudentBodyData');
+      }
+    } else {
+      // Se tiver React Navigation:
+      // if (selectedType === 'trainer') {
+      //   navigation.navigate('TrainerBodyData');
+      // } else {
+      //   navigation.navigate('StudentBodyData');
+      // }
+      
+      Alert.alert(
+        'Tipo selecionado',
+        selectedType === 'trainer' ? 'Personal Trainer - Indo para dados corporais' : 'Aluno - Indo para dados corporais',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const handleGoBack = () => {
