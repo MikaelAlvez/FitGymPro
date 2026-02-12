@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+
 import { 
   View, 
   Text, 
@@ -13,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Logo, Input, Button } from '../../components';
 import styles from './styles';
 
-const Login = ({ navigation }) => {
+const Login = () => {
+  const navigation = useNavigation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,12 +65,10 @@ const Login = ({ navigation }) => {
   };
 
   const handleRegister = () => {
-    Alert.alert(
-      'Cadastrar-se',
-      'Funcionalidade em desenvolvimento',
-      [{ text: 'OK' }]
-    );
+    navigation.navigate('Register');
   };
+
+
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
