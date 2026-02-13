@@ -66,18 +66,20 @@ const StudentBodyData = ({ navigation, setCurrentScreen }) => {
     
     setTimeout(() => {
       setLoading(false);
-      Alert.alert(
-        'Sucesso!',
-        'Dados corporais salvos com sucesso!',
-        [
-          { 
-            text: 'OK',
-            onPress: () => {
-              // Navegar para próxima tela
-            }
-          }
-        ]
-      );
+      
+      // Navegar para tela de experiência
+      if (setCurrentScreen) {
+        setCurrentScreen('ExperienceLevel');
+      } else {
+        // Se tiver React Navigation:
+        // navigation.navigate('ExperienceLevel', { bodyData: formData });
+        
+        Alert.alert(
+          'Sucesso!',
+          'Indo para seleção de experiência...',
+          [{ text: 'OK' }]
+        );
+      }
     }, 1500);
   };
 

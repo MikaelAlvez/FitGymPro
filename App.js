@@ -6,6 +6,7 @@ import Register from './assets/src/screens/Register';
 import UserTypeSelection from './assets/src/screens/Usertypeselection';
 import TrainerBodyData from './assets/src/screens/Trainerbodydata';
 import StudentBodyData from './assets/src/screens/Studentbodydata';
+import ExperienceLevel from './assets/src/screens/Experiencelevel';
 import { colors } from './assets/src/theme';
 
 export default function App() {
@@ -33,6 +34,9 @@ export default function App() {
       
       case 'StudentBodyData':
         return <StudentBodyData setCurrentScreen={setCurrentScreen} />;
+      
+      case 'ExperienceLevel':
+        return <ExperienceLevel setCurrentScreen={setCurrentScreen} />;
       
       default:
         return <Login setCurrentScreen={setCurrentScreen} />;
