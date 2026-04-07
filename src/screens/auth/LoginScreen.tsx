@@ -81,7 +81,7 @@ export function LoginScreen() {
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
                   label="Usuário"
-                  placeholder="seu@email.com"
+                  placeholder="Email ou CPF"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   leftIcon="person-outline"
