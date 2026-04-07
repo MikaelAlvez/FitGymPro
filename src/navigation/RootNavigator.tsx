@@ -1,9 +1,9 @@
 import React from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
-import { ActivityIndicator, View }        from 'react-native';
-import { AuthNavigator }      from './AuthNavigator';
-import { useAuth }            from '../contexts/AuthContext';
-import { colors }             from '../theme';
+import { ActivityIndicator, View } from 'react-native';
+import { AuthNavigator } from './AuthNavigator';
+import { useAuth } from '../contexts/AuthContext';
+import { colors } from '../theme';
 
 const NAV_THEME = {
   ...DarkTheme,
@@ -30,10 +30,13 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer theme={NAV_THEME}>
-      {!isAuthenticated
-        ? <AuthNavigator />
-        : user?.role === 'personal'
-      }
+      {!isAuthenticated ? (
+        <AuthNavigator />
+      ) : user?.role === 'personal' ? (
+        <AuthNavigator />
+      ) : (
+        <AuthNavigator />
+      )}
     </NavigationContainer>
   );
 }
