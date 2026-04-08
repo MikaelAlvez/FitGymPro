@@ -13,9 +13,11 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { StepOne }                from './register/StepOne';
 import { StepTwo }                from './register/StepTwo';
-import { StudentRegisterFlow }    from './register/student/StudentRegisterFlow';
-import { useRegisterForm }        from './register/useRegisterForm';
-import type { StepTwoData }       from './register/useRegisterForm';
+import { StudentRegisterFlow }  from './register/student/StudentRegisterFlow';
+import { PersonalRegisterFlow } from './register/personal/PersonalRegisterFlow';
+import { useRegisterForm }      from './register/useRegisterForm';
+import type { StepTwoData }     from './register/useRegisterForm';
+import type { PersonalProfileData } from './register/personal/usePersonalForm';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors, typography, spacing } from '../../theme';
 
@@ -29,35 +31,45 @@ export function RegisterScreen() {
     goToStep2, goBack, getFullData,
   } = useRegisterForm();
 
-  const [loading, setLoading]           = React.useState(false);
+  const [loading, setLoading]               = React.useState(false);
   const [showStudentFlow, setShowStudentFlow] = React.useState(false);
-  const [stepTwoData, setStepTwoData]   = React.useState<StepTwoData | null>(null);
+  const [showPersonalFlow, setShowPersonalFlow] = React.useState(false);
+  const [stepTwoData, setStepTwoData]         = React.useState<StepTwoData | null>(null);
 
-  // Total de steps visíveis na barra: 2 globais + 5 do aluno = 7
-  const totalSteps = showStudentFlow ? 7 : 2;
+  const totalSteps = showStudentFlow ? 7 : showPersonalFlow ? 5 : 2;
 
   const handlePickAvatar = () => {
     // TODO: integrar expo-image-picker
     Alert.alert('Em breve', 'Seleção de foto será integrada com expo-image-picker.');
   };
 
-  // Step 2 → decide fluxo por role
   const handleRoleSelected = (data: StepTwoData) => {
     setStepTwoData(data);
-    if (data.role === 'student') {
-      setShowStudentFlow(true); // entra no fluxo de 5 steps do aluno
-    } else {
-      // TODO: fluxo do personal (próximo commit)
-      Alert.alert('Em breve', 'Fluxo do personal trainer será implementado em seguida.');
-    }
+    if (data.role === 'student')  setShowStudentFlow(true);
+    else                          setShowPersonalFlow(true);
   };
 
   const handleStudentComplete = async (profileData: object) => {
     try {
       setLoading(true);
-      const baseData  = getFullData(stepTwoData!);
-      const fullData  = { ...baseData, ...profileData };
+      const fullData = { ...getFullData(stepTwoData!), ...profileData };
       console.log('Cadastro completo (aluno):', fullData);
+      // TODO: chamar service de criação de conta
+      Alert.alert('Sucesso!', 'Conta criada com sucesso.', [
+        { text: 'Entrar', onPress: () => navigation.navigate('Login') },
+      ]);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível criar a conta. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePersonalComplete = async (profileData: PersonalProfileData) => {
+    try {
+      setLoading(true);
+      const fullData = { ...getFullData(stepTwoData!), ...profileData };
+      console.log('Cadastro completo (personal):', fullData);
       // TODO: chamar service de criação de conta
       Alert.alert('Sucesso!', 'Conta criada com sucesso.', [
         { text: 'Entrar', onPress: () => navigation.navigate('Login') },
@@ -104,6 +116,8 @@ export function RegisterScreen() {
       {/* Conteúdo */}
       {showStudentFlow ? (
         <StudentRegisterFlow onComplete={handleStudentComplete} />
+      ) : showPersonalFlow ? (
+        <PersonalRegisterFlow onComplete={handlePersonalComplete} />
       ) : step === 1 ? (
         <StepOne
           form={formOne}
