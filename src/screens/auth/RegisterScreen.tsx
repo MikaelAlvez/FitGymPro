@@ -11,10 +11,11 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { StepOne }           from './register/StepOne';
-import { StepTwo }           from './register/StepTwo';
-import { useRegisterForm }   from './register/useRegisterForm';
-import type { StepTwoData }  from './register/useRegisterForm';
+import { StepOne }                from './register/StepOne';
+import { StepTwo }                from './register/StepTwo';
+import { StudentRegisterFlow }    from './register/student/StudentRegisterFlow';
+import { useRegisterForm }        from './register/useRegisterForm';
+import type { StepTwoData }       from './register/useRegisterForm';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors, typography, spacing } from '../../theme';
 
@@ -28,18 +29,35 @@ export function RegisterScreen() {
     goToStep2, goBack, getFullData,
   } = useRegisterForm();
 
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading]           = React.useState(false);
+  const [showStudentFlow, setShowStudentFlow] = React.useState(false);
+  const [stepTwoData, setStepTwoData]   = React.useState<StepTwoData | null>(null);
+
+  // Total de steps visíveis na barra: 2 globais + 5 do aluno = 7
+  const totalSteps = showStudentFlow ? 7 : 2;
 
   const handlePickAvatar = () => {
     // TODO: integrar expo-image-picker
     Alert.alert('Em breve', 'Seleção de foto será integrada com expo-image-picker.');
   };
 
-  const handleFinish = async (data: StepTwoData) => {
+  // Step 2 → decide fluxo por role
+  const handleRoleSelected = (data: StepTwoData) => {
+    setStepTwoData(data);
+    if (data.role === 'student') {
+      setShowStudentFlow(true); // entra no fluxo de 5 steps do aluno
+    } else {
+      // TODO: fluxo do personal (próximo commit)
+      Alert.alert('Em breve', 'Fluxo do personal trainer será implementado em seguida.');
+    }
+  };
+
+  const handleStudentComplete = async (profileData: object) => {
     try {
       setLoading(true);
-      const fullData = getFullData(data);
-      console.log('Cadastro completo:', fullData);
+      const baseData  = getFullData(stepTwoData!);
+      const fullData  = { ...baseData, ...profileData };
+      console.log('Cadastro completo (aluno):', fullData);
       // TODO: chamar service de criação de conta
       Alert.alert('Sucesso!', 'Conta criada com sucesso.', [
         { text: 'Entrar', onPress: () => navigation.navigate('Login') },
@@ -84,7 +102,9 @@ export function RegisterScreen() {
       </View>
 
       {/* Conteúdo */}
-      {step === 1 ? (
+      {showStudentFlow ? (
+        <StudentRegisterFlow onComplete={handleStudentComplete} />
+      ) : step === 1 ? (
         <StepOne
           form={formOne}
           avatarUri={avatarUri}
@@ -94,7 +114,7 @@ export function RegisterScreen() {
       ) : (
         <StepTwo
           form={formTwo}
-          onSubmit={handleFinish}
+          onSubmit={handleRoleSelected}
           isLoading={loading}
         />
       )}
