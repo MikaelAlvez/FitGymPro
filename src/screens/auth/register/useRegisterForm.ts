@@ -7,11 +7,16 @@ import type { UserRole } from '../../../contexts/AuthContext';
 // ─── Schemas ─────────────────────────────────
 export const stepOneSchema = z
   .object({
-    name:            z.string().min(3, 'Nome deve ter ao menos 3 caracteres'),
-    email:           z.string().email('E-mail inválido'),
-    phone:           z.string().min(10, 'Telefone inválido'),
-    password:        z.string().min(6, 'Mínimo 6 caracteres'),
-    confirmPassword: z.string(),
+    name:            z.string({ message: 'Nome é obrigatório' })
+                      .min(3, 'Nome deve ter ao menos 3 caracteres'),
+    email:           z.string({ message: 'E-mail é obrigatório' })
+                      .min(1, 'E-mail é obrigatório')
+                      .email('E-mail inválido'),
+    phone:           z.string({ message: 'Telefone é obrigatório' })
+                      .min(10, 'Telefone inválido'),
+    password:        z.string({ message: 'Senha é obrigatória' })
+                      .min(6, 'Senha deve ter ao menos 6 caracteres'),
+    confirmPassword: z.string({ message: 'Confirmação de senha é obrigatória' }),
   })
   .refine(d => d.password === d.confirmPassword, {
     message: 'As senhas não coincidem',

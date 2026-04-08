@@ -23,12 +23,18 @@ export const WEEK_DAYS: { value: WeekDay; label: string }[] = [
 
 // ─── Schemas por step ────────────────────────
 export const stepBodySchema = z.object({
-  sex:           z.string().min(1, 'Campo obrigatório'),
-  birthDate:     z.string().min(1, 'Campo obrigatório'),
-  weight:        z.string().min(1, 'Campo obrigatório'),
-  height:        z.string().min(1, 'Campo obrigatório'),
-  goal:          z.string().min(3, 'Descreva seu objetivo'),
-  focusMuscle:   z.string().min(3, 'Descreva o músculo foco'),
+  sex:         z.string({ message: 'Sexo é obrigatório' })
+                .min(1, 'Sexo é obrigatório'),
+  birthDate:   z.string({ message: 'Data de nascimento é obrigatória' })
+                .min(1, 'Data de nascimento é obrigatória'),
+  weight:      z.string({ message: 'Peso é obrigatório' })
+                .min(1, 'Peso é obrigatório'),
+  height:      z.string({ message: 'Altura é obrigatória' })
+                .min(1, 'Altura é obrigatória'),
+  goal:        z.string({ message: 'Objetivo é obrigatório' })
+                .min(3, 'Descreva seu objetivo'),
+  focusMuscle: z.string({ message: 'Músculo foco é obrigatório' })
+                .min(3, 'Descreva o músculo foco'),
 });
 
 export const stepExperienceSchema = z.object({
