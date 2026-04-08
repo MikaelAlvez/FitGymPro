@@ -25,8 +25,11 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 // ─── Validação ───────────────────────────────
 const schema = z.object({
-  email:    z.string().email('E-mail inválido'),
-  password: z.string().min(6, 'Mínimo 6 caracteres'),
+  email:    z.string({ message: 'E-mail é obrigatório' })
+              .min(1, 'E-mail é obrigatório')
+              .email('E-mail inválido'),
+  password: z.string({ message: 'Senha é obrigatória' })
+              .min(6, 'Senha deve ter ao menos 6 caracteres'),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -81,7 +84,7 @@ export function LoginScreen() {
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
                   label="Usuário"
-                  placeholder="Email ou CPF"
+                  placeholder="seu@email.com"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   leftIcon="person-outline"
