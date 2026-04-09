@@ -52,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
+        // DEV: comente o bloco abaixo para sempre iniciar no login
         const [storedUser, storedToken] = await AsyncStorage.multiGet([
           STORAGE_KEYS.USER,
           STORAGE_KEYS.TOKEN,
@@ -59,7 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const user  = storedUser[1]  ? (JSON.parse(storedUser[1]) as User) : null;
         const token = storedToken[1] ?? null;
 
-        setState({ user, token, isLoading: false, isAuthenticated: !!token });
+        // Limpa sessão salva para sempre iniciar no login durante dev
+        await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN]);
+        setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
       } catch {
         setState(s => ({ ...s, isLoading: false }));
       }
