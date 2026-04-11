@@ -18,6 +18,7 @@ import { Input }            from '../../../components/ui/Input';
 import { Button }           from '../../../components/ui/Button';
 import { authService }      from '../../../services/auth.service';
 import { pickImage, takePhoto } from '../../../services/upload.service';
+import { maskCpf }          from '../../../utils/cpf';
 import type { StepOneData } from './useRegisterForm';
 import { colors, typography, spacing, radii } from '../../../theme';
 
@@ -110,6 +111,22 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
                 autoCapitalize="words"
                 onChangeText={onChange} onBlur={onBlur} value={value}
                 error={errors.name?.message}
+              />
+            )}
+          />
+
+          <Controller
+            control={control} name="cpf"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <Input
+                label="CPF"
+                placeholder="000.000.000-00"
+                keyboardType="numeric"
+                maxLength={14}
+                onChangeText={raw => onChange(maskCpf(raw))}
+                onBlur={onBlur}
+                value={value}
+                error={errors.cpf?.message}
               />
             )}
           />
