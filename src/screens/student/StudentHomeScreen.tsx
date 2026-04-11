@@ -1,13 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, Modal,
+  StyleSheet, ActivityIndicator, Alert, Modal, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiRequest } from '../../services/api';
 import { colors, typography, spacing, radii, shadows } from '../../theme';
+
+// ─── Config ──────────────────────────────────
+const getBaseUrl = () => {
+  const host = Constants.expoConfig?.hostUri
+    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
+    ?? Constants.manifest?.debuggerHost
+  if (host) return `http://${host.split(':')[0]}:3333`
+  return 'http://10.0.2.2:3333'
+}
 
 // ─── Types ───────────────────────────────────
 interface StudentProfile {
@@ -24,7 +34,7 @@ interface StudentProfile {
 // ─── Helpers ─────────────────────────────────
 function calcIMC(weight: string, height: string): string {
   const w = parseFloat(weight)
-  const h = parseFloat(height) / 100 // cm → m
+  const h = parseFloat(height) / 100
   if (!w || !h) return '—'
   return (w / (h * h)).toFixed(1)
 }
@@ -38,7 +48,7 @@ function imcLabel(imc: string): string {
   return 'Obesidade'
 }
 
-// ─── Mock treino (substituir quando módulo de treinos estiver pronto) ───
+// ─── Mock treino ──────────────────────────────
 const WORKOUT = {
   name:      'Treino A — Peito e Tríceps',
   personal:  'Personal Trainer',
@@ -55,19 +65,19 @@ const WORKOUT = {
 export function StudentHomeScreen() {
   const { user, signOut } = useAuth()
   const firstName = user?.name?.split(' ')[0] ?? 'Aluno'
+  const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
 
-  const [profile,    setProfile]    = useState<StudentProfile | null>(null)
+  const [profile,        setProfile]        = useState<StudentProfile | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
-  const [exercises,  setExercises]  = useState(WORKOUT.exercises)
-  const [menuVisible, setMenuVisible] = useState(false)
+  const [exercises,      setExercises]      = useState(WORKOUT.exercises)
+  const [menuVisible,    setMenuVisible]    = useState(false)
 
   const doneCount = exercises.filter(e => e.done).length
   const progress  = exercises.length > 0 ? doneCount / exercises.length : 0
 
-  // ─── Busca perfil do aluno ────────────────
   useEffect(() => {
     (async () => {
       try {
@@ -87,24 +97,20 @@ export function StudentHomeScreen() {
   const imc = profile ? calcIMC(profile.weight, profile.height) : '—'
 
   const METRICS = [
-    { label: 'Peso',   value: profile ? `${profile.weight} kg`  : '—', icon: 'scale-outline'    as const },
-    { label: 'Altura', value: profile ? `${profile.height} cm`  : '—', icon: 'resize-outline'   as const },
-    { label: 'IMC',    value: imc,                                       icon: 'analytics-outline' as const },
-    { label: 'Objetivo', value: profile?.goal ?? '—',                   icon: 'fitness-outline'  as const },
+    { label: 'Peso',     value: profile ? `${profile.weight} kg` : '—', icon: 'scale-outline'     as const },
+    { label: 'Altura',   value: profile ? `${profile.height} cm` : '—', icon: 'resize-outline'    as const },
+    { label: 'IMC',      value: imc,                                      icon: 'analytics-outline' as const },
+    { label: 'Objetivo', value: profile?.goal ?? '—',                    icon: 'fitness-outline'   as const },
   ]
 
   const toggleExercise = (id: string) =>
     setExercises(prev => prev.map(e => e.id === id ? { ...e, done: !e.done } : e))
 
   const handleLogout = () => {
-    Alert.alert(
-      'Sair',
-      'Deseja realmente sair da sua conta?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sair', style: 'destructive', onPress: () => signOut() },
-      ],
-    )
+    Alert.alert('Sair', 'Deseja realmente sair da sua conta?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: () => signOut() },
+    ])
     setMenuVisible(false)
   }
 
@@ -114,16 +120,27 @@ export function StudentHomeScreen() {
 
         {/* Header */}
         <View style={s.header}>
-          <View>
-            <Text style={s.greeting}>Olá, {firstName} 💪</Text>
-            <Text style={s.date}>{today}</Text>
+          <View style={s.headerLeft}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={s.avatar} />
+            ) : (
+              <View style={s.avatarPlaceholder}>
+                <Text style={s.avatarInitial}>
+                  {firstName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View>
+              <Text style={s.greeting}>Olá, {firstName} 💪</Text>
+              <Text style={s.date}>{today}</Text>
+            </View>
           </View>
           <TouchableOpacity style={s.notifBtn} onPress={() => setMenuVisible(true)}>
             <Ionicons name="ellipsis-vertical" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
-        {/* Métricas corporais */}
+        {/* Métricas */}
         <Text style={s.sectionTitle}>Minhas métricas</Text>
         {loadingProfile ? (
           <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing['4'] }} />
@@ -138,9 +155,7 @@ export function StudentHomeScreen() {
                 </View>
               ))}
             </View>
-            {profile && (
-              <Text style={s.imcLabel}>{imcLabel(imc)}</Text>
-            )}
+            {profile && <Text style={s.imcLabel}>{imcLabel(imc)}</Text>}
           </>
         )}
 
@@ -220,11 +235,37 @@ const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing['5'],
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['3'],
+  },
+  avatar: {
+    width: 46, height: 46,
+    borderRadius: radii.full,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  avatarPlaceholder: {
+    width: 46, height: 46,
+    borderRadius: radii.full,
+    backgroundColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  avatarInitial: {
+    fontFamily: typography.family.bold,
+    fontSize: typography.size.lg,
+    color: colors.white,
   },
   greeting: {
     fontFamily: typography.family.bold,
@@ -246,6 +287,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  // Métricas
   sectionTitle: {
     fontFamily: typography.family.semiBold,
     fontSize: typography.size.base,
@@ -286,6 +328,7 @@ const s = StyleSheet.create({
     marginBottom: spacing['2'],
   },
 
+  // Section header
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -305,6 +348,7 @@ const s = StyleSheet.create({
     color: colors.white,
   },
 
+  // Workout
   workoutCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
@@ -324,7 +368,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  workoutInfo: { flex: 1 },
+  workoutInfo:    { flex: 1 },
   workoutName: {
     fontFamily: typography.family.semiBold,
     fontSize: typography.size.md,
@@ -355,7 +399,9 @@ const s = StyleSheet.create({
     textAlign: 'right',
     marginBottom: spacing['4'],
   },
-  exerciseList: { gap: 0 },
+
+  // Exercises
+  exerciseList:    { gap: 0 },
   exerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',

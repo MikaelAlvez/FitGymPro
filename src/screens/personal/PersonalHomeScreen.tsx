@@ -1,33 +1,43 @@
 import React from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, FlatList,
+  StyleSheet, FlatList, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useAuth } from '../../contexts/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../theme';
 
+// ─── Config ──────────────────────────────────
+const getBaseUrl = () => {
+  const host = Constants.expoConfig?.hostUri
+    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
+    ?? Constants.manifest?.debuggerHost
+  if (host) return `http://${host.split(':')[0]}:3333`
+  return 'http://10.0.2.2:3333'
+}
+
 // ─── Mock data ───────────────────────────────
 const AGENDA = [
-  { id: '1', name: 'Carlos Silva',   time: '08:00', type: 'Presencial', done: true  },
-  { id: '2', name: 'Ana Souza',      time: '09:30', type: 'Online',     done: false },
-  { id: '3', name: 'Pedro Lima',     time: '11:00', type: 'Presencial', done: false },
-  { id: '4', name: 'Julia Mendes',   time: '14:00', type: 'Híbrido',    done: false },
+  { id: '1', name: 'Carlos Silva',  time: '08:00', type: 'Presencial', done: true  },
+  { id: '2', name: 'Ana Souza',     time: '09:30', type: 'Online',     done: false },
+  { id: '3', name: 'Pedro Lima',    time: '11:00', type: 'Presencial', done: false },
+  { id: '4', name: 'Julia Mendes',  time: '14:00', type: 'Híbrido',    done: false },
 ];
 
 const STUDENTS = [
-  { id: '1', name: 'Carlos Silva',  goal: 'Hipertrofia',   initials: 'CS' },
-  { id: '2', name: 'Ana Souza',     goal: 'Emagrecimento', initials: 'AS' },
-  { id: '3', name: 'Pedro Lima',    goal: 'Resistência',   initials: 'PL' },
-  { id: '4', name: 'Julia Mendes',  goal: 'Hipertrofia',   initials: 'JM' },
+  { id: '1', name: 'Carlos Silva',  goal: 'Hipertrofia',     initials: 'CS' },
+  { id: '2', name: 'Ana Souza',     goal: 'Emagrecimento',   initials: 'AS' },
+  { id: '3', name: 'Pedro Lima',    goal: 'Resistência',     initials: 'PL' },
+  { id: '4', name: 'Julia Mendes',  goal: 'Hipertrofia',     initials: 'JM' },
   { id: '5', name: 'Marcos Rocha',  goal: 'Condicionamento', initials: 'MR' },
 ];
 
 const WORKOUTS = [
-  { id: '1', name: 'Treino A — Peito e Tríceps',  students: 4, updatedAt: 'hoje'       },
-  { id: '2', name: 'Treino B — Costas e Bíceps',  students: 3, updatedAt: 'ontem'      },
-  { id: '3', name: 'Treino C — Pernas e Ombros',  students: 5, updatedAt: 'há 3 dias'  },
+  { id: '1', name: 'Treino A — Peito e Tríceps', students: 4, updatedAt: 'hoje'      },
+  { id: '2', name: 'Treino B — Costas e Bíceps', students: 3, updatedAt: 'ontem'     },
+  { id: '3', name: 'Treino C — Pernas e Ombros', students: 5, updatedAt: 'há 3 dias' },
 ];
 
 // ─── Sub-componentes ─────────────────────────
@@ -68,8 +78,8 @@ function AgendaCard({ item }: { item: typeof AGENDA[0] }) {
 function StudentChip({ item }: { item: typeof STUDENTS[0] }) {
   return (
     <TouchableOpacity style={s.studentChip} activeOpacity={0.8}>
-      <View style={s.avatar}>
-        <Text style={s.avatarText}>{item.initials}</Text>
+      <View style={s.studentAvatar}>
+        <Text style={s.studentAvatarText}>{item.initials}</Text>
       </View>
       <Text style={s.studentName} numberOfLines={1}>{item.name.split(' ')[0]}</Text>
       <Text style={s.studentGoal} numberOfLines={1}>{item.goal}</Text>
@@ -94,14 +104,15 @@ function WorkoutCard({ item }: { item: typeof WORKOUTS[0] }) {
 
 // ─── Screen ──────────────────────────────────
 export function PersonalHomeScreen() {
-  const { user } = useAuth();
-  const firstName = user?.name?.split(' ')[0] ?? 'Personal';
+  const { user } = useAuth()
+  const firstName = user?.name?.split(' ')[0] ?? 'Personal'
+  const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long', day: 'numeric', month: 'long',
-  });
+  })
 
-  const doneCount    = AGENDA.filter(a => a.done).length;
-  const pendingCount = AGENDA.length - doneCount;
+  const doneCount    = AGENDA.filter(a => a.done).length
+  const pendingCount = AGENDA.length - doneCount
 
   return (
     <SafeAreaView style={s.safe}>
@@ -109,9 +120,20 @@ export function PersonalHomeScreen() {
 
         {/* Header */}
         <View style={s.header}>
-          <View>
-            <Text style={s.greeting}>Olá, {firstName} 👋</Text>
-            <Text style={s.date}>{today}</Text>
+          <View style={s.headerLeft}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={s.headerAvatar} />
+            ) : (
+              <View style={s.headerAvatarPlaceholder}>
+                <Text style={s.headerAvatarInitial}>
+                  {firstName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View>
+              <Text style={s.greeting}>Olá, {firstName} 👋</Text>
+              <Text style={s.date}>{today}</Text>
+            </View>
           </View>
           <TouchableOpacity style={s.notifBtn}>
             <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
@@ -173,6 +195,31 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing['5'],
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['3'],
+  },
+  headerAvatar: {
+    width: 46, height: 46,
+    borderRadius: radii.full,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  headerAvatarPlaceholder: {
+    width: 46, height: 46,
+    borderRadius: radii.full,
+    backgroundColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  headerAvatarInitial: {
+    fontFamily: typography.family.bold,
+    fontSize: typography.size.lg,
+    color: colors.white,
   },
   greeting: {
     fontFamily: typography.family.bold,
@@ -289,7 +336,7 @@ const s = StyleSheet.create({
   textDone: { color: colors.textDisabled },
 
   // Students
-  studentsRow:  { gap: spacing['3'], paddingVertical: spacing['2'] },
+  studentsRow: { gap: spacing['3'], paddingVertical: spacing['2'] },
   studentChip: {
     width: 90,
     alignItems: 'center',
@@ -299,14 +346,14 @@ const s = StyleSheet.create({
     gap: spacing['2'],
     ...shadows.sm,
   },
-  avatar: {
+  studentAvatar: {
     width: 44, height: 44,
     borderRadius: radii.full,
     backgroundColor: colors.primaryDark,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: {
+  studentAvatarText: {
     fontFamily: typography.family.bold,
     fontSize: typography.size.sm,
     color: colors.white,
