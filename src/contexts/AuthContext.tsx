@@ -5,39 +5,47 @@ import React, {
   useCallback,
   useEffect,
   ReactNode,
-} from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+} from 'react'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { authService } from '../services/auth.service'
+import type {
+  RegisterStudentPayload,
+  RegisterPersonalPayload,
+} from '../services/auth.service'
 
 // ─── Types ───────────────────────────────────
-export type UserRole = 'personal' | 'student';
+export type UserRole = 'PERSONAL' | 'STUDENT'
 
 export interface User {
-  id:       string;
-  name:     string;
-  email:    string;
-  role:     UserRole;
-  avatar?:  string;
+  id:      string
+  name:    string
+  email:   string
+  role:    UserRole
+  avatar?: string
 }
 
 interface AuthState {
-  user:        User | null;
-  token:       string | null;
-  isLoading:   boolean;
-  isAuthenticated: boolean;
+  user:            User | null
+  token:           string | null
+  isLoading:       boolean
+  isAuthenticated: boolean
 }
 
 interface AuthContextData extends AuthState {
-  signIn:  (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  signIn:           (email: string, password: string) => Promise<void>
+  signOut:          () => Promise<void>
+  registerStudent:  (payload: RegisterStudentPayload) => Promise<void>
+  registerPersonal: (payload: RegisterPersonalPayload) => Promise<void>
 }
 
 // ─── Context ─────────────────────────────────
-const AuthContext = createContext<AuthContextData>({} as AuthContextData);
+const AuthContext = createContext<AuthContextData>({} as AuthContextData)
 
 const STORAGE_KEYS = {
-  USER:  '@fitgym:user',
-  TOKEN: '@fitgym:token',
-} as const;
+  USER:          '@fitgym:user',
+  TOKEN:         '@fitgym:token',
+  REFRESH_TOKEN: '@fitgym:refresh_token',
+} as const
 
 // ─── Provider ────────────────────────────────
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -46,67 +54,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     token:           null,
     isLoading:       true,
     isAuthenticated: false,
-  });
+  })
 
   // Restaura sessão ao abrir o app
   useEffect(() => {
     (async () => {
       try {
-        // DEV: comente o bloco abaixo para sempre iniciar no login
         const [storedUser, storedToken] = await AsyncStorage.multiGet([
           STORAGE_KEYS.USER,
           STORAGE_KEYS.TOKEN,
-        ]);
-        const user  = storedUser[1]  ? (JSON.parse(storedUser[1]) as User) : null;
-        const token = storedToken[1] ?? null;
+        ])
+        const user  = storedUser[1]  ? (JSON.parse(storedUser[1]) as User) : null
+        const token = storedToken[1] ?? null
 
-        // Limpa sessão salva para sempre iniciar no login durante dev
-        await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN]);
-        setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
+        setState({ user, token, isLoading: false, isAuthenticated: !!token })
       } catch {
-        setState(s => ({ ...s, isLoading: false }));
+        setState(s => ({ ...s, isLoading: false }))
       }
-    })();
-  }, []);
+    })()
+  }, [])
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    // TODO: substituir pela chamada real à API
-    const mockUser: User = {
-      id:    '1',
-      name:  'João Personal',
-      email,
-      role:  email.includes('personal') ? 'personal' : 'student',
-    };
-    const mockToken = 'mock-jwt-token';
-
+  // ─── Persiste sessão ─────────────────────────
+  const persistSession = useCallback(async (user: User, token: string, refreshToken: string) => {
     await AsyncStorage.multiSet([
-      [STORAGE_KEYS.USER,  JSON.stringify(mockUser)],
-      [STORAGE_KEYS.TOKEN, mockToken],
-    ]);
+      [STORAGE_KEYS.USER,          JSON.stringify(user)],
+      [STORAGE_KEYS.TOKEN,         token],
+      [STORAGE_KEYS.REFRESH_TOKEN, refreshToken],
+    ])
+    setState({ user, token, isLoading: false, isAuthenticated: true })
+  }, [])
 
-    setState({
-      user:            mockUser,
-      token:           mockToken,
-      isLoading:       false,
-      isAuthenticated: true,
-    });
-  }, []);
+  // ─── Sign In ─────────────────────────────────
+  const signIn = useCallback(async (email: string, password: string) => {
+    const { user, accessToken, refreshToken } = await authService.login({ email, password })
+    await persistSession(user, accessToken, refreshToken)
+  }, [persistSession])
 
+  // ─── Sign Out ─────────────────────────────────
   const signOut = useCallback(async () => {
-    await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN]);
-    setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
-  }, []);
+    try {
+      const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
+      if (refreshToken) await authService.logout(refreshToken)
+    } catch {
+      // ignora erro de rede no logout
+    } finally {
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.USER,
+        STORAGE_KEYS.TOKEN,
+        STORAGE_KEYS.REFRESH_TOKEN,
+      ])
+      setState({ user: null, token: null, isLoading: false, isAuthenticated: false })
+    }
+  }, [])
+
+  // ─── Register Student ─────────────────────────
+  const registerStudent = useCallback(async (payload: RegisterStudentPayload) => {
+    const { user, accessToken, refreshToken } = await authService.registerStudent(payload)
+    await persistSession(user, accessToken, refreshToken)
+  }, [persistSession])
+
+  // ─── Register Personal ────────────────────────
+  const registerPersonal = useCallback(async (payload: RegisterPersonalPayload) => {
+    const { user, accessToken, refreshToken } = await authService.registerPersonal(payload)
+    await persistSession(user, accessToken, refreshToken)
+  }, [persistSession])
 
   return (
-    <AuthContext.Provider value={{ ...state, signIn, signOut }}>
+    <AuthContext.Provider value={{
+      ...state,
+      signIn,
+      signOut,
+      registerStudent,
+      registerPersonal,
+    }}>
       {children}
     </AuthContext.Provider>
-  );
+  )
 }
 
 // ─── Hook ────────────────────────────────────
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
 }
