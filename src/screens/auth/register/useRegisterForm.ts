@@ -27,52 +27,60 @@ export const stepOneSchema = z
     path:    ['confirmPassword'],
   });
 
+export const stepAddressSchema = z.object({
+  cep:          z.string().optional(),
+  street:       z.string().optional(),
+  number:       z.string().optional(),
+  neighborhood: z.string().optional(),
+  city:         z.string({ message: 'Cidade é obrigatória' }).min(2, 'Cidade é obrigatória'),
+  state:        z.string({ message: 'Estado é obrigatório' }).min(2, 'Estado é obrigatório'),
+});
+
 export const stepTwoSchema = z.object({
   role: z.enum(['PERSONAL', 'STUDENT'], {
     message: 'Selecione um perfil para continuar',
   }),
 });
 
-export type StepOneData = z.infer<typeof stepOneSchema>;
-export type StepTwoData = z.infer<typeof stepTwoSchema>;
+export type StepOneData    = z.infer<typeof stepOneSchema>;
+export type StepAddressData = z.infer<typeof stepAddressSchema>;
+export type StepTwoData    = z.infer<typeof stepTwoSchema>;
 
 export interface RegisterFormData extends StepOneData {
-  role: UserRole;
+  role:    UserRole;
+  address: StepAddressData;
 }
 
 // ─── Hook ────────────────────────────────────
 export function useRegisterForm() {
-  const [step,        setStep]        = useState<1 | 2>(1);
+  const [step,        setStep]        = useState<1 | 2 | 3>(1);
   const [stepOneData, setStepOneData] = useState<StepOneData | null>(null);
+  const [stepAddressData, setStepAddressData] = useState<StepAddressData | null>(null);
   const [avatarUri,   setAvatarUri]   = useState<string | null>(null);
 
-  const formOne = useForm<StepOneData>({
-    resolver: zodResolver(stepOneSchema),
-  });
+  const formOne     = useForm<StepOneData>    ({ resolver: zodResolver(stepOneSchema)     });
+  const formAddress = useForm<StepAddressData>({ resolver: zodResolver(stepAddressSchema) });
+  const formTwo     = useForm<StepTwoData>    ({ resolver: zodResolver(stepTwoSchema)     });
 
-  const formTwo = useForm<StepTwoData>({
-    resolver: zodResolver(stepTwoSchema),
-  });
-
-  const goToStep2 = (data: StepOneData) => {
-    setStepOneData(data);
-    setStep(2);
-  };
-
-  const goBack = () => setStep(1);
+  const goToStep2 = (data: StepOneData)     => { setStepOneData(data);    setStep(2); };
+  const goToStep3 = (data: StepAddressData) => { setStepAddressData(data); setStep(3); };
+  const goBack    = () => setStep(s => Math.max(s - 1, 1) as 1 | 2 | 3);
 
   const getFullData = (data: StepTwoData): RegisterFormData => ({
     ...stepOneData!,
-    role: data.role as UserRole,
+    role:    data.role as UserRole,
+    address: stepAddressData!,
   });
 
   return {
     step,
     formOne,
+    formAddress,
     formTwo,
     avatarUri,
     setAvatarUri,
     goToStep2,
+    goToStep3,
     goBack,
     getFullData,
   };
