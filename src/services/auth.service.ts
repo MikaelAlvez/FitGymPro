@@ -81,6 +81,12 @@ export const authService = {
       body:   JSON.stringify({ email }),
     }),
 
+  checkCpf: (cpf: string) =>
+    apiRequest<{ available: boolean }>('/auth/check-cpf', {
+      method: 'POST',
+      body:   JSON.stringify({ cpf }),
+    }),
+
   logout: (refreshToken: string) =>
     apiRequest<void>('/auth/logout', {
       method: 'POST',
