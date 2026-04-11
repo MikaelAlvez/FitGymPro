@@ -64,12 +64,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           STORAGE_KEYS.USER,
           STORAGE_KEYS.TOKEN,
         ])
-        const user  = storedUser[1]  ? (JSON.parse(storedUser[1]) as User) : null
         const token = storedToken[1] ?? null
 
-        setState({ user, token, isLoading: false, isAuthenticated: !!token })
+        if (!token) {
+          setState({ user: null, token: null, isLoading: false, isAuthenticated: false })
+          return
+        }
+
+        // Valida o token contra a API — garante que o usuário ainda existe no banco
+        const user = await authService.me()
+
+        setState({ user, token, isLoading: false, isAuthenticated: true })
       } catch {
-        setState(s => ({ ...s, isLoading: false }))
+        // Token inválido, expirado ou usuário não existe mais — limpa a sessão
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.USER,
+          STORAGE_KEYS.TOKEN,
+          STORAGE_KEYS.REFRESH_TOKEN,
+        ])
+        setState({ user: null, token: null, isLoading: false, isAuthenticated: false })
       }
     })()
   }, [])
