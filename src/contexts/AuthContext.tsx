@@ -36,6 +36,7 @@ interface AuthContextData extends AuthState {
   signOut:          () => Promise<void>
   registerStudent:  (payload: RegisterStudentPayload) => Promise<void>
   registerPersonal: (payload: RegisterPersonalPayload) => Promise<void>
+  updateUser:       (updated: Partial<User>) => Promise<void>
 }
 
 // ─── Context ─────────────────────────────────
@@ -97,6 +98,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user, token, isLoading: false, isAuthenticated: true })
   }, [])
 
+  // ─── Atualiza user no estado e storage ───────
+  const updateUser = useCallback(async (updated: Partial<User>) => {
+    setState(prev => {
+      if (!prev.user) return prev
+      const newUser = { ...prev.user, ...updated }
+      AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser))
+      return { ...prev, user: newUser }
+    })
+  }, [])
+
   // ─── Sign In ─────────────────────────────────
   const signIn = useCallback(async (email: string, password: string) => {
     const { user, accessToken, refreshToken } = await authService.login({ email, password })
@@ -139,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       registerStudent,
       registerPersonal,
+      updateUser,
     }}>
       {children}
     </AuthContext.Provider>

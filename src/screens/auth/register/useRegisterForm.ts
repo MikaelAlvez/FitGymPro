@@ -17,7 +17,7 @@ export const stepOneSchema = z
                       .min(1, 'E-mail é obrigatório')
                       .email('E-mail inválido'),
     phone:           z.string({ message: 'Telefone é obrigatório' })
-                      .min(10, 'Telefone inválido'),
+                      .min(14, 'Telefone inválido'),
     password:        z.string({ message: 'Senha é obrigatória' })
                       .min(6, 'Senha deve ter ao menos 6 caracteres'),
     confirmPassword: z.string({ message: 'Confirmação de senha é obrigatória' }),

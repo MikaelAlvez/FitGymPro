@@ -27,7 +27,7 @@ type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 
 export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
-  const { registerStudent, registerPersonal } = useAuth();
+  const { registerStudent, registerPersonal, updateUser } = useAuth();
   const {
     step, formOne, formTwo,
     avatarUri, setAvatarUri,   // ← fix: destructure setAvatarUri

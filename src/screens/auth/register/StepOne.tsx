@@ -14,13 +14,21 @@ import {
 import { Controller, UseFormReturn } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Input }                    from '../../../components/ui/Input';
-import { Button }                   from '../../../components/ui/Button';
-import { authService }              from '../../../services/auth.service';
-import { pickImage, takePhoto }     from '../../../services/upload.service';
-import { maskCpf }                  from '../../../utils/cpf';
-import type { StepOneData }         from './useRegisterForm';
+import { Input }                from '../../../components/ui/Input';
+import { Button }               from '../../../components/ui/Button';
+import { authService }          from '../../../services/auth.service';
+import { pickImage, takePhoto } from '../../../services/upload.service';
+import { maskCpf }              from '../../../utils/cpf';
+import type { StepOneData }     from './useRegisterForm';
 import { colors, typography, spacing, radii } from '../../../theme';
+
+// ─── Máscaras ────────────────────────────────
+function maskPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 2)  return `(${digits}`
+  if (digits.length <= 7)  return `(${digits.slice(0,2)}) ${digits.slice(2)}`
+  return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`
+}
 
 interface Props {
   form:         UseFormReturn<StepOneData>;
@@ -109,7 +117,6 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
 
       onSubmit(data)
     } catch (err: any) {
-      // Erro de rede — não bloqueia, deixa o backend rejeitar no final
       console.warn('Erro ao verificar dados:', err?.message)
       onSubmit(data)
     } finally {
@@ -200,7 +207,9 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
                 label="Telefone/Whatsapp"
                 placeholder="(00) 00000-0000"
                 keyboardType="phone-pad"
-                onChangeText={onChange} onBlur={onBlur} value={value}
+                maxLength={15}
+                onChangeText={raw => onChange(maskPhone(raw))}
+                onBlur={onBlur} value={value}
                 error={errors.phone?.message}
               />
             )}
