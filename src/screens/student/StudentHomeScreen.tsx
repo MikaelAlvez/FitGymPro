@@ -1,47 +1,112 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet,
+  StyleSheet, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { apiRequest } from '../../services/api';
 import { colors, typography, spacing, radii, shadows } from '../../theme';
 
-// ─── Mock data ───────────────────────────────
-const METRICS = [
-  { label: 'Peso',   value: '78 kg',  icon: 'scale-outline'       as const },
-  { label: 'Altura', value: '175 cm', icon: 'resize-outline'       as const },
-  { label: 'IMC',    value: '25.5',   icon: 'analytics-outline'    as const },
-  { label: 'Gordura', value: '18%',   icon: 'fitness-outline'      as const },
-];
+// ─── Types ───────────────────────────────────
+interface StudentProfile {
+  sex:          string
+  birthDate:    string
+  weight:       string
+  height:       string
+  goal:         string
+  focusMuscle:  string
+  experience:   string
+  trainingDays: string[]
+}
 
+// ─── Helpers ─────────────────────────────────
+function calcIMC(weight: string, height: string): string {
+  const w = parseFloat(weight)
+  const h = parseFloat(height) / 100 // cm → m
+  if (!w || !h) return '—'
+  return (w / (h * h)).toFixed(1)
+}
+
+function imcLabel(imc: string): string {
+  const v = parseFloat(imc)
+  if (isNaN(v))  return ''
+  if (v < 18.5)  return 'Abaixo do peso'
+  if (v < 24.9)  return 'Peso normal'
+  if (v < 29.9)  return 'Sobrepeso'
+  return 'Obesidade'
+}
+
+// ─── Mock treino (substituir quando módulo de treinos estiver pronto) ───
 const WORKOUT = {
-  name: 'Treino A — Peito e Tríceps',
-  personal: 'João Personal',
+  name:      'Treino A — Peito e Tríceps',
+  personal:  'Personal Trainer',
   exercises: [
-    { id: '1', name: 'Supino reto',         sets: '4x12', done: true  },
-    { id: '2', name: 'Crucifixo',           sets: '3x15', done: true  },
-    { id: '3', name: 'Supino inclinado',    sets: '3x12', done: false },
-    { id: '4', name: 'Tríceps pulley',      sets: '4x12', done: false },
-    { id: '5', name: 'Tríceps francês',     sets: '3x12', done: false },
+    { id: '1', name: 'Supino reto',      sets: '4x12', done: false },
+    { id: '2', name: 'Crucifixo',        sets: '3x15', done: false },
+    { id: '3', name: 'Supino inclinado', sets: '3x12', done: false },
+    { id: '4', name: 'Tríceps pulley',   sets: '4x12', done: false },
+    { id: '5', name: 'Tríceps francês',  sets: '3x12', done: false },
   ],
-};
+}
 
 // ─── Screen ──────────────────────────────────
 export function StudentHomeScreen() {
-  const { user } = useAuth();
-  const firstName = user?.name?.split(' ')[0] ?? 'Aluno';
+  const { user, signOut } = useAuth()
+  const firstName = user?.name?.split(' ')[0] ?? 'Aluno'
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long', day: 'numeric', month: 'long',
-  });
+  })
 
-  const [exercises, setExercises] = useState(WORKOUT.exercises);
-  const doneCount = exercises.filter(e => e.done).length;
-  const progress  = doneCount / exercises.length;
+  const [profile,    setProfile]    = useState<StudentProfile | null>(null)
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [exercises,  setExercises]  = useState(WORKOUT.exercises)
+  const [menuVisible, setMenuVisible] = useState(false)
+
+  const doneCount = exercises.filter(e => e.done).length
+  const progress  = exercises.length > 0 ? doneCount / exercises.length : 0
+
+  // ─── Busca perfil do aluno ────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await apiRequest<{ studentProfile: StudentProfile }>(
+          '/auth/me/profile',
+          { authenticated: true },
+        )
+        setProfile(data.studentProfile)
+      } catch {
+        // silencia — usa placeholders
+      } finally {
+        setLoadingProfile(false)
+      }
+    })()
+  }, [])
+
+  const imc = profile ? calcIMC(profile.weight, profile.height) : '—'
+
+  const METRICS = [
+    { label: 'Peso',   value: profile ? `${profile.weight} kg`  : '—', icon: 'scale-outline'    as const },
+    { label: 'Altura', value: profile ? `${profile.height} cm`  : '—', icon: 'resize-outline'   as const },
+    { label: 'IMC',    value: imc,                                       icon: 'analytics-outline' as const },
+    { label: 'Objetivo', value: profile?.goal ?? '—',                   icon: 'fitness-outline'  as const },
+  ]
 
   const toggleExercise = (id: string) =>
-    setExercises(prev => prev.map(e => e.id === id ? { ...e, done: !e.done } : e));
+    setExercises(prev => prev.map(e => e.id === id ? { ...e, done: !e.done } : e))
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Sair',
+      'Deseja realmente sair da sua conta?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: () => signOut() },
+      ],
+    )
+    setMenuVisible(false)
+  }
 
   return (
     <SafeAreaView style={s.safe}>
@@ -53,22 +118,31 @@ export function StudentHomeScreen() {
             <Text style={s.greeting}>Olá, {firstName} 💪</Text>
             <Text style={s.date}>{today}</Text>
           </View>
-          <TouchableOpacity style={s.notifBtn}>
-            <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
+          <TouchableOpacity style={s.notifBtn} onPress={() => setMenuVisible(true)}>
+            <Ionicons name="ellipsis-vertical" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
         {/* Métricas corporais */}
         <Text style={s.sectionTitle}>Minhas métricas</Text>
-        <View style={s.metricsGrid}>
-          {METRICS.map(m => (
-            <View key={m.label} style={s.metricCard}>
-              <Ionicons name={m.icon} size={20} color={colors.primary} />
-              <Text style={s.metricValue}>{m.value}</Text>
-              <Text style={s.metricLabel}>{m.label}</Text>
+        {loadingProfile ? (
+          <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing['4'] }} />
+        ) : (
+          <>
+            <View style={s.metricsGrid}>
+              {METRICS.map(m => (
+                <View key={m.label} style={s.metricCard}>
+                  <Ionicons name={m.icon} size={20} color={colors.primary} />
+                  <Text style={s.metricValue} numberOfLines={1}>{m.value}</Text>
+                  <Text style={s.metricLabel}>{m.label}</Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
+            {profile && (
+              <Text style={s.imcLabel}>{imcLabel(imc)}</Text>
+            )}
+          </>
+        )}
 
         {/* Treino do dia */}
         <View style={s.sectionHeader}>
@@ -78,9 +152,7 @@ export function StudentHomeScreen() {
           </View>
         </View>
 
-        {/* Card do treino */}
         <View style={s.workoutCard}>
-          {/* Info */}
           <View style={s.workoutHeader}>
             <View style={s.workoutIconBox}>
               <Ionicons name="barbell" size={20} color={colors.primary} />
@@ -91,15 +163,11 @@ export function StudentHomeScreen() {
             </View>
           </View>
 
-          {/* Barra de progresso */}
           <View style={s.progressBar}>
             <View style={[s.progressFill, { width: `${progress * 100}%` as any }]} />
           </View>
-          <Text style={s.progressText}>
-            {Math.round(progress * 100)}% concluído
-          </Text>
+          <Text style={s.progressText}>{Math.round(progress * 100)}% concluído</Text>
 
-          {/* Lista de exercícios */}
           <View style={s.exerciseList}>
             {exercises.map((ex, i) => (
               <TouchableOpacity
@@ -114,9 +182,7 @@ export function StudentHomeScreen() {
                   color={ex.done ? colors.success : colors.border}
                 />
                 <View style={s.exerciseInfo}>
-                  <Text style={[s.exerciseName, ex.done && s.exerciseDone]}>
-                    {ex.name}
-                  </Text>
+                  <Text style={[s.exerciseName, ex.done && s.exerciseDone]}>{ex.name}</Text>
                   <Text style={s.exerciseSets}>{ex.sets}</Text>
                 </View>
               </TouchableOpacity>
@@ -125,8 +191,28 @@ export function StudentHomeScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Menu dropdown */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={s.menuOverlay}
+          activeOpacity={1}
+          onPress={() => setMenuVisible(false)}
+        />
+        <View style={s.menuBox}>
+          <TouchableOpacity style={s.menuItem} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color={colors.error} />
+            <Text style={s.menuItemTextDanger}>Sair da conta</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </SafeAreaView>
-  );
+  )
 }
 
 // ─── Styles ──────────────────────────────────
@@ -134,7 +220,6 @@ const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -161,7 +246,6 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Métricas
   sectionTitle: {
     fontFamily: typography.family.semiBold,
     fontSize: typography.size.base,
@@ -173,7 +257,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing['3'],
-    marginBottom: spacing['2'],
+    marginBottom: spacing['1'],
   },
   metricCard: {
     width: '47%',
@@ -186,7 +270,7 @@ const s = StyleSheet.create({
   },
   metricValue: {
     fontFamily: typography.family.bold,
-    fontSize: typography.size.xl,
+    fontSize: typography.size.lg,
     color: colors.textPrimary,
   },
   metricLabel: {
@@ -194,8 +278,14 @@ const s = StyleSheet.create({
     fontSize: typography.size.xs,
     color: colors.textSecondary,
   },
+  imcLabel: {
+    fontFamily: typography.family.medium,
+    fontSize: typography.size.xs,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing['2'],
+  },
 
-  // Section header com badge
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -215,7 +305,6 @@ const s = StyleSheet.create({
     color: colors.white,
   },
 
-  // Workout card
   workoutCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
@@ -235,7 +324,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  workoutInfo:    { flex: 1 },
+  workoutInfo: { flex: 1 },
   workoutName: {
     fontFamily: typography.family.semiBold,
     fontSize: typography.size.md,
@@ -247,8 +336,6 @@ const s = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
-
-  // Progress bar
   progressBar: {
     height: 6,
     backgroundColor: colors.surfaceHigh,
@@ -268,9 +355,7 @@ const s = StyleSheet.create({
     textAlign: 'right',
     marginBottom: spacing['4'],
   },
-
-  // Exercises
-  exerciseList:    { gap: 0 },
+  exerciseList: { gap: 0 },
   exerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -297,4 +382,33 @@ const s = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
-});
+
+  // Menu
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  menuBox: {
+    position: 'absolute',
+    top: 90,
+    right: spacing['5'],
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.md,
+    minWidth: 160,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['3'],
+    paddingVertical: spacing['4'],
+    paddingHorizontal: spacing['4'],
+  },
+  menuItemTextDanger: {
+    fontFamily: typography.family.medium,
+    fontSize: typography.size.md,
+    color: colors.error,
+  },
+})
