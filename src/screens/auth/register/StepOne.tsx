@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,20 +11,45 @@ import {
 import { Controller, UseFormReturn } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Input }   from '../../../components/ui/Input';
-import { Button }  from '../../../components/ui/Button';
-import type { StepOneData } from './useRegisterForm';
+import { Input }              from '../../../components/ui/Input';
+import { Button }             from '../../../components/ui/Button';
+import { authService }        from '../../../services/auth.service';
+import type { StepOneData }   from './useRegisterForm';
 import { colors, typography, spacing, radii } from '../../../theme';
 
 interface Props {
-  form:      UseFormReturn<StepOneData>;
-  avatarUri: string | null;
+  form:         UseFormReturn<StepOneData>;
+  avatarUri:    string | null;
   onPickAvatar: () => void;
-  onSubmit:  (data: StepOneData) => void;
+  onSubmit:     (data: StepOneData) => void;
 }
 
 export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
-  const { control, handleSubmit, formState: { errors, isSubmitting } } = form;
+  const { control, handleSubmit, setError, formState: { errors, isSubmitting } } = form;
+  const [checking, setChecking] = useState(false);
+
+  // Valida e-mail na API antes de avançar
+  const handleContinue = async (data: StepOneData) => {
+    try {
+      setChecking(true);
+      const { available } = await authService.checkEmail(data.email);
+      if (!available) {
+        setError('email', {
+          type:    'manual',
+          message: 'E-mail já cadastrado. Use outro ou faça login.',
+        });
+        return;
+      }
+      onSubmit(data);
+    } catch {
+      setError('email', {
+        type:    'manual',
+        message: 'Não foi possível verificar o e-mail. Tente novamente.',
+      });
+    } finally {
+      setChecking(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -47,10 +72,8 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
           <Text style={styles.avatarLabel}>Adicionar foto</Text>
         </TouchableOpacity>
 
-        {/* Seção */}
         <Text style={styles.sectionTitle}>Dados pessoais</Text>
 
-        {/* Campos */}
         <View style={styles.fields}>
           <Controller
             control={control} name="name"
@@ -64,6 +87,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
               />
             )}
           />
+
           <Controller
             control={control} name="email"
             render={({ field: { onChange, onBlur, value } }) => (
@@ -77,6 +101,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
               />
             )}
           />
+
           <Controller
             control={control} name="phone"
             render={({ field: { onChange, onBlur, value } }) => (
@@ -89,6 +114,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
               />
             )}
           />
+
           <Controller
             control={control} name="password"
             render={({ field: { onChange, onBlur, value } }) => (
@@ -101,6 +127,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
               />
             )}
           />
+
           <Controller
             control={control} name="confirmPassword"
             render={({ field: { onChange, onBlur, value } }) => (
@@ -117,8 +144,8 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
 
         <Button
           label="Continuar"
-          onPress={handleSubmit(onSubmit)}
-          loading={isSubmitting}
+          onPress={handleSubmit(handleContinue)}
+          loading={isSubmitting || checking}
           style={styles.btn}
         />
       </ScrollView>
@@ -133,8 +160,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing['6'],
     paddingBottom: spacing['10'],
   },
-
-  // Avatar
   avatarBtn: {
     alignItems: 'center',
     marginVertical: spacing['6'],
@@ -152,10 +177,8 @@ const styles = StyleSheet.create({
   },
   avatarBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 22,
-    height: 22,
+    bottom: 0, right: 0,
+    width: 22, height: 22,
     borderRadius: radii.full,
     backgroundColor: colors.primary,
     alignItems: 'center',
@@ -167,15 +190,12 @@ const styles = StyleSheet.create({
     fontSize: typography.size.sm,
     color: colors.textSecondary,
   },
-
   sectionTitle: {
     fontFamily: typography.family.bold,
     fontSize: typography.size.lg,
     color: colors.textPrimary,
     marginBottom: spacing['4'],
   },
-
   fields: { gap: spacing['4'] },
-
-  btn: { marginTop: spacing['8'] },
+  btn:    { marginTop: spacing['8'] },
 });
