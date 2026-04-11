@@ -7,20 +7,24 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Alert,
+  ActionSheetIOS,
 } from 'react-native';
 import { Controller, UseFormReturn } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Input }              from '../../../components/ui/Input';
-import { Button }             from '../../../components/ui/Button';
-import { authService }        from '../../../services/auth.service';
-import type { StepOneData }   from './useRegisterForm';
+import { Input }            from '../../../components/ui/Input';
+import { Button }           from '../../../components/ui/Button';
+import { authService }      from '../../../services/auth.service';
+import { pickImage, takePhoto } from '../../../services/upload.service';
+import type { StepOneData } from './useRegisterForm';
 import { colors, typography, spacing, radii } from '../../../theme';
 
 interface Props {
   form:         UseFormReturn<StepOneData>;
   avatarUri:    string | null;
-  onPickAvatar: () => void;
+  onPickAvatar: (uri: string) => void;
   onSubmit:     (data: StepOneData) => void;
 }
 
@@ -28,28 +32,44 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
   const { control, handleSubmit, setError, formState: { errors, isSubmitting } } = form;
   const [checking, setChecking] = useState(false);
 
-  // Valida e-mail na API antes de avançar
+  // ─── Selecionar foto ─────────────────────────
+  const handlePickAvatar = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancelar', 'Tirar foto', 'Escolher da galeria'],
+          cancelButtonIndex: 0,
+        },
+        async (idx) => {
+          if (idx === 1) { const uri = await takePhoto();  if (uri) onPickAvatar(uri) }
+          if (idx === 2) { const uri = await pickImage();  if (uri) onPickAvatar(uri) }
+        },
+      )
+    } else {
+      Alert.alert('Foto de perfil', 'Escolha uma opção', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Tirar foto',           onPress: async () => { const uri = await takePhoto(); if (uri) onPickAvatar(uri) } },
+        { text: 'Escolher da galeria',  onPress: async () => { const uri = await pickImage(); if (uri) onPickAvatar(uri) } },
+      ])
+    }
+  }
+
+  // ─── Valida e-mail na API ─────────────────────
   const handleContinue = async (data: StepOneData) => {
     try {
-      setChecking(true);
-      const { available } = await authService.checkEmail(data.email);
+      setChecking(true)
+      const { available } = await authService.checkEmail(data.email)
       if (!available) {
-        setError('email', {
-          type:    'manual',
-          message: 'E-mail já cadastrado. Use outro ou faça login.',
-        });
-        return;
+        setError('email', { type: 'manual', message: 'E-mail já cadastrado. Use outro ou faça login.' })
+        return
       }
-      onSubmit(data);
+      onSubmit(data)
     } catch {
-      setError('email', {
-        type:    'manual',
-        message: 'Não foi possível verificar o e-mail. Tente novamente.',
-      });
+      setError('email', { type: 'manual', message: 'Não foi possível verificar o e-mail. Tente novamente.' })
     } finally {
-      setChecking(false);
+      setChecking(false)
     }
-  };
+  }
 
   return (
     <KeyboardAvoidingView
@@ -62,14 +82,20 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
         showsVerticalScrollIndicator={false}
       >
         {/* Avatar */}
-        <TouchableOpacity style={styles.avatarBtn} onPress={onPickAvatar} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.avatarBtn} onPress={handlePickAvatar} activeOpacity={0.8}>
           <View style={styles.avatarCircle}>
-            <Ionicons name="image-outline" size={36} color={colors.textSecondary} />
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+            ) : (
+              <Ionicons name="image-outline" size={36} color={colors.textSecondary} />
+            )}
             <View style={styles.avatarBadge}>
-              <Ionicons name="add" size={14} color={colors.white} />
+              <Ionicons name={avatarUri ? 'pencil' : 'add'} size={14} color={colors.white} />
             </View>
           </View>
-          <Text style={styles.avatarLabel}>Adicionar foto</Text>
+          <Text style={styles.avatarLabel}>
+            {avatarUri ? 'Alterar foto' : 'Adicionar foto'}
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Dados pessoais</Text>
@@ -174,6 +200,12 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: radii.full,
   },
   avatarBadge: {
     position: 'absolute',
