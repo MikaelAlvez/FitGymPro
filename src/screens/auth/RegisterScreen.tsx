@@ -1,23 +1,20 @@
 import React from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
+  View, Text, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { StepOne }                  from './register/StepOne';
-import { StepTwo }                  from './register/StepTwo';
-import { StudentRegisterFlow }      from './register/student/StudentRegisterFlow';
-import { PersonalRegisterFlow }     from './register/personal/PersonalRegisterFlow';
-import { useRegisterForm }          from './register/useRegisterForm';
-import { useAuth }                  from '../../contexts/AuthContext';
-import { uploadAvatar }             from '../../services/upload.service';   // ← fix
+import { StepOne }              from './register/StepOne';
+import { StepAddress }          from './register/StepAddress';
+import { StepTwo }              from './register/StepTwo';
+import { StudentRegisterFlow }  from './register/student/StudentRegisterFlow';
+import { PersonalRegisterFlow } from './register/personal/PersonalRegisterFlow';
+import { useRegisterForm }      from './register/useRegisterForm';
+import { useAuth }              from '../../contexts/AuthContext';
+import { uploadAvatar }         from '../../services/upload.service';
 import type { StepTwoData }         from './register/useRegisterForm';
 import type { PersonalProfileData } from './register/personal/usePersonalForm';
 import type { AuthStackParamList }  from '../../navigation/AuthNavigator';
@@ -29,9 +26,9 @@ export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
   const { registerStudent, registerPersonal, updateUser } = useAuth();
   const {
-    step, formOne, formTwo,
-    avatarUri, setAvatarUri,   // ← fix: destructure setAvatarUri
-    goToStep2, goBack, getFullData,
+    step, formOne, formAddress, formTwo,
+    avatarUri, setAvatarUri,
+    goToStep2, goToStep3, goBack, getFullData,
   } = useRegisterForm();
 
   const [loading,          setLoading]          = React.useState(false);
@@ -39,11 +36,9 @@ export function RegisterScreen() {
   const [showPersonalFlow, setShowPersonalFlow] = React.useState(false);
   const [stepTwoData,      setStepTwoData]      = React.useState<StepTwoData | null>(null);
 
-  const totalSteps = showStudentFlow ? 7 : showPersonalFlow ? 5 : 2;
+  const totalSteps = showStudentFlow ? 8 : showPersonalFlow ? 6 : 3;
 
-  const handlePickAvatar = (uri: string) => {
-    setAvatarUri(uri);
-  };
+  const handlePickAvatar = (uri: string) => setAvatarUri(uri);
 
   const handleRoleSelected = (data: StepTwoData) => {
     setStepTwoData(data);
@@ -54,10 +49,9 @@ export function RegisterScreen() {
   const uploadAvatarIfSelected = async () => {
     if (!avatarUri) return;
     try {
-      await uploadAvatar(avatarUri);
-    } catch {
-      // Não bloqueia o fluxo se o upload falhar
-    }
+      const url = await uploadAvatar(avatarUri);
+      await updateUser({ avatar: url });
+    } catch {}
   };
 
   const handleStudentComplete = async (profileData: any) => {
@@ -71,6 +65,12 @@ export function RegisterScreen() {
         phone:        base.phone,
         password:     base.password,
         role:         'STUDENT',
+        cep:          base.address?.cep,
+        street:       base.address?.street,
+        number:       base.address?.number,
+        neighborhood: base.address?.neighborhood,
+        city:         base.address?.city,
+        state:        base.address?.state,
         sex:          profileData.sex,
         birthDate:    profileData.birthDate,
         weight:       profileData.weight,
@@ -101,6 +101,12 @@ export function RegisterScreen() {
         phone:          base.phone,
         password:       base.password,
         role:           'PERSONAL',
+        cep:            base.address?.cep,
+        street:         base.address?.street,
+        number:         base.address?.number,
+        neighborhood:   base.address?.neighborhood,
+        city:           base.address?.city,
+        state:          base.address?.state,
         sex:            profileData.sex,
         birthDate:      profileData.birthDate,
         weight:         profileData.weight,
@@ -122,67 +128,46 @@ export function RegisterScreen() {
 
   const handleBack = () => {
     if (showStudentFlow || showPersonalFlow) return;
-    if (step === 2) goBack();
-    else navigation.goBack();
+    if (step === 1) navigation.goBack();
+    else goBack();
   };
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={handleBack}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
+        <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-
         <Text style={styles.headerTitle}>Meu perfil</Text>
-
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Indicador de etapas */}
       <View style={styles.stepIndicator}>
         {Array.from({ length: totalSteps }).map((_, i) => {
           const currentStep = showStudentFlow || showPersonalFlow ? totalSteps : step;
           return (
-            <View
-              key={i}
-              style={[styles.stepDot, i < currentStep && styles.stepDotActive]}
-            />
+            <View key={i} style={[styles.stepDot, i < currentStep && styles.stepDotActive]} />
           );
         })}
       </View>
 
-      {/* Conteúdo */}
       {showStudentFlow ? (
         <StudentRegisterFlow onComplete={handleStudentComplete} />
       ) : showPersonalFlow ? (
         <PersonalRegisterFlow onComplete={handlePersonalComplete} />
       ) : step === 1 ? (
-        <StepOne
-          form={formOne}
-          avatarUri={avatarUri}
-          onPickAvatar={handlePickAvatar}
-          onSubmit={goToStep2}
-        />
+        <StepOne form={formOne} avatarUri={avatarUri} onPickAvatar={handlePickAvatar} onSubmit={goToStep2} />
+      ) : step === 2 ? (
+        <StepAddress form={formAddress} onSubmit={goToStep3} />
       ) : (
-        <StepTwo
-          form={formTwo}
-          onSubmit={handleRoleSelected}
-          isLoading={loading}
-        />
+        <StepTwo form={formTwo} onSubmit={handleRoleSelected} isLoading={loading} />
       )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -204,12 +189,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing['3'],
   },
   stepDot: {
-    width: 32,
-    height: 4,
+    width: 32, height: 4,
     borderRadius: 2,
     backgroundColor: colors.border,
   },
-  stepDotActive: {
-    backgroundColor: colors.primary,
-  },
+  stepDotActive: { backgroundColor: colors.primary },
 });

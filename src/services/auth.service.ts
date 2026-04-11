@@ -1,5 +1,13 @@
 import { apiRequest } from './api'
-import type { User } from '../contexts/AuthContext'
+
+// Declara User localmente para evitar problemas de path circular
+export interface User {
+  id:      string
+  name:    string
+  email:   string
+  role:    'PERSONAL' | 'STUDENT'
+  avatar?: string
+}
 
 // ─── Types ───────────────────────────────────
 export interface AuthResponse {
@@ -20,6 +28,14 @@ export interface RegisterStudentPayload {
   phone:        string
   password:     string
   role:         'STUDENT'
+  // Endereço
+  cep?:          string
+  street?:       string
+  number?:       string
+  neighborhood?: string
+  city?:         string
+  state?:        string
+  // Perfil
   sex:          string
   birthDate:    string
   weight:       string
@@ -40,6 +56,14 @@ export interface RegisterPersonalPayload {
   phone:          string
   password:       string
   role:           'PERSONAL'
+  // Endereço
+  cep?:           string
+  street?:        string
+  number?:        string
+  neighborhood?:  string
+  city?:          string
+  state?:         string
+  // Perfil
   sex:            string
   birthDate:      string
   weight:         string

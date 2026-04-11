@@ -8,6 +8,7 @@ import React, {
 } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { authService } from '../services/auth.service'
+import type { User } from '../services/auth.service'
 import type {
   RegisterStudentPayload,
   RegisterPersonalPayload,
@@ -15,14 +16,7 @@ import type {
 
 // ─── Types ───────────────────────────────────
 export type UserRole = 'PERSONAL' | 'STUDENT'
-
-export interface User {
-  id:      string
-  name:    string
-  email:   string
-  role:    UserRole
-  avatar?: string
-}
+export type { User }
 
 interface AuthState {
   user:            User | null

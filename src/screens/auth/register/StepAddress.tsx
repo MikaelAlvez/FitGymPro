@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, KeyboardAvoidingView, Platform,
-  FlatList, ActivityIndicator, TextInput,
+  ActivityIndicator, TextInput,
 } from 'react-native';
 import { Controller, UseFormReturn } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,11 +32,11 @@ interface Props {
 export function StepAddress({ form, onSubmit }: Props) {
   const { control, handleSubmit, setValue, formState: { errors } } = form;
 
-  const [query,      setQuery]      = useState('');
-  const [results,    setResults]    = useState<AddressResult[]>([]);
-  const [searching,  setSearching]  = useState(false);
-  const [showList,   setShowList]   = useState(false);
-  const debounceRef                 = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [query,     setQuery]     = useState('');
+  const [results,   setResults]   = useState<AddressResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showList,  setShowList]  = useState(false);
+  const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── Busca com debounce ───────────────────
   const handleSearch = (text: string) => {
@@ -47,13 +47,11 @@ export function StepAddress({ form, onSubmit }: Props) {
 
     const digits = text.replace(/\D/g, '')
 
-    // CEP completo → busca direta
     if (digits.length === 8) {
       debounceRef.current = setTimeout(() => fetchByCep(digits), 300)
       return
     }
 
-    // Texto livre (min 4 chars) → busca por endereço
     if (text.length >= 4) {
       debounceRef.current = setTimeout(() => fetchByText(text), 600)
     } else {
@@ -69,8 +67,6 @@ export function StepAddress({ form, onSubmit }: Props) {
         fillForm(result)
         setResults([])
         setShowList(false)
-      } else {
-        setResults([])
       }
     } catch {
       // silencia
@@ -80,15 +76,12 @@ export function StepAddress({ form, onSubmit }: Props) {
   }
 
   const fetchByText = async (text: string) => {
-    // Tenta extrair UF no final (ex: "Rua das Flores, Mossoró RN")
     const ufMatch = text.match(/\b([A-Z]{2})\s*$/i)
     const uf      = ufMatch ? ufMatch[1].toUpperCase() : 'RN'
     const clean   = text.replace(/\b[A-Z]{2}\s*$/i, '').trim()
-
-    // Separa cidade e rua pelo último separador
-    const parts  = clean.split(/,|—|-/)
-    const street = parts[0]?.trim() ?? clean
-    const city   = parts[1]?.trim() ?? ''
+    const parts   = clean.split(/,|—|-/)
+    const street  = parts[0]?.trim() ?? clean
+    const city    = parts[1]?.trim() ?? ''
 
     try {
       setSearching(true)
@@ -130,7 +123,7 @@ export function StepAddress({ form, onSubmit }: Props) {
         {/* Campo de busca */}
         <View style={styles.searchWrapper}>
           <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={18} color={colors.textSecondary} style={styles.searchIcon} />
+            <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Buscar por CEP, rua ou cidade..."
@@ -150,7 +143,7 @@ export function StepAddress({ form, onSubmit }: Props) {
             )}
           </View>
 
-          {/* Lista de resultados */}
+          {/* Resultados */}
           {showList && results.length > 0 && (
             <View style={styles.resultList}>
               {results.map((item, i) => (
@@ -175,7 +168,7 @@ export function StepAddress({ form, onSubmit }: Props) {
           )}
         </View>
 
-        {/* Campos do formulário */}
+        {/* Campos */}
         <View style={styles.fields}>
           <Controller control={control} name="cep"
             render={({ field: { onChange, onBlur, value } }) => (
@@ -269,7 +262,7 @@ export function StepAddress({ form, onSubmit }: Props) {
 }
 
 const styles = StyleSheet.create({
-  flex:  { flex: 1 },
+  flex:   { flex: 1 },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: spacing['6'],
@@ -288,8 +281,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing['5'],
   },
-
-  // Search
   searchWrapper: { marginBottom: spacing['5'], zIndex: 10 },
   searchBox: {
     flexDirection: 'row',
@@ -302,7 +293,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing['4'],
     gap: spacing['2'],
   },
-  searchIcon:  {},
   searchInput: {
     flex: 1,
     fontFamily: typography.family.regular,
@@ -329,7 +319,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  resultText: { flex: 1 },
+  resultText:  { flex: 1 },
   resultMain: {
     fontFamily: typography.family.medium,
     fontSize: typography.size.sm,
@@ -341,13 +331,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
-
-  // Form
   fields: { gap: spacing['4'] },
-  row: {
-    flexDirection: 'row',
-    gap: spacing['3'],
-  },
+  row: { flexDirection: 'row', gap: spacing['3'] },
   numberField:       { width: 90 },
   neighborhoodField: { flex: 1 },
   required: {
