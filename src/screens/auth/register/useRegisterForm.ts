@@ -20,11 +20,11 @@ export const stepOneSchema = z
   })
   .refine(d => d.password === d.confirmPassword, {
     message: 'As senhas não coincidem',
-    path: ['confirmPassword'],
+    path:    ['confirmPassword'],
   });
 
 export const stepTwoSchema = z.object({
-  role: z.enum(['personal', 'student'], {
+  role: z.enum(['PERSONAL', 'STUDENT'], {
     message: 'Selecione um perfil para continuar',
   }),
 });
@@ -38,9 +38,9 @@ export interface RegisterFormData extends StepOneData {
 
 // ─── Hook ────────────────────────────────────
 export function useRegisterForm() {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step,        setStep]        = useState<1 | 2>(1);
   const [stepOneData, setStepOneData] = useState<StepOneData | null>(null);
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [avatarUri,   setAvatarUri]   = useState<string | null>(null);
 
   const formOne = useForm<StepOneData>({
     resolver: zodResolver(stepOneSchema),
@@ -59,7 +59,7 @@ export function useRegisterForm() {
 
   const getFullData = (data: StepTwoData): RegisterFormData => ({
     ...stepOneData!,
-    role: data.role,
+    role: data.role as UserRole,
   });
 
   return {

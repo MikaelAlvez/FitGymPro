@@ -12,6 +12,8 @@ import type { StepTwoData } from './useRegisterForm';
 import type { UserRole } from '../../../contexts/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../../theme';
 
+import type { UserRole } from '../../../contexts/AuthContext'
+
 interface RoleOption {
   value:       UserRole;
   title:       string;
@@ -20,12 +22,12 @@ interface RoleOption {
 
 const ROLES: RoleOption[] = [
   {
-    value:       'personal',
+    value:       'PERSONAL',
     title:       'Personal Trainer:',
     description: 'Utilizar o aplicativo para repassar treinos e orientar alunos',
   },
   {
-    value:       'student',
+    value:       'STUDENT',
     title:       'Aluno:',
     description: 'Utilizar o aplicativo com o intuito de receber orientações de um personal trainer',
   },

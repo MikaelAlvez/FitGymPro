@@ -16,7 +16,7 @@ import { StepTwo }                  from './register/StepTwo';
 import { StudentRegisterFlow }      from './register/student/StudentRegisterFlow';
 import { PersonalRegisterFlow }     from './register/personal/PersonalRegisterFlow';
 import { useRegisterForm }          from './register/useRegisterForm';
-import { useAuth }                  from '../../contexts/AuthContext';
+import { useAuth }               from '../../contexts/AuthContext';
 import type { StepTwoData }         from './register/useRegisterForm';
 import type { PersonalProfileData } from './register/personal/usePersonalForm';
 import type { AuthStackParamList }  from '../../navigation/AuthNavigator';
@@ -40,20 +40,30 @@ export function RegisterScreen() {
 
   const totalSteps = showStudentFlow ? 7 : showPersonalFlow ? 5 : 2;
 
-  const handlePickAvatar = () => {
-    Alert.alert('Em breve', 'Seleção de foto será integrada com expo-image-picker.');
-  };
+  const handlePickAvatar = (uri: string) => {
+    setAvatarUri(uri)
+  }
 
   const handleRoleSelected = (data: StepTwoData) => {
     setStepTwoData(data);
-    if (data.role === 'student') setShowStudentFlow(true);
+    if (data.role === 'STUDENT') setShowStudentFlow(true);
     else                         setShowPersonalFlow(true);
   };
 
+  // Faz upload do avatar após autenticação (token já disponível)
+  const uploadAvatarIfSelected = async () => {
+    if (!avatarUri) return
+    try {
+      await uploadAvatar(avatarUri)
+    } catch {
+      // Não bloqueia o fluxo se o upload falhar
+    }
+  }
+
   const handleStudentComplete = async (profileData: any) => {
     try {
-      setLoading(true);
-      const base = getFullData(stepTwoData!);
+      setLoading(true)
+      const base = getFullData(stepTwoData!)
       await registerStudent({
         name:         base.name,
         email:        base.email,
@@ -69,19 +79,20 @@ export function RegisterScreen() {
         experience:   profileData.experience,
         gymType:      profileData.gymType,
         cardio:       profileData.cardio,
-        trainingDays: profileData.days,   
-      });
+        trainingDays: profileData.days,
+      })
+      await uploadAvatarIfSelected()
     } catch (err: any) {
-      Alert.alert('Erro', err?.message ?? 'Não foi possível criar a conta.');
+      Alert.alert('Erro', err?.message ?? 'Não foi possível criar a conta.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handlePersonalComplete = async (profileData: PersonalProfileData) => {
     try {
-      setLoading(true);
-      const base = getFullData(stepTwoData!);
+      setLoading(true)
+      const base = getFullData(stepTwoData!)
       await registerPersonal({
         name:           base.name,
         email:          base.email,
@@ -96,15 +107,16 @@ export function RegisterScreen() {
         university:     profileData.university,
         educationLevel: profileData.educationLevel,
         cref:           profileData.cref,
-        classFormat:    profileData.format,     
-        availableDays:  profileData.days,       
-      });
+        classFormat:    profileData.format,
+        availableDays:  profileData.days,
+      })
+      await uploadAvatarIfSelected()
     } catch (err: any) {
-      Alert.alert('Erro', err?.message ?? 'Não foi possível criar a conta.');
+      Alert.alert('Erro', err?.message ?? 'Não foi possível criar a conta.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleBack = () => {
     if (showStudentFlow || showPersonalFlow) return; // steps internos gerenciam o back
