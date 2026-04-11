@@ -108,8 +108,10 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
       if (hasError) return
 
       onSubmit(data)
-    } catch {
-      setError('email', { type: 'manual', message: 'Não foi possível verificar os dados. Tente novamente.' })
+    } catch (err: any) {
+      // Erro de rede — não bloqueia, deixa o backend rejeitar no final
+      console.warn('Erro ao verificar dados:', err?.message)
+      onSubmit(data)
     } finally {
       setChecking(false)
     }
