@@ -11,55 +11,68 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { StepOne }                from './register/StepOne';
-import { StepTwo }                from './register/StepTwo';
-import { StudentRegisterFlow }  from './register/student/StudentRegisterFlow';
-import { PersonalRegisterFlow } from './register/personal/PersonalRegisterFlow';
-import { useRegisterForm }      from './register/useRegisterForm';
-import type { StepTwoData }     from './register/useRegisterForm';
+import { StepOne }                  from './register/StepOne';
+import { StepTwo }                  from './register/StepTwo';
+import { StudentRegisterFlow }      from './register/student/StudentRegisterFlow';
+import { PersonalRegisterFlow }     from './register/personal/PersonalRegisterFlow';
+import { useRegisterForm }          from './register/useRegisterForm';
+import { useAuth }                  from '../../contexts/AuthContext';
+import type { StepTwoData }         from './register/useRegisterForm';
 import type { PersonalProfileData } from './register/personal/usePersonalForm';
-import type { AuthStackParamList } from '../../navigation/AuthNavigator';
+import type { AuthStackParamList }  from '../../navigation/AuthNavigator';
 import { colors, typography, spacing } from '../../theme';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 
 export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
+  const { registerStudent, registerPersonal } = useAuth();
   const {
     step, formOne, formTwo,
-    avatarUri, setAvatarUri,
+    avatarUri,
     goToStep2, goBack, getFullData,
   } = useRegisterForm();
 
-  const [loading, setLoading]               = React.useState(false);
-  const [showStudentFlow, setShowStudentFlow] = React.useState(false);
+  const [loading,          setLoading]          = React.useState(false);
+  const [showStudentFlow,  setShowStudentFlow]  = React.useState(false);
   const [showPersonalFlow, setShowPersonalFlow] = React.useState(false);
-  const [stepTwoData, setStepTwoData]         = React.useState<StepTwoData | null>(null);
+  const [stepTwoData,      setStepTwoData]      = React.useState<StepTwoData | null>(null);
 
   const totalSteps = showStudentFlow ? 7 : showPersonalFlow ? 5 : 2;
 
   const handlePickAvatar = () => {
-    // TODO: integrar expo-image-picker
     Alert.alert('Em breve', 'Seleção de foto será integrada com expo-image-picker.');
   };
 
   const handleRoleSelected = (data: StepTwoData) => {
     setStepTwoData(data);
-    if (data.role === 'student')  setShowStudentFlow(true);
-    else                          setShowPersonalFlow(true);
+    if (data.role === 'student') setShowStudentFlow(true);
+    else                         setShowPersonalFlow(true);
   };
 
-  const handleStudentComplete = async (profileData: object) => {
+  const handleStudentComplete = async (profileData: any) => {
     try {
       setLoading(true);
-      const fullData = { ...getFullData(stepTwoData!), ...profileData };
-      console.log('Cadastro completo (aluno):', fullData);
-      // TODO: chamar service de criação de conta
-      Alert.alert('Sucesso!', 'Conta criada com sucesso.', [
-        { text: 'Entrar', onPress: () => navigation.navigate('Login') },
-      ]);
-    } catch {
-      Alert.alert('Erro', 'Não foi possível criar a conta. Tente novamente.');
+      const base = getFullData(stepTwoData!);
+      await registerStudent({
+        name:         base.name,
+        email:        base.email,
+        phone:        base.phone,
+        password:     base.password,
+        role:         'STUDENT',
+        sex:          profileData.sex,
+        birthDate:    profileData.birthDate,
+        weight:       profileData.weight,
+        height:       profileData.height,
+        goal:         profileData.goal,
+        focusMuscle:  profileData.focusMuscle,
+        experience:   profileData.experience,
+        gymType:      profileData.gymType,
+        cardio:       profileData.cardio,
+        trainingDays: profileData.days,   
+      });
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message ?? 'Não foi possível criar a conta.');
     } finally {
       setLoading(false);
     }
@@ -68,49 +81,64 @@ export function RegisterScreen() {
   const handlePersonalComplete = async (profileData: PersonalProfileData) => {
     try {
       setLoading(true);
-      const fullData = { ...getFullData(stepTwoData!), ...profileData };
-      console.log('Cadastro completo (personal):', fullData);
-      // TODO: chamar service de criação de conta
-      Alert.alert('Sucesso!', 'Conta criada com sucesso.', [
-        { text: 'Entrar', onPress: () => navigation.navigate('Login') },
-      ]);
-    } catch {
-      Alert.alert('Erro', 'Não foi possível criar a conta. Tente novamente.');
+      const base = getFullData(stepTwoData!);
+      await registerPersonal({
+        name:           base.name,
+        email:          base.email,
+        phone:          base.phone,
+        password:       base.password,
+        role:           'PERSONAL',
+        sex:            profileData.sex,
+        birthDate:      profileData.birthDate,
+        weight:         profileData.weight,
+        height:         profileData.height,
+        course:         profileData.course,
+        university:     profileData.university,
+        educationLevel: profileData.educationLevel,
+        cref:           profileData.cref,
+        classFormat:    profileData.format,     
+        availableDays:  profileData.days,       
+      });
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message ?? 'Não foi possível criar a conta.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleBack = () => {
-    if (step === 2) {
-      goBack();
-    } else {
-      navigation.goBack();
-    }
+    if (showStudentFlow || showPersonalFlow) return; // steps internos gerenciam o back
+    if (step === 2) goBack();
+    else navigation.goBack();
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          onPress={handleBack}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>Meu perfil</Text>
 
-        {/* Espaço para alinhar título ao centro */}
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Indicador de etapa */}
+      {/* Indicador de etapas */}
       <View style={styles.stepIndicator}>
-        {[1, 2].map(n => (
-          <View
-            key={n}
-            style={[styles.stepDot, step >= n && styles.stepDotActive]}
-          />
-        ))}
+        {Array.from({ length: totalSteps }).map((_, i) => {
+          const currentStep = showStudentFlow || showPersonalFlow ? totalSteps : step;
+          return (
+            <View
+              key={i}
+              style={[styles.stepDot, i < currentStep && styles.stepDotActive]}
+            />
+          );
+        })}
       </View>
 
       {/* Conteúdo */}
@@ -141,7 +169,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -156,7 +183,6 @@ const styles = StyleSheet.create({
     fontSize: typography.size.base,
     color: colors.textPrimary,
   },
-
   stepIndicator: {
     flexDirection: 'row',
     justifyContent: 'center',
