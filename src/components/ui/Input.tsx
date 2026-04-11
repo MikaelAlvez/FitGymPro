@@ -12,10 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, radii } from '../../theme';
 
 interface InputProps extends TextInputProps {
-  label?:       string;
-  error?:       string;
-  leftIcon?:    keyof typeof Ionicons.glyphMap;
-  secureToggle?: boolean;  // mostra ícone de olho se true
+  label?:          string;
+  error?:          string;
+  leftIcon?:       keyof typeof Ionicons.glyphMap;
+  rightIcon?:      keyof typeof Ionicons.glyphMap;
+  secureToggle?:   boolean;
   containerStyle?: ViewStyle;
 }
 
@@ -23,12 +24,13 @@ export function Input({
   label,
   error,
   leftIcon,
+  rightIcon,
   secureToggle = false,
   secureTextEntry,
   containerStyle,
   ...rest
 }: InputProps) {
-  const [secure, setSecure] = useState(secureTextEntry ?? false);
+  const [secure,  setSecure]  = useState(secureTextEntry ?? false);
   const [focused, setFocused] = useState(false);
 
   const borderColor = error
@@ -62,13 +64,22 @@ export function Input({
         />
 
         {secureToggle && (
-          <TouchableOpacity onPress={() => setSecure(p => !p)} style={styles.rightIcon}>
+          <TouchableOpacity onPress={() => setSecure(p => !p)} style={styles.rightIconBtn}>
             <Ionicons
               name={secure ? 'eye-off-outline' : 'eye-outline'}
               size={18}
               color={colors.textSecondary}
             />
           </TouchableOpacity>
+        )}
+
+        {!secureToggle && rightIcon && (
+          <Ionicons
+            name={rightIcon}
+            size={18}
+            color={colors.textSecondary}
+            style={styles.rightIconStatic}
+          />
         )}
       </View>
 
@@ -99,8 +110,11 @@ const styles = StyleSheet.create({
   leftIcon: {
     marginRight: spacing['2'],
   },
-  rightIcon: {
+  rightIconBtn: {
     padding: spacing['1'],
+    marginLeft: spacing['2'],
+  },
+  rightIconStatic: {
     marginLeft: spacing['2'],
   },
   input: {

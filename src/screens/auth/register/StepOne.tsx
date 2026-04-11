@@ -14,12 +14,12 @@ import {
 import { Controller, UseFormReturn } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Input }            from '../../../components/ui/Input';
-import { Button }           from '../../../components/ui/Button';
-import { authService }      from '../../../services/auth.service';
-import { pickImage, takePhoto } from '../../../services/upload.service';
-import { maskCpf }          from '../../../utils/cpf';
-import type { StepOneData } from './useRegisterForm';
+import { Input }                    from '../../../components/ui/Input';
+import { Button }                   from '../../../components/ui/Button';
+import { authService }              from '../../../services/auth.service';
+import { pickImage, takePhoto }     from '../../../services/upload.service';
+import { maskCpf }                  from '../../../utils/cpf';
+import type { StepOneData }         from './useRegisterForm';
 import { colors, typography, spacing, radii } from '../../../theme';
 
 interface Props {
@@ -31,42 +31,85 @@ interface Props {
 
 export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
   const { control, handleSubmit, setError, formState: { errors, isSubmitting } } = form;
-  const [checking, setChecking] = useState(false);
+  const [checking,    setChecking]    = useState(false);
+  const [checkingCpf, setCheckingCpf] = useState(false);
 
   // ─── Selecionar foto ─────────────────────────
   const handlePickAvatar = () => {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Cancelar', 'Tirar foto', 'Escolher da galeria'],
-          cancelButtonIndex: 0,
-        },
+        { options: ['Cancelar', 'Tirar foto', 'Escolher da galeria'], cancelButtonIndex: 0 },
         async (idx) => {
-          if (idx === 1) { const uri = await takePhoto();  if (uri) onPickAvatar(uri) }
-          if (idx === 2) { const uri = await pickImage();  if (uri) onPickAvatar(uri) }
+          if (idx === 1) { const uri = await takePhoto(); if (uri) onPickAvatar(uri) }
+          if (idx === 2) { const uri = await pickImage(); if (uri) onPickAvatar(uri) }
         },
       )
     } else {
       Alert.alert('Foto de perfil', 'Escolha uma opção', [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Tirar foto',           onPress: async () => { const uri = await takePhoto(); if (uri) onPickAvatar(uri) } },
-        { text: 'Escolher da galeria',  onPress: async () => { const uri = await pickImage(); if (uri) onPickAvatar(uri) } },
+        { text: 'Tirar foto',          onPress: async () => { const uri = await takePhoto(); if (uri) onPickAvatar(uri) } },
+        { text: 'Escolher da galeria', onPress: async () => { const uri = await pickImage(); if (uri) onPickAvatar(uri) } },
       ])
     }
   }
 
-  // ─── Valida e-mail na API ─────────────────────
+  // ─── Verifica CPF ao sair do campo ───────────
+  const handleCpfBlur = async (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    if (digits.length !== 11) return
+    try {
+      setCheckingCpf(true)
+      const { available } = await authService.checkCpf(value)
+      if (!available) {
+        setError('cpf', { type: 'manual', message: 'CPF já cadastrado. Use outro ou faça login.' })
+      }
+    } catch {
+      // silencia erro de rede no blur
+    } finally {
+      setCheckingCpf(false)
+    }
+  }
+
+  // ─── Verifica e-mail ao sair do campo ────────
+  const handleEmailBlur = async (value: string) => {
+    if (!value || !value.includes('@')) return
+    try {
+      const { available } = await authService.checkEmail(value)
+      if (!available) {
+        setError('email', { type: 'manual', message: 'E-mail já cadastrado. Use outro ou faça login.' })
+      }
+    } catch {
+      // silencia erro de rede no blur
+    }
+  }
+
+  // ─── Valida tudo antes de avançar ────────────
   const handleContinue = async (data: StepOneData) => {
     try {
       setChecking(true)
-      const { available } = await authService.checkEmail(data.email)
-      if (!available) {
+
+      const [emailRes, cpfRes] = await Promise.all([
+        authService.checkEmail(data.email),
+        authService.checkCpf(data.cpf),
+      ])
+
+      let hasError = false
+
+      if (!emailRes.available) {
         setError('email', { type: 'manual', message: 'E-mail já cadastrado. Use outro ou faça login.' })
-        return
+        hasError = true
       }
+
+      if (!cpfRes.available) {
+        setError('cpf', { type: 'manual', message: 'CPF já cadastrado. Use outro ou faça login.' })
+        hasError = true
+      }
+
+      if (hasError) return
+
       onSubmit(data)
     } catch {
-      setError('email', { type: 'manual', message: 'Não foi possível verificar o e-mail. Tente novamente.' })
+      setError('email', { type: 'manual', message: 'Não foi possível verificar os dados. Tente novamente.' })
     } finally {
       setChecking(false)
     }
@@ -124,9 +167,10 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
                 keyboardType="numeric"
                 maxLength={14}
                 onChangeText={raw => onChange(maskCpf(raw))}
-                onBlur={onBlur}
+                onBlur={() => { onBlur(); handleCpfBlur(value ?? '') }}
                 value={value}
                 error={errors.cpf?.message}
+                rightIcon={checkingCpf ? 'reload-outline' : undefined}
               />
             )}
           />
@@ -139,7 +183,9 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
                 placeholder="seu@email.com"
                 keyboardType="email-address"
                 autoCapitalize="none"
-                onChangeText={onChange} onBlur={onBlur} value={value}
+                onChangeText={onChange}
+                onBlur={() => { onBlur(); handleEmailBlur(value ?? '') }}
+                value={value}
                 error={errors.email?.message}
               />
             )}
