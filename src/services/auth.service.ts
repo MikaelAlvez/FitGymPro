@@ -15,6 +15,7 @@ export interface LoginPayload {
 
 export interface RegisterStudentPayload {
   name:         string
+  cpf:          string
   email:        string
   phone:        string
   password:     string
@@ -34,6 +35,7 @@ export interface RegisterStudentPayload {
 
 export interface RegisterPersonalPayload {
   name:           string
+  cpf:            string
   email:          string
   phone:          string
   password:       string

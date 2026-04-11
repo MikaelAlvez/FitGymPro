@@ -66,6 +66,7 @@ export function RegisterScreen() {
       const base = getFullData(stepTwoData!);
       await registerStudent({
         name:         base.name,
+        cpf:          base.cpf,
         email:        base.email,
         phone:        base.phone,
         password:     base.password,
@@ -95,6 +96,7 @@ export function RegisterScreen() {
       const base = getFullData(stepTwoData!);
       await registerPersonal({
         name:           base.name,
+        cpf:            base.cpf,
         email:          base.email,
         phone:          base.phone,
         password:       base.password,
