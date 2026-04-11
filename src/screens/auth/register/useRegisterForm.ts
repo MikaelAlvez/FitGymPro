@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { isValidCpf } from '../../../utils/cpf';
 import type { UserRole } from '../../../contexts/AuthContext';
 
 // ─── Schemas ─────────────────────────────────
@@ -9,6 +10,9 @@ export const stepOneSchema = z
   .object({
     name:            z.string({ message: 'Nome é obrigatório' })
                       .min(3, 'Nome deve ter ao menos 3 caracteres'),
+    cpf:             z.string({ message: 'CPF é obrigatório' })
+                      .min(14, 'CPF inválido')
+                      .refine(isValidCpf, { message: 'CPF inválido' }),
     email:           z.string({ message: 'E-mail é obrigatório' })
                       .min(1, 'E-mail é obrigatório')
                       .email('E-mail inválido'),
