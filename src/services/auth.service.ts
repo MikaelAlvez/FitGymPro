@@ -73,6 +73,12 @@ export const authService = {
   me: () =>
     apiRequest<User>('/auth/me', { authenticated: true }),
 
+  checkEmail: (email: string) =>
+    apiRequest<{ available: boolean }>('/auth/check-email', {
+      method: 'POST',
+      body:   JSON.stringify({ email }),
+    }),
+
   logout: (refreshToken: string) =>
     apiRequest<void>('/auth/logout', {
       method: 'POST',
