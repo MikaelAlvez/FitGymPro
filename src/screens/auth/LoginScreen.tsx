@@ -48,12 +48,13 @@ export function LoginScreen() {
 
   const onSubmit = async ({ email, password }: FormData) => {
     try {
-      await signIn(email, password);
-      // Navegação tratada pelo RootNavigator via estado de auth
-    } catch {
-      Alert.alert('Erro', 'Usuário ou senha inválidos.');
+      await signIn(email, password)
+      // RootNavigator redireciona automaticamente via isAuthenticated
+    } catch (err: any) {
+      const msg = err?.message ?? 'Erro ao conectar com o servidor.'
+      Alert.alert('Erro', msg)
     }
-  };
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
