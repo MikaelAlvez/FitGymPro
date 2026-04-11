@@ -7,13 +7,12 @@ import {
 } from 'react-native';
 import { Controller, UseFormReturn } from 'react-hook-form';
 
-import { Button } from '../../../components/ui/Button';
+import { Button }           from '../../../components/ui/Button';
 import type { StepTwoData } from './useRegisterForm';
-import type { UserRole } from '../../../contexts/AuthContext';
+import type { UserRole }    from '../../../contexts/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../../theme';
 
-import type { UserRole } from '../../../contexts/AuthContext'
-
+// ─── Options ─────────────────────────────────
 interface RoleOption {
   value:       UserRole;
   title:       string;
@@ -33,12 +32,14 @@ const ROLES: RoleOption[] = [
   },
 ];
 
+// ─── Props ───────────────────────────────────
 interface Props {
   form:       UseFormReturn<StepTwoData>;
   onSubmit:   (data: StepTwoData) => void;
   isLoading?: boolean;
 }
 
+// ─── Component ───────────────────────────────
 export function StepTwo({ form, onSubmit, isLoading }: Props) {
   const { control, handleSubmit, formState: { errors } } = form;
 
@@ -60,10 +61,7 @@ export function StepTwo({ form, onSubmit, isLoading }: Props) {
                   key={role.value}
                   activeOpacity={0.8}
                   onPress={() => onChange(role.value)}
-                  style={[
-                    styles.card,
-                    selected && styles.cardSelected,
-                  ]}
+                  style={[styles.card, selected && styles.cardSelected]}
                 >
                   <Text style={[styles.roleTitle, selected && styles.roleTitleSelected]}>
                     {role.title}
@@ -92,13 +90,13 @@ export function StepTwo({ form, onSubmit, isLoading }: Props) {
   );
 }
 
+// ─── Styles ──────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: spacing['6'],
     paddingTop: spacing['6'],
   },
-
   question: {
     fontFamily: typography.family.semiBold,
     fontSize: typography.size.lg,
@@ -106,11 +104,9 @@ const styles = StyleSheet.create({
     lineHeight: typography.size.lg * 1.5,
     marginBottom: spacing['8'],
   },
-
   options: {
     gap: spacing['4'],
   },
-
   card: {
     backgroundColor: colors.surfaceHigh,
     borderRadius: radii.xl,
@@ -124,33 +120,25 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     ...shadows.lg,
   },
-
   roleTitle: {
     fontFamily: typography.family.bold,
     fontSize: typography.size.md,
     color: colors.textPrimary,
     marginBottom: spacing['1'],
   },
-  roleTitleSelected: {
-    color: colors.white,
-  },
-
+  roleTitleSelected: { color: colors.white },
   roleDesc: {
     fontFamily: typography.family.regular,
     fontSize: typography.size.sm,
     color: colors.textSecondary,
     lineHeight: typography.size.sm * 1.6,
   },
-  roleDescSelected: {
-    color: colors.white,
-  },
-
+  roleDescSelected: { color: colors.white },
   error: {
     fontFamily: typography.family.regular,
     fontSize: typography.size.xs,
     color: colors.error,
     marginTop: spacing['2'],
   },
-
   btn: { marginTop: spacing['8'] },
 });
