@@ -4,16 +4,16 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, Modal, FlatList,
 } from 'react-native';
 import { Controller, UseFormReturn } from 'react-hook-form';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Input }  from '../../../../components/ui/Input';
 import { Button } from '../../../../components/ui/Button';
 import type { StepBodyData } from './useStudentForm';
 import { colors, spacing, typography, radii } from '../../../../theme';
-import { Ionicons } from '@expo/vector-icons';
 
 // ─── Opções ──────────────────────────────────
-const SEX_OPTIONS    = ['Masculino', 'Feminino', 'Prefiro não informar'];
-const GOAL_OPTIONS   = [
+const SEX_OPTIONS  = ['Masculino', 'Feminino', 'Prefiro não informar'];
+const GOAL_OPTIONS = [
   'Hipertrofia',
   'Emagrecimento',
   'Resistência muscular',
@@ -31,14 +31,14 @@ function maskDate(raw: string): string {
   return `${digits.slice(0,2)}/${digits.slice(2,4)}/${digits.slice(4)}`;
 }
 
-// ─── Picker Modal genérico ────────────────────
+// ─── Picker Modal ─────────────────────────────
 interface PickerModalProps {
-  visible:   boolean;
-  title:     string;
-  options:   string[];
-  selected:  string | undefined;
-  onSelect:  (v: string) => void;
-  onClose:   () => void;
+  visible:  boolean;
+  title:    string;
+  options:  string[];
+  selected: string | undefined;
+  onSelect: (v: string) => void;
+  onClose:  () => void;
 }
 
 function PickerModal({ visible, title, options, selected, onSelect, onClose }: PickerModalProps) {
@@ -76,13 +76,13 @@ function PickerModal({ visible, title, options, selected, onSelect, onClose }: P
   );
 }
 
-// ─── Campo selector reutilizável ─────────────
+// ─── Selector Field ───────────────────────────
 interface SelectorFieldProps {
-  label:     string;
-  value:     string | undefined;
+  label:       string;
+  value:       string | undefined;
   placeholder: string;
-  onPress:   () => void;
-  error?:    string;
+  onPress:     () => void;
+  error?:      string;
 }
 
 function SelectorField({ label, value, placeholder, onPress, error }: SelectorFieldProps) {
@@ -134,7 +134,7 @@ export function StepBody({ form, onSubmit }: Props) {
             render={({ field: { onChange, value } }) => (
               <>
                 <SelectorField
-                  label="Sexo"
+                  label="Sexo *"
                   value={value}
                   placeholder="Selecione"
                   onPress={() => setSexModal(true)}
@@ -152,11 +152,11 @@ export function StepBody({ form, onSubmit }: Props) {
             )}
           />
 
-          {/* Data de nascimento — com máscara */}
+          {/* Data de nascimento */}
           <Controller control={control} name="birthDate"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Data de nascimento"
+                label="Data de nascimento *"
                 placeholder="DD/MM/AAAA"
                 keyboardType="numeric"
                 maxLength={10}
@@ -173,7 +173,7 @@ export function StepBody({ form, onSubmit }: Props) {
             <View style={styles.half}>
               <Controller control={control} name="weight"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <Input label="Peso (kg)" placeholder="70"
+                  <Input label="Peso (kg) *" placeholder="70"
                     keyboardType="numeric"
                     onChangeText={onChange} onBlur={onBlur} value={value}
                     error={errors.weight?.message} />
@@ -183,7 +183,7 @@ export function StepBody({ form, onSubmit }: Props) {
             <View style={styles.half}>
               <Controller control={control} name="height"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <Input label="Altura (cm)" placeholder="175"
+                  <Input label="Altura (cm) *" placeholder="175"
                     keyboardType="numeric"
                     onChangeText={onChange} onBlur={onBlur} value={value}
                     error={errors.height?.message} />
@@ -197,7 +197,7 @@ export function StepBody({ form, onSubmit }: Props) {
             render={({ field: { onChange, value } }) => (
               <>
                 <SelectorField
-                  label="Qual é o seu objetivo?"
+                  label="Qual é o seu objetivo? *"
                   value={value}
                   placeholder="Selecione um objetivo"
                   onPress={() => setGoalModal(true)}
@@ -219,7 +219,7 @@ export function StepBody({ form, onSubmit }: Props) {
           <Controller control={control} name="focusMuscle"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Músculo que deseja focar?"
+                label="Músculo que deseja focar? *"
                 placeholder="Ex: Pernas, costas..."
                 onChangeText={onChange} onBlur={onBlur} value={value}
                 error={errors.focusMuscle?.message}
@@ -227,6 +227,8 @@ export function StepBody({ form, onSubmit }: Props) {
             )}
           />
         </View>
+
+        <Text style={styles.required}>* Campos obrigatórios</Text>
 
         <Button label="Continuar" onPress={handleSubmit(onSubmit)} style={styles.btn} />
       </ScrollView>
@@ -238,7 +240,6 @@ export function StepBody({ form, onSubmit }: Props) {
 const styles = StyleSheet.create({
   flex:   { flex: 1 },
   scroll: { flexGrow: 1, paddingHorizontal: spacing['6'], paddingBottom: spacing['10'] },
-
   sectionTitle: {
     fontFamily: typography.family.bold,
     fontSize: typography.size.lg,
@@ -249,9 +250,15 @@ const styles = StyleSheet.create({
   fields: { gap: spacing['4'] },
   row:    { flexDirection: 'row', gap: spacing['3'] },
   half:   { flex: 1 },
-  btn:    { marginTop: spacing['8'] },
+  required: {
+    fontFamily: typography.family.regular,
+    fontSize: typography.size.xs,
+    color: colors.textSecondary,
+    marginTop: spacing['2'],
+  },
+  btn: { marginTop: spacing['6'] },
 
-  // Selector field
+  // Selector
   selectorWrapper: { gap: spacing['1'] },
   selectorLabel: {
     fontFamily: typography.family.medium,
@@ -270,9 +277,7 @@ const styles = StyleSheet.create({
     height: 52,
     paddingHorizontal: spacing['4'],
   },
-  selectorBoxError: {
-    borderColor: colors.error,
-  },
+  selectorBoxError: { borderColor: colors.error },
   selectorValue: {
     fontFamily: typography.family.regular,
     fontSize: typography.size.base,
@@ -291,10 +296,7 @@ const styles = StyleSheet.create({
   },
 
   // Modal
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radii['2xl'],
@@ -325,9 +327,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  optionActive: {
-    backgroundColor: colors.surfaceHigh,
-  },
+  optionActive:     { backgroundColor: colors.surfaceHigh },
   optionText: {
     fontFamily: typography.family.regular,
     fontSize: typography.size.base,
