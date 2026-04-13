@@ -11,13 +11,14 @@ import { useStudentForm, type StepDaysData } from './useStudentForm';
 interface Props {
   onComplete:   (data: any) => void;
   onStepChange?: (step: number) => void;
+  onBack?:       () => void;
 }
 
-export function StudentRegisterFlow({ onComplete, onStepChange }: Props) {
+export function StudentRegisterFlow({ onComplete, onStepChange, onBack }: Props) {
   const [loading, setLoading] = useState(false);
 
   const {
-    step,
+    step, prev,
     formBody,       onBodySubmit,
     formExperience, onExperienceSubmit,
     formGym,        onGymSubmit,
@@ -27,6 +28,12 @@ export function StudentRegisterFlow({ onComplete, onStepChange }: Props) {
 
   // Notifica o step atual para o indicador externo
   React.useEffect(() => { onStepChange?.(step - 2) }, [step]);
+
+  // Volta: se no primeiro step interno, volta para tela anterior (seleção de perfil)
+  const handleBack = () => {
+    if (step === 3) onBack?.()
+    else prev()
+  }
 
   const handleFinish = async (days: StepDaysData) => {
     try {
