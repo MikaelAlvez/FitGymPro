@@ -122,9 +122,10 @@ function SelectorField({ label, value, placeholder, onPress, error }: SelectorFi
 interface Props {
   form:     UseFormReturn<StepBodyData>;
   onSubmit: (d: StepBodyData) => void;
+  onBack?:  () => void;
 }
 
-export function StepBody({ form, onSubmit }: Props) {
+export function StepBody({ form, onSubmit, onBack }: Props) {
   const { control, handleSubmit, formState: { errors } } = form;
   const [sexModal,       setSexModal]       = useState(false);
   const [educationModal, setEducationModal] = useState(false);
