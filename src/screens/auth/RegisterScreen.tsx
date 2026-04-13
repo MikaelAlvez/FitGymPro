@@ -31,7 +31,7 @@ export function RegisterScreen() {
   const {
     step, formOne, formAddress, formTwo,
     avatarUri, setAvatarUri,
-    goToStep2, goToStep3, goBack, getFullData,
+    goToStep2, goToStep3, goBack, setStep, getFullData,
   } = useRegisterForm();
 
   const [loading,          setLoading]          = React.useState(false);
@@ -138,9 +138,31 @@ export function RegisterScreen() {
   };
 
   const handleBack = () => {
-    if (showStudentFlow || showPersonalFlow) return;
-    if (step === 1) navigation.goBack();
-    else goBack();
+    // Dentro do fluxo do aluno
+    if (showStudentFlow) {
+      if (innerStep === 1) {
+        // Primeiro step interno → volta para seleção de perfil
+        setShowStudentFlow(false)
+        setInnerStep(1)
+        setStep(3)
+      }
+      // Steps internos seguintes são controlados pelos próprios componentes
+      return
+    }
+
+    // Dentro do fluxo do personal
+    if (showPersonalFlow) {
+      if (innerStep === 1) {
+        setShowPersonalFlow(false)
+        setInnerStep(1)
+        setStep(3)
+      }
+      return
+    }
+
+    // Steps globais
+    if (step === 1) navigation.goBack()
+    else goBack()
   };
 
   return (

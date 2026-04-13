@@ -82,6 +82,7 @@ export function useRegisterForm() {
     goToStep2,
     goToStep3,
     goBack,
+    setStep,
     getFullData,
   };
 }
