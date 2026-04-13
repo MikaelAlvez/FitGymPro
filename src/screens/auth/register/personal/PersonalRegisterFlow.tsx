@@ -23,33 +23,37 @@ export function PersonalRegisterFlow({ onComplete, onStepChange, onBack, onRegis
     formDays,   getFullProfile,
   } = usePersonalForm();
 
-  const handleBack = () => {
+  const handleBack = React.useCallback(() => {
     if (step === 3) onBack?.()
     else prev()
-  }
+  }, [step, onBack, prev])
 
+  // Registra o handleBack atualizado para o pai acessar via ref
   React.useEffect(() => {
     onRegisterBack?.(handleBack)
-  }, [step])
+  }, [handleBack])
 
-  React.useEffect(() => { onStepChange?.(step - 2) }, [step])
+  // Notifica o indicador externo
+  React.useEffect(() => {
+    onStepChange?.(step - 2)
+  }, [step])
 
   const handleFinish = async (days: StepDaysData) => {
     try {
-      setLoading(true);
-      const full = getFullProfile(days);
-      await onComplete(full);
+      setLoading(true)
+      const full = getFullProfile(days)
+      await onComplete(full)
     } catch {
-      Alert.alert('Erro', 'Não foi possível salvar os dados. Tente novamente.');
+      Alert.alert('Erro', 'Não foi possível salvar os dados. Tente novamente.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   switch (step) {
     case 3: return <StepBody   form={formBody}   onSubmit={onBodySubmit}   onBack={handleBack} />;
     case 4: return <StepFormat form={formFormat} onSubmit={onFormatSubmit} onBack={handleBack} />;
-    case 5: return <StepDays   form={formDays}   onSubmit={handleFinish} isLoading={loading} onBack={handleBack} />;
+    case 5: return <StepDays   form={formDays}   onSubmit={handleFinish}   onBack={handleBack} isLoading={loading} />;
     default: return null;
   }
 }
