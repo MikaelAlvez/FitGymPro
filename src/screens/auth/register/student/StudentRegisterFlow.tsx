@@ -9,11 +9,11 @@ import { StepDays }       from './StepDays';
 import { useStudentForm, type StepDaysData } from './useStudentForm';
 
 interface Props {
-  /** Callback chamado ao concluir todos os steps do aluno */
-  onComplete: (data: ReturnType<ReturnType<typeof useStudentForm>['getFullProfile']>) => void;
+  onComplete:   (data: any) => void;
+  onStepChange?: (step: number) => void;
 }
 
-export function StudentRegisterFlow({ onComplete }: Props) {
+export function StudentRegisterFlow({ onComplete, onStepChange }: Props) {
   const [loading, setLoading] = useState(false);
 
   const {
@@ -24,6 +24,9 @@ export function StudentRegisterFlow({ onComplete }: Props) {
     formCardio,     onCardioSubmit,
     formDays,       getFullProfile,
   } = useStudentForm();
+
+  // Notifica o step atual para o indicador externo
+  React.useEffect(() => { onStepChange?.(step - 2) }, [step]);
 
   const handleFinish = async (days: StepDaysData) => {
     try {
@@ -38,10 +41,10 @@ export function StudentRegisterFlow({ onComplete }: Props) {
   };
 
   switch (step) {
-    case 3: return <StepBody       form={formBody}       onSubmit={onBodySubmit} />;
+    case 3: return <StepBody       form={formBody}       onSubmit={onBodySubmit}       />;
     case 4: return <StepExperience form={formExperience} onSubmit={onExperienceSubmit} />;
-    case 5: return <StepGym        form={formGym}        onSubmit={onGymSubmit} />;
-    case 6: return <StepCardio     form={formCardio}     onSubmit={onCardioSubmit} />;
+    case 5: return <StepGym        form={formGym}        onSubmit={onGymSubmit}        />;
+    case 6: return <StepCardio     form={formCardio}     onSubmit={onCardioSubmit}     />;
     case 7: return <StepDays       form={formDays}       onSubmit={handleFinish} isLoading={loading} />;
     default: return null;
   }
