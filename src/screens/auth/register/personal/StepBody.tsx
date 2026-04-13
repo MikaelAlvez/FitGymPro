@@ -36,8 +36,7 @@ function maskDate(raw: string): string {
 }
 
 function maskCref(raw: string): string {
-  // Formato: 000000-G/UF
-  const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 9);
+  const clean  = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 9);
   const digits = clean.slice(0, 6);
   const letter = clean.slice(6, 7);
   const uf     = clean.slice(7, 9);
@@ -149,7 +148,7 @@ export function StepBody({ form, onSubmit }: Props) {
             render={({ field: { onChange, value } }) => (
               <>
                 <SelectorField
-                  label="Sexo"
+                  label="Sexo *"
                   value={value}
                   placeholder="Selecione"
                   onPress={() => setSexModal(true)}
@@ -167,11 +166,11 @@ export function StepBody({ form, onSubmit }: Props) {
             )}
           />
 
-          {/* Data de nascimento — com máscara */}
+          {/* Data de nascimento */}
           <Controller control={control} name="birthDate"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Data de nascimento"
+                label="Data de nascimento *"
                 placeholder="DD/MM/AAAA"
                 keyboardType="numeric"
                 maxLength={10}
@@ -188,7 +187,7 @@ export function StepBody({ form, onSubmit }: Props) {
             <View style={styles.half}>
               <Controller control={control} name="weight"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <Input label="Peso (kg)" placeholder="70"
+                  <Input label="Peso (kg) *" placeholder="70"
                     keyboardType="numeric"
                     onChangeText={onChange} onBlur={onBlur} value={value}
                     error={errors.weight?.message} />
@@ -198,7 +197,7 @@ export function StepBody({ form, onSubmit }: Props) {
             <View style={styles.half}>
               <Controller control={control} name="height"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <Input label="Altura (cm)" placeholder="175"
+                  <Input label="Altura (cm) *" placeholder="175"
                     keyboardType="numeric"
                     onChangeText={onChange} onBlur={onBlur} value={value}
                     error={errors.height?.message} />
@@ -213,7 +212,7 @@ export function StepBody({ form, onSubmit }: Props) {
           <Controller control={control} name="course"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Curso"
+                label="Curso *"
                 placeholder="Ex: Educação Física"
                 onChangeText={onChange} onBlur={onBlur} value={value}
                 error={errors.course?.message}
@@ -225,7 +224,7 @@ export function StepBody({ form, onSubmit }: Props) {
           <Controller control={control} name="university"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Universidade"
+                label="Universidade *"
                 placeholder="Ex: UNICAMP, USP..."
                 onChangeText={onChange} onBlur={onBlur} value={value}
                 error={errors.university?.message}
@@ -238,7 +237,7 @@ export function StepBody({ form, onSubmit }: Props) {
             render={({ field: { onChange, value } }) => (
               <>
                 <SelectorField
-                  label="Nível de formação"
+                  label="Nível de formação *"
                   value={value}
                   placeholder="Selecione o nível"
                   onPress={() => setEducationModal(true)}
@@ -256,11 +255,11 @@ export function StepBody({ form, onSubmit }: Props) {
             )}
           />
 
-          {/* CREF — com máscara */}
+          {/* CREF */}
           <Controller control={control} name="cref"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="CREF"
+                label="CREF *"
                 placeholder="000000-G/UF"
                 autoCapitalize="characters"
                 maxLength={10}
@@ -272,6 +271,8 @@ export function StepBody({ form, onSubmit }: Props) {
             )}
           />
         </View>
+
+        <Text style={styles.required}>* Campos obrigatórios</Text>
 
         <Button label="Continuar" onPress={handleSubmit(onSubmit)} style={styles.btn} />
       </ScrollView>
@@ -302,9 +303,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginVertical: spacing['2'],
   },
-  btn: { marginTop: spacing['8'] },
+  required: {
+    fontFamily: typography.family.regular,
+    fontSize: typography.size.xs,
+    color: colors.textSecondary,
+    marginTop: spacing['2'],
+  },
+  btn: { marginTop: spacing['6'] },
 
-  // Selector field
+  // Selector
   selectorWrapper: { gap: spacing['1'] },
   selectorLabel: {
     fontFamily: typography.family.medium,
@@ -342,10 +349,7 @@ const styles = StyleSheet.create({
   },
 
   // Modal
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radii['2xl'],
