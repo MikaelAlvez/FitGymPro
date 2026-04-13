@@ -7,12 +7,13 @@ import { StepDays }   from './StepDays';
 import { usePersonalForm, type StepDaysData, type PersonalProfileData } from './usePersonalForm';
 
 interface Props {
-  onComplete:    (data: PersonalProfileData) => void;
-  onStepChange?: (step: number) => void;
-  onBack?:       () => void;
+  onComplete:      (data: PersonalProfileData) => void;
+  onStepChange?:   (step: number) => void;
+  onBack?:         () => void;
+  onRegisterBack?: (fn: () => void) => void;
 }
 
-export function PersonalRegisterFlow({ onComplete, onStepChange, onBack }: Props) {
+export function PersonalRegisterFlow({ onComplete, onStepChange, onBack, onRegisterBack }: Props) {
   const [loading, setLoading] = useState(false);
 
   const {
@@ -22,12 +23,16 @@ export function PersonalRegisterFlow({ onComplete, onStepChange, onBack }: Props
     formDays,   getFullProfile,
   } = usePersonalForm();
 
-  React.useEffect(() => { onStepChange?.(step - 2) }, [step]);
-
   const handleBack = () => {
     if (step === 3) onBack?.()
     else prev()
   }
+
+  React.useEffect(() => {
+    onRegisterBack?.(handleBack)
+  }, [step])
+
+  React.useEffect(() => { onStepChange?.(step - 2) }, [step])
 
   const handleFinish = async (days: StepDaysData) => {
     try {

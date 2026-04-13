@@ -6,10 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-
-// ─── Imports com caminho correto ─────────────
-// Se RegisterScreen está em src/screens/auth/ use './register/...'
-// Se RegisterScreen está em src/screens/auth/register/ use './...'
 import { StepOne }              from './register/StepOne';
 import { StepAddress }          from './register/StepAddress';
 import { StepTwo }              from './register/StepTwo';
@@ -137,21 +133,13 @@ export function RegisterScreen() {
     }
   };
 
+  // Ref para acessar o handleBack dos fluxos internos
+  const innerBackRef = React.useRef<(() => void) | null>(null)
+
   const handleBack = () => {
-    if (showStudentFlow) {
-      if (innerStep === 1) {
-        setShowStudentFlow(false)
-        setInnerStep(1)
-        setStep(3)
-      }
-      return
-    }
-    if (showPersonalFlow) {
-      if (innerStep === 1) {
-        setShowPersonalFlow(false)
-        setInnerStep(1)
-        setStep(3)
-      }
+    // Dentro dos fluxos internos — delega para o flow
+    if (showStudentFlow || showPersonalFlow) {
+      innerBackRef.current?.()
       return
     }
     if (step === 1) navigation.goBack()
@@ -181,13 +169,27 @@ export function RegisterScreen() {
         <StudentRegisterFlow
           onComplete={handleStudentComplete}
           onStepChange={setInnerStep}
-          onBack={handleBack}
+          onBack={() => {
+            if (innerStep === 1) {
+              setShowStudentFlow(false)
+              setInnerStep(1)
+              setStep(3)
+            }
+          }}
+          onRegisterBack={(fn) => { innerBackRef.current = fn }}
         />
       ) : showPersonalFlow ? (
         <PersonalRegisterFlow
           onComplete={handlePersonalComplete}
           onStepChange={setInnerStep}
-          onBack={handleBack}
+          onBack={() => {
+            if (innerStep === 1) {
+              setShowPersonalFlow(false)
+              setInnerStep(1)
+              setStep(3)
+            }
+          }}
+          onRegisterBack={(fn) => { innerBackRef.current = fn }}
         />
       ) : step === 1 ? (
         <StepOne form={formOne} avatarUri={avatarUri} onPickAvatar={handlePickAvatar} onSubmit={goToStep2} />
