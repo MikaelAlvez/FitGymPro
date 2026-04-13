@@ -158,7 +158,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
             control={control} name="name"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Nome"
+                label="Nome *"
                 placeholder="Seu nome completo"
                 autoCapitalize="words"
                 onChangeText={onChange} onBlur={onBlur} value={value}
@@ -171,7 +171,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
             control={control} name="cpf"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="CPF"
+                label="CPF *"
                 placeholder="000.000.000-00"
                 keyboardType="numeric"
                 maxLength={14}
@@ -188,7 +188,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
             control={control} name="email"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="E-mail"
+                label="E-mail *"
                 placeholder="seu@email.com"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -204,7 +204,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
             control={control} name="phone"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Telefone/Whatsapp"
+                label="Telefone/Whatsapp *"
                 placeholder="(00) 00000-0000"
                 keyboardType="phone-pad"
                 maxLength={15}
@@ -219,7 +219,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
             control={control} name="password"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Senha"
+                label="Senha *"
                 placeholder="••••••••"
                 secureTextEntry secureToggle
                 onChangeText={onChange} onBlur={onBlur} value={value}
@@ -232,7 +232,7 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
             control={control} name="confirmPassword"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Confirmar senha"
+                label="Confirmar senha *"
                 placeholder="••••••••"
                 secureTextEntry secureToggle
                 onChangeText={onChange} onBlur={onBlur} value={value}
@@ -241,6 +241,8 @@ export function StepOne({ form, avatarUri, onPickAvatar, onSubmit }: Props) {
             )}
           />
         </View>
+
+        <Text style={styles.required}>* Campos obrigatórios</Text>
 
         <Button
           label="Continuar"
@@ -303,5 +305,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing['4'],
   },
   fields: { gap: spacing['4'] },
-  btn:    { marginTop: spacing['8'] },
+  required: {
+    fontFamily: typography.family.regular,
+    fontSize: typography.size.xs,
+    color: colors.textSecondary,
+    marginTop: spacing['2'],
+  },
+  btn: { marginTop: spacing['6'] },
 });
