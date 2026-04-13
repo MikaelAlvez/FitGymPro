@@ -7,6 +7,9 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
+// ─── Imports com caminho correto ─────────────
+// Se RegisterScreen está em src/screens/auth/ use './register/...'
+// Se RegisterScreen está em src/screens/auth/register/ use './...'
 import { StepOne }              from './register/StepOne';
 import { StepAddress }          from './register/StepAddress';
 import { StepTwo }              from './register/StepTwo';
@@ -36,7 +39,16 @@ export function RegisterScreen() {
   const [showPersonalFlow, setShowPersonalFlow] = React.useState(false);
   const [stepTwoData,      setStepTwoData]      = React.useState<StepTwoData | null>(null);
 
+  // Step global: 1=dados pessoais, 2=endereço, 3=perfil
+  // Fluxo aluno:    3+5 steps internos = 8 total
+  // Fluxo personal: 3+3 steps internos = 6 total
   const totalSteps = showStudentFlow ? 8 : showPersonalFlow ? 6 : 3;
+
+  // Calcula o step atual global para colorir a barra
+  const getCurrentStep = () => {
+    if (!showStudentFlow && !showPersonalFlow) return step        // steps 1, 2, 3
+    return totalSteps                                             // completo ao entrar no fluxo
+  }
 
   const handlePickAvatar = (uri: string) => setAvatarUri(uri);
 
