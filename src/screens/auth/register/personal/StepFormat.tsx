@@ -28,9 +28,10 @@ const OPTIONS: CardOption<ClassFormat>[] = [
 interface Props {
   form:     UseFormReturn<StepFormatData>;
   onSubmit: (d: StepFormatData) => void;
+  onBack?:  () => void;
 }
 
-export function StepFormat({ form, onSubmit }: Props) {
+export function StepFormat({ form, onSubmit, onBack }: Props) {
   const { control, handleSubmit, formState: { errors } } = form;
 
   return (

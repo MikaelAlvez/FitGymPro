@@ -138,19 +138,14 @@ export function RegisterScreen() {
   };
 
   const handleBack = () => {
-    // Dentro do fluxo do aluno
     if (showStudentFlow) {
       if (innerStep === 1) {
-        // Primeiro step interno → volta para seleção de perfil
         setShowStudentFlow(false)
         setInnerStep(1)
         setStep(3)
       }
-      // Steps internos seguintes são controlados pelos próprios componentes
       return
     }
-
-    // Dentro do fluxo do personal
     if (showPersonalFlow) {
       if (innerStep === 1) {
         setShowPersonalFlow(false)
@@ -159,8 +154,6 @@ export function RegisterScreen() {
       }
       return
     }
-
-    // Steps globais
     if (step === 1) navigation.goBack()
     else goBack()
   };
@@ -188,11 +181,13 @@ export function RegisterScreen() {
         <StudentRegisterFlow
           onComplete={handleStudentComplete}
           onStepChange={setInnerStep}
+          onBack={handleBack}
         />
       ) : showPersonalFlow ? (
         <PersonalRegisterFlow
           onComplete={handlePersonalComplete}
           onStepChange={setInnerStep}
+          onBack={handleBack}
         />
       ) : step === 1 ? (
         <StepOne form={formOne} avatarUri={avatarUri} onPickAvatar={handlePickAvatar} onSubmit={goToStep2} />

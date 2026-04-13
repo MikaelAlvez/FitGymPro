@@ -48,11 +48,11 @@ export function StudentRegisterFlow({ onComplete, onStepChange, onBack }: Props)
   };
 
   switch (step) {
-    case 3: return <StepBody       form={formBody}       onSubmit={onBodySubmit}       />;
-    case 4: return <StepExperience form={formExperience} onSubmit={onExperienceSubmit} />;
-    case 5: return <StepGym        form={formGym}        onSubmit={onGymSubmit}        />;
-    case 6: return <StepCardio     form={formCardio}     onSubmit={onCardioSubmit}     />;
-    case 7: return <StepDays       form={formDays}       onSubmit={handleFinish} isLoading={loading} />;
+    case 3: return <StepBody       form={formBody}       onSubmit={onBodySubmit}       onBack={handleBack} />;
+    case 4: return <StepExperience form={formExperience} onSubmit={onExperienceSubmit} onBack={handleBack} />;
+    case 5: return <StepGym        form={formGym}        onSubmit={onGymSubmit}        onBack={handleBack} />;
+    case 6: return <StepCardio     form={formCardio}     onSubmit={onCardioSubmit}     onBack={handleBack} />;
+    case 7: return <StepDays       form={formDays}       onSubmit={handleFinish} isLoading={loading} onBack={handleBack} />;
     default: return null;
   }
 }

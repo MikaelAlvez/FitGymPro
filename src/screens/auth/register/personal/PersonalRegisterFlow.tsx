@@ -42,9 +42,9 @@ export function PersonalRegisterFlow({ onComplete, onStepChange, onBack }: Props
   };
 
   switch (step) {
-    case 3: return <StepBody   form={formBody}   onSubmit={onBodySubmit}   />;
-    case 4: return <StepFormat form={formFormat} onSubmit={onFormatSubmit} />;
-    case 5: return <StepDays   form={formDays}   onSubmit={handleFinish} isLoading={loading} />;
+    case 3: return <StepBody   form={formBody}   onSubmit={onBodySubmit}   onBack={handleBack} />;
+    case 4: return <StepFormat form={formFormat} onSubmit={onFormatSubmit} onBack={handleBack} />;
+    case 5: return <StepDays   form={formDays}   onSubmit={handleFinish} isLoading={loading} onBack={handleBack} />;
     default: return null;
   }
 }

@@ -10,9 +10,10 @@ interface Props {
   form:       UseFormReturn<StepDaysData>;
   onSubmit:   (d: StepDaysData) => void;
   isLoading?: boolean;
+  onBack?:    () => void;
 }
 
-export function StepDays({ form, onSubmit, isLoading }: Props) {
+export function StepDays({ form, onSubmit, isLoading, onBack }: Props) {
   const { control, handleSubmit, formState: { errors } } = form;
 
   const toggle = (day: WeekDay, current: WeekDay[], onChange: (v: WeekDay[]) => void) => {
