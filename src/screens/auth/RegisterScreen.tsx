@@ -38,16 +38,14 @@ export function RegisterScreen() {
   const [showStudentFlow,  setShowStudentFlow]  = React.useState(false);
   const [showPersonalFlow, setShowPersonalFlow] = React.useState(false);
   const [stepTwoData,      setStepTwoData]      = React.useState<StepTwoData | null>(null);
+  const [innerStep,        setInnerStep]        = React.useState(1);
 
-  // Step global: 1=dados pessoais, 2=endereço, 3=perfil
-  // Fluxo aluno:    3+5 steps internos = 8 total
-  // Fluxo personal: 3+3 steps internos = 6 total
+  // Step global: steps 1-3 são os globais, innerStep vem dos fluxos internos
   const totalSteps = showStudentFlow ? 8 : showPersonalFlow ? 6 : 3;
 
-  // Calcula o step atual global para colorir a barra
   const getCurrentStep = () => {
-    if (!showStudentFlow && !showPersonalFlow) return step        // steps 1, 2, 3
-    return totalSteps                                             // completo ao entrar no fluxo
+    if (showStudentFlow || showPersonalFlow) return 3 + innerStep
+    return step
   }
 
   const handlePickAvatar = (uri: string) => setAvatarUri(uri);
@@ -164,9 +162,15 @@ export function RegisterScreen() {
       </View>
 
       {showStudentFlow ? (
-        <StudentRegisterFlow onComplete={handleStudentComplete} />
+        <StudentRegisterFlow
+          onComplete={handleStudentComplete}
+          onStepChange={setInnerStep}
+        />
       ) : showPersonalFlow ? (
-        <PersonalRegisterFlow onComplete={handlePersonalComplete} />
+        <PersonalRegisterFlow
+          onComplete={handlePersonalComplete}
+          onStepChange={setInnerStep}
+        />
       ) : step === 1 ? (
         <StepOne form={formOne} avatarUri={avatarUri} onPickAvatar={handlePickAvatar} onSubmit={goToStep2} />
       ) : step === 2 ? (

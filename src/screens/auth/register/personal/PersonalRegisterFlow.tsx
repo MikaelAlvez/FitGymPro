@@ -7,10 +7,11 @@ import { StepDays }   from './StepDays';
 import { usePersonalForm, type StepDaysData, type PersonalProfileData } from './usePersonalForm';
 
 interface Props {
-  onComplete: (data: PersonalProfileData) => void;
+  onComplete:   (data: PersonalProfileData) => void;
+  onStepChange?: (step: number) => void;
 }
 
-export function PersonalRegisterFlow({ onComplete }: Props) {
+export function PersonalRegisterFlow({ onComplete, onStepChange }: Props) {
   const [loading, setLoading] = useState(false);
 
   const {
@@ -19,6 +20,9 @@ export function PersonalRegisterFlow({ onComplete }: Props) {
     formFormat, onFormatSubmit,
     formDays,   getFullProfile,
   } = usePersonalForm();
+
+  // Notifica o step atual para o indicador externo
+  React.useEffect(() => { onStepChange?.(step - 2) }, [step]);
 
   const handleFinish = async (days: StepDaysData) => {
     try {
