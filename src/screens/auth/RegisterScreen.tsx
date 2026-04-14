@@ -6,10 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-
-// ─── Imports com caminho correto ─────────────
-// Se RegisterScreen está em src/screens/auth/ use './register/...'
-// Se RegisterScreen está em src/screens/auth/register/ use './...'
 import { StepOne }              from './register/StepOne';
 import { StepAddress }          from './register/StepAddress';
 import { StepTwo }              from './register/StepTwo';
@@ -43,6 +39,10 @@ export function RegisterScreen() {
   const [showSuccess,      setShowSuccess]      = React.useState(false);
   const [registeredName,   setRegisteredName]   = React.useState('');
 
+  // Total de steps depende do perfil selecionado
+  // Aluno: 3 globais + 5 internos = 8
+  // Personal: 3 globais + 3 internos = 6
+  // Antes de selecionar: mostra 8 (maior fluxo) para não mudar a barra
   const totalSteps = showPersonalFlow ? 6 : 8;
 
   const getCurrentStep = () => {
@@ -77,14 +77,14 @@ export function RegisterScreen() {
         phone:        base.phone,
         password:     base.password,
         role:         'STUDENT',
+        sex:          base.sex,
+        birthDate:    base.birthDate,
         cep:          base.address?.cep,
         street:       base.address?.street,
         number:       base.address?.number,
         neighborhood: base.address?.neighborhood,
         city:         base.address?.city,
         state:        base.address?.state,
-        sex:          profileData.sex,
-        birthDate:    profileData.birthDate,
         weight:       profileData.weight,
         height:       profileData.height,
         goal:         profileData.goal,
@@ -115,14 +115,14 @@ export function RegisterScreen() {
         phone:          base.phone,
         password:       base.password,
         role:           'PERSONAL',
+        sex:            base.sex,
+        birthDate:      base.birthDate,
         cep:            base.address?.cep,
         street:         base.address?.street,
         number:         base.address?.number,
         neighborhood:   base.address?.neighborhood,
         city:           base.address?.city,
         state:          base.address?.state,
-        sex:            profileData.sex,
-        birthDate:      profileData.birthDate,
         weight:         profileData.weight,
         height:         profileData.height,
         course:         profileData.course,
