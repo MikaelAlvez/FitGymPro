@@ -10,19 +10,13 @@ import { Input }  from '../../../../components/ui/Input';
 import { Button } from '../../../../components/ui/Button';
 import type { StepBodyData } from './useStudentForm';
 import { colors, spacing, typography, radii } from '../../../../theme';
+import { maskDate, isValidDate } from '../../../../utils/date';
 
 const SEX_OPTIONS  = ['Masculino', 'Feminino', 'Prefiro não informar'];
 const GOAL_OPTIONS = [
   'Hipertrofia', 'Emagrecimento', 'Resistência muscular',
   'Condicionamento físico', 'Reabilitação', 'Manutenção', 'Saúde geral',
 ];
-
-function maskDate(raw: string): string {
-  const d = raw.replace(/\D/g, '').slice(0, 8);
-  if (d.length <= 2) return d;
-  if (d.length <= 4) return `${d.slice(0,2)}/${d.slice(2)}`;
-  return `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}`;
-}
 
 function PickerModal({ visible, title, options, selected, onSelect, onClose }: any) {
   return (
@@ -82,15 +76,33 @@ interface Props {
 }
 
 export function StepBody({ form, onSubmit, onBack }: Props) {
-  const { control, handleSubmit, formState: { errors } } = form;
+  const { control, handleSubmit, setError, clearErrors, trigger, formState: { errors } } = form;
   const [sexModal,  setSexModal]  = useState(false);
   const [goalModal, setGoalModal] = useState(false);
+
+  // Valida data em tempo real ao completar DD/MM/AAAA
+  const handleDateChange = (raw: string, onChange: (v: string) => void) => {
+    const masked = maskDate(raw)
+    onChange(masked)
+
+    const digits = masked.replace(/\D/g, '')
+    if (digits.length === 8) {
+      if (!isValidDate(masked)) {
+        setError('birthDate', { type: 'manual', message: 'Data de nascimento inválida' })
+      } else {
+        clearErrors('birthDate')
+      }
+    } else if (digits.length < 8) {
+      clearErrors('birthDate')
+    }
+  }
 
   return (
     <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Text style={s.sectionTitle}>Dados corporais</Text>
         <View style={s.fields}>
+
           <Controller control={control} name="sex"
             render={({ field: { onChange, value } }) => (
               <>
@@ -101,14 +113,22 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
               </>
             )}
           />
+
           <Controller control={control} name="birthDate"
             render={({ field: { onChange, onBlur, value } }) => (
-              <Input label="Data de nascimento *" placeholder="DD/MM/AAAA"
-                keyboardType="numeric" maxLength={10}
-                onChangeText={raw => onChange(maskDate(raw))} onBlur={onBlur} value={value}
-                error={errors.birthDate?.message} />
+              <Input
+                label="Data de nascimento *"
+                placeholder="DD/MM/AAAA"
+                keyboardType="numeric"
+                maxLength={10}
+                onChangeText={raw => handleDateChange(raw, onChange)}
+                onBlur={onBlur}
+                value={value}
+                error={errors.birthDate?.message}
+              />
             )}
           />
+
           <View style={s.row}>
             <View style={s.half}>
               <Controller control={control} name="weight"
@@ -127,6 +147,7 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
               />
             </View>
           </View>
+
           <Controller control={control} name="goal"
             render={({ field: { onChange, value } }) => (
               <>
@@ -138,6 +159,7 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
               </>
             )}
           />
+
           <Controller control={control} name="focusMuscle"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input label="Músculo que deseja focar? *" placeholder="Ex: Pernas, costas..."
@@ -145,6 +167,7 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
             )}
           />
         </View>
+
         <Text style={s.required}>* Campos obrigatórios</Text>
         <Button label="Continuar" onPress={handleSubmit(onSubmit)} style={s.btn} />
       </ScrollView>

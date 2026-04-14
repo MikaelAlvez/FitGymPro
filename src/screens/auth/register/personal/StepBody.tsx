@@ -11,6 +11,7 @@ import { Input }  from '../../../../components/ui/Input';
 import { Button } from '../../../../components/ui/Button';
 import type { StepBodyData } from './usePersonalForm';
 import { colors, typography, spacing, radii } from '../../../../theme';
+import { maskDate, isValidDate } from '../../../../utils/date';
 
 // ─── Opções ──────────────────────────────────
 const SEX_OPTIONS = ['Masculino', 'Feminino', 'Prefiro não informar'];
@@ -28,12 +29,6 @@ const EDUCATION_LEVELS = [
 ];
 
 // ─── Helpers ─────────────────────────────────
-function maskDate(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-}
 
 function maskCref(raw: string): string {
   const clean  = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 9);
@@ -126,9 +121,24 @@ interface Props {
 }
 
 export function StepBody({ form, onSubmit, onBack }: Props) {
-  const { control, handleSubmit, formState: { errors } } = form;
+  const { control, handleSubmit, setError, clearErrors, formState: { errors } } = form;
   const [sexModal,       setSexModal]       = useState(false);
   const [educationModal, setEducationModal] = useState(false);
+
+  const handleDateChange = (raw: string, onChange: (v: string) => void) => {
+    const masked = maskDate(raw)
+    onChange(masked)
+    const digits = masked.replace(/\D/g, '')
+    if (digits.length === 8) {
+      if (!isValidDate(masked)) {
+        setError('birthDate', { type: 'manual', message: 'Data de nascimento inválida' })
+      } else {
+        clearErrors('birthDate')
+      }
+    } else if (digits.length < 8) {
+      clearErrors('birthDate')
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -175,7 +185,7 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
                 placeholder="DD/MM/AAAA"
                 keyboardType="numeric"
                 maxLength={10}
-                onChangeText={raw => onChange(maskDate(raw))}
+                onChangeText={raw => handleDateChange(raw, onChange)}
                 onBlur={onBlur}
                 value={value}
                 error={errors.birthDate?.message}
