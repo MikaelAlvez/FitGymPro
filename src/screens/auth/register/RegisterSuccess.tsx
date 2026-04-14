@@ -17,7 +17,10 @@ export function RegisterSuccess({ userName, onFinish }: Props) {
   const [done, setDone] = React.useState(false);
 
   useEffect(() => {
-    // 1. Gira o loader por 2.5s
+    //RTempo do loader girando antes de mostrar o checkmark
+    const LOADER_TIME    = 1500   
+    //Tempo exibindo o checkmark antes de ir para home
+    const CHECKMARK_TIME = 1200   
     Animated.loop(
       Animated.timing(spinAnim, {
         toValue:         1,
@@ -27,7 +30,6 @@ export function RegisterSuccess({ userName, onFinish }: Props) {
       }),
     ).start();
 
-    // 2. Após 2.5s para o loader e exibe o checkmark
     const timer = setTimeout(() => {
       spinAnim.stopAnimation();
       setDone(true);
@@ -45,9 +47,8 @@ export function RegisterSuccess({ userName, onFinish }: Props) {
         }),
       ]).start();
 
-      // 3. Após mais 2s navega para a home
-      setTimeout(() => onFinish(), 9500);
-    }, 10000);
+      setTimeout(() => onFinish(), CHECKMARK_TIME);
+    }, LOADER_TIME);
 
     return () => clearTimeout(timer);
   }, []);
