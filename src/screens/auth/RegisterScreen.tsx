@@ -40,13 +40,15 @@ export function RegisterScreen() {
   const [stepTwoData,      setStepTwoData]      = React.useState<StepTwoData | null>(null);
   const [innerStep,        setInnerStep]        = React.useState(1);
 
-  // Total fixo em 8 (fluxo aluno) — o maior fluxo possível
-  // Personal tem 6, mas deixamos 8 para não mudar a barra ao selecionar perfil
-  const totalSteps = 8;
+  // Total de steps depende do perfil selecionado
+  // Aluno: 3 globais + 5 internos = 8
+  // Personal: 3 globais + 3 internos = 6
+  // Antes de selecionar: mostra 8 (maior fluxo) para não mudar a barra
+  const totalSteps = showPersonalFlow ? 6 : 8;
 
   const getCurrentStep = () => {
     if (showStudentFlow || showPersonalFlow) return 3 + innerStep;
-    return step; // 1, 2 ou 3
+    return step;
   }
 
   const handlePickAvatar = (uri: string) => setAvatarUri(uri);
