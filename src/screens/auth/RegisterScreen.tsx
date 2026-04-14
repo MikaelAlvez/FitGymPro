@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StepOne }              from './register/StepOne';
 import { StepAddress }          from './register/StepAddress';
 import { StepTwo }              from './register/StepTwo';
+import { RegisterSuccess }      from './register/RegisterSuccess';
 import { StudentRegisterFlow }  from './register/student/StudentRegisterFlow';
 import { PersonalRegisterFlow } from './register/personal/PersonalRegisterFlow';
 import { useRegisterForm }      from './register/useRegisterForm';
@@ -39,6 +40,8 @@ export function RegisterScreen() {
   const [showPersonalFlow, setShowPersonalFlow] = React.useState(false);
   const [stepTwoData,      setStepTwoData]      = React.useState<StepTwoData | null>(null);
   const [innerStep,        setInnerStep]        = React.useState(1);
+  const [showSuccess,      setShowSuccess]      = React.useState(false);
+  const [registeredName,   setRegisteredName]   = React.useState('');
 
   // Total de steps depende do perfil selecionado
   // Aluno: 3 globais + 5 internos = 8
@@ -96,6 +99,8 @@ export function RegisterScreen() {
         trainingDays: profileData.days,
       });
       await uploadAvatarIfSelected();
+      setRegisteredName(base.name.split(' ')[0]);
+      setShowSuccess(true);
     } catch (err: any) {
       Alert.alert('Erro', err?.message ?? 'Não foi possível criar a conta.');
     } finally {
@@ -132,6 +137,8 @@ export function RegisterScreen() {
         availableDays:  profileData.days,
       });
       await uploadAvatarIfSelected();
+      setRegisteredName(base.name.split(' ')[0]);
+      setShowSuccess(true);
     } catch (err: any) {
       Alert.alert('Erro', err?.message ?? 'Não foi possível criar a conta.');
     } finally {
