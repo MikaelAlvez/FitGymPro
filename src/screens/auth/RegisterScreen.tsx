@@ -6,6 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+
+// ─── Imports com caminho correto ─────────────
+// Se RegisterScreen está em src/screens/auth/ use './register/...'
+// Se RegisterScreen está em src/screens/auth/register/ use './...'
 import { StepOne }              from './register/StepOne';
 import { StepAddress }          from './register/StepAddress';
 import { StepTwo }              from './register/StepTwo';
@@ -62,8 +66,11 @@ export function RegisterScreen() {
     if (!avatarUri) return;
     try {
       const url = await uploadAvatar(avatarUri);
-      await updateUser({ avatar: url });
-    } catch {}
+      console.log('[UPLOAD] avatar url:', url)
+      if (url) await updateUser({ avatar: url });
+    } catch (err: any) {
+      console.warn('[UPLOAD] erro:', err?.message)
+    }
   };
 
   const handleStudentComplete = async (profileData: any) => {
