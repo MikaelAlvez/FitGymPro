@@ -97,6 +97,15 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
     }
   }
 
+  const handleValidatedSubmit = (data: StepBodyData) => {
+    // Valida data antes de prosseguir
+    if (!isValidDate(data.birthDate)) {
+      setError('birthDate', { type: 'manual', message: 'Data de nascimento inválida' })
+      return
+    }
+    onSubmit(data)
+  }
+
   return (
     <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -169,7 +178,7 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
         </View>
 
         <Text style={s.required}>* Campos obrigatórios</Text>
-        <Button label="Continuar" onPress={handleSubmit(onSubmit)} style={s.btn} />
+        <Button label="Continuar" onPress={handleSubmit(handleValidatedSubmit)} style={s.btn} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

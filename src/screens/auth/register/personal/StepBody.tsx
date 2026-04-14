@@ -29,7 +29,6 @@ const EDUCATION_LEVELS = [
 ];
 
 // ─── Helpers ─────────────────────────────────
-
 function maskCref(raw: string): string {
   const clean  = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 9);
   const digits = clean.slice(0, 6);
@@ -125,6 +124,7 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
   const [sexModal,       setSexModal]       = useState(false);
   const [educationModal, setEducationModal] = useState(false);
 
+  // Valida data em tempo real
   const handleDateChange = (raw: string, onChange: (v: string) => void) => {
     const masked = maskDate(raw)
     onChange(masked)
@@ -138,6 +138,15 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
     } else if (digits.length < 8) {
       clearErrors('birthDate')
     }
+  }
+
+  // Bloqueia avanço se data inválida
+  const handleValidatedSubmit = (data: StepBodyData) => {
+    if (!isValidDate(data.birthDate)) {
+      setError('birthDate', { type: 'manual', message: 'Data de nascimento inválida' })
+      return
+    }
+    onSubmit(data)
   }
 
   return (
@@ -154,25 +163,14 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
 
         <View style={styles.fields}>
 
-          {/* Sexo — picker */}
+          {/* Sexo */}
           <Controller control={control} name="sex"
             render={({ field: { onChange, value } }) => (
               <>
-                <SelectorField
-                  label="Sexo *"
-                  value={value}
-                  placeholder="Selecione"
-                  onPress={() => setSexModal(true)}
-                  error={errors.sex?.message}
-                />
-                <PickerModal
-                  visible={sexModal}
-                  title="Sexo"
-                  options={SEX_OPTIONS}
-                  selected={value}
-                  onSelect={onChange}
-                  onClose={() => setSexModal(false)}
-                />
+                <SelectorField label="Sexo *" value={value} placeholder="Selecione"
+                  onPress={() => setSexModal(true)} error={errors.sex?.message} />
+                <PickerModal visible={sexModal} title="Sexo" options={SEX_OPTIONS}
+                  selected={value} onSelect={onChange} onClose={() => setSexModal(false)} />
               </>
             )}
           />
@@ -198,8 +196,7 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
             <View style={styles.half}>
               <Controller control={control} name="weight"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <Input label="Peso (kg) *" placeholder="70"
-                    keyboardType="numeric"
+                  <Input label="Peso (kg) *" placeholder="70" keyboardType="numeric"
                     onChangeText={onChange} onBlur={onBlur} value={value}
                     error={errors.weight?.message} />
                 )}
@@ -208,8 +205,7 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
             <View style={styles.half}>
               <Controller control={control} name="height"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <Input label="Altura (cm) *" placeholder="175"
-                    keyboardType="numeric"
+                  <Input label="Altura (cm) *" placeholder="175" keyboardType="numeric"
                     onChangeText={onChange} onBlur={onBlur} value={value}
                     error={errors.height?.message} />
                 )}
@@ -222,46 +218,31 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
           {/* Curso */}
           <Controller control={control} name="course"
             render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                label="Curso *"
-                placeholder="Ex: Educação Física"
+              <Input label="Curso *" placeholder="Ex: Educação Física"
                 onChangeText={onChange} onBlur={onBlur} value={value}
-                error={errors.course?.message}
-              />
+                error={errors.course?.message} />
             )}
           />
 
           {/* Universidade */}
           <Controller control={control} name="university"
             render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                label="Universidade *"
-                placeholder="Ex: UNICAMP, USP..."
+              <Input label="Universidade *" placeholder="Ex: UNICAMP, USP..."
                 onChangeText={onChange} onBlur={onBlur} value={value}
-                error={errors.university?.message}
-              />
+                error={errors.university?.message} />
             )}
           />
 
-          {/* Nível de formação — picker */}
+          {/* Nível de formação */}
           <Controller control={control} name="educationLevel"
             render={({ field: { onChange, value } }) => (
               <>
-                <SelectorField
-                  label="Nível de formação *"
-                  value={value}
-                  placeholder="Selecione o nível"
-                  onPress={() => setEducationModal(true)}
-                  error={errors.educationLevel?.message}
-                />
-                <PickerModal
-                  visible={educationModal}
-                  title="Nível de formação"
-                  options={EDUCATION_LEVELS}
-                  selected={value}
-                  onSelect={onChange}
-                  onClose={() => setEducationModal(false)}
-                />
+                <SelectorField label="Nível de formação *" value={value}
+                  placeholder="Selecione o nível" onPress={() => setEducationModal(true)}
+                  error={errors.educationLevel?.message} />
+                <PickerModal visible={educationModal} title="Nível de formação"
+                  options={EDUCATION_LEVELS} selected={value} onSelect={onChange}
+                  onClose={() => setEducationModal(false)} />
               </>
             )}
           />
@@ -269,23 +250,18 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
           {/* CREF */}
           <Controller control={control} name="cref"
             render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                label="CREF *"
-                placeholder="000000-G/UF"
-                autoCapitalize="characters"
-                maxLength={10}
+              <Input label="CREF *" placeholder="000000-G/UF"
+                autoCapitalize="characters" maxLength={10}
                 onChangeText={raw => onChange(maskCref(raw))}
-                onBlur={onBlur}
-                value={value}
-                error={errors.cref?.message}
-              />
+                onBlur={onBlur} value={value}
+                error={errors.cref?.message} />
             )}
           />
         </View>
 
         <Text style={styles.required}>* Campos obrigatórios</Text>
 
-        <Button label="Continuar" onPress={handleSubmit(onSubmit)} style={styles.btn} />
+        <Button label="Continuar" onPress={handleSubmit(handleValidatedSubmit)} style={styles.btn} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -294,111 +270,27 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
 // ─── Styles ──────────────────────────────────
 const styles = StyleSheet.create({
   flex:   { flex: 1 },
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: spacing['6'],
-    paddingBottom: spacing['10'],
-  },
-  sectionTitle: {
-    fontFamily: typography.family.bold,
-    fontSize: typography.size.lg,
-    color: colors.textPrimary,
-    marginBottom: spacing['4'],
-    marginTop: spacing['2'],
-  },
+  scroll: { flexGrow: 1, paddingHorizontal: spacing['6'], paddingBottom: spacing['10'] },
+  sectionTitle: { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary, marginBottom: spacing['4'], marginTop: spacing['2'] },
   fields:  { gap: spacing['4'] },
   row:     { flexDirection: 'row', gap: spacing['3'] },
   half:    { flex: 1 },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: spacing['2'],
-  },
-  required: {
-    fontFamily: typography.family.regular,
-    fontSize: typography.size.xs,
-    color: colors.textSecondary,
-    marginTop: spacing['2'],
-  },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing['2'] },
+  required: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: spacing['2'] },
   btn: { marginTop: spacing['6'] },
-
-  // Selector
   selectorWrapper: { gap: spacing['1'] },
-  selectorLabel: {
-    fontFamily: typography.family.medium,
-    fontSize: typography.size.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing['1'],
-  },
-  selectorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    height: 52,
-    paddingHorizontal: spacing['4'],
-  },
+  selectorLabel: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary, marginBottom: spacing['1'] },
+  selectorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'] },
   selectorBoxError: { borderColor: colors.error },
-  selectorValue: {
-    fontFamily: typography.family.regular,
-    fontSize: typography.size.base,
-    color: colors.textPrimary,
-  },
-  selectorPlaceholder: {
-    fontFamily: typography.family.regular,
-    fontSize: typography.size.base,
-    color: colors.textDisabled,
-  },
-  errorText: {
-    fontFamily: typography.family.regular,
-    fontSize: typography.size.xs,
-    color: colors.error,
-    marginTop: spacing['1'],
-  },
-
-  // Modal
+  selectorValue: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  selectorPlaceholder: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled },
+  errorText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.error, marginTop: spacing['1'] },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii['2xl'],
-    borderTopRightRadius: radii['2xl'],
-    paddingBottom: spacing['8'],
-    maxHeight: '60%',
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing['6'],
-    paddingVertical: spacing['4'],
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  sheetTitle: {
-    fontFamily: typography.family.semiBold,
-    fontSize: typography.size.base,
-    color: colors.textPrimary,
-  },
-  option: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing['4'],
-    paddingHorizontal: spacing['6'],
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  optionActive:     { backgroundColor: colors.surfaceHigh },
-  optionText: {
-    fontFamily: typography.family.regular,
-    fontSize: typography.size.base,
-    color: colors.textPrimary,
-  },
-  optionTextActive: {
-    fontFamily: typography.family.semiBold,
-    color: colors.primary,
-  },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], paddingBottom: spacing['8'], maxHeight: '60%' },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
+  sheetTitle: { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
+  option: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing['4'], paddingHorizontal: spacing['6'], borderBottomWidth: 1, borderBottomColor: colors.divider },
+  optionActive: { backgroundColor: colors.surfaceHigh },
+  optionText: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  optionTextActive: { fontFamily: typography.family.semiBold, color: colors.primary },
 });
