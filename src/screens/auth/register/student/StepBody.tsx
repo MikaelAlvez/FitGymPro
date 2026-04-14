@@ -10,14 +10,14 @@ import { Input }  from '../../../../components/ui/Input';
 import { Button } from '../../../../components/ui/Button';
 import type { StepBodyData } from './useStudentForm';
 import { colors, spacing, typography, radii } from '../../../../theme';
-import { maskDate, isValidDate } from '../../../../utils/date';
 
-const SEX_OPTIONS  = ['Masculino', 'Feminino', 'Prefiro não informar'];
+// ─── Opções ──────────────────────────────────
 const GOAL_OPTIONS = [
   'Hipertrofia', 'Emagrecimento', 'Resistência muscular',
   'Condicionamento físico', 'Reabilitação', 'Manutenção', 'Saúde geral',
 ];
 
+// ─── Picker Modal ─────────────────────────────
 function PickerModal({ visible, title, options, selected, onSelect, onClose }: any) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -51,6 +51,7 @@ function PickerModal({ visible, title, options, selected, onSelect, onClose }: a
   );
 }
 
+// ─── Selector Field ───────────────────────────
 function SelectorField({ label, value, placeholder, onPress, error }: any) {
   return (
     <View style={s.selectorWrapper}>
@@ -69,6 +70,7 @@ function SelectorField({ label, value, placeholder, onPress, error }: any) {
   );
 }
 
+// ─── StepBody ────────────────────────────────
 interface Props {
   form:     UseFormReturn<StepBodyData>;
   onSubmit: (d: StepBodyData) => void;
@@ -76,68 +78,15 @@ interface Props {
 }
 
 export function StepBody({ form, onSubmit, onBack }: Props) {
-  const { control, handleSubmit, setError, clearErrors, trigger, formState: { errors } } = form;
-  const [sexModal,  setSexModal]  = useState(false);
+  const { control, handleSubmit, formState: { errors } } = form;
   const [goalModal, setGoalModal] = useState(false);
-
-  // Valida data em tempo real ao completar DD/MM/AAAA
-  const handleDateChange = (raw: string, onChange: (v: string) => void) => {
-    const masked = maskDate(raw)
-    onChange(masked)
-
-    const digits = masked.replace(/\D/g, '')
-    if (digits.length === 8) {
-      if (!isValidDate(masked)) {
-        setError('birthDate', { type: 'manual', message: 'Data de nascimento inválida' })
-      } else {
-        clearErrors('birthDate')
-      }
-    } else if (digits.length < 8) {
-      clearErrors('birthDate')
-    }
-  }
-
-  const handleValidatedSubmit = (data: StepBodyData) => {
-    // Valida data antes de prosseguir
-    if (!isValidDate(data.birthDate)) {
-      setError('birthDate', { type: 'manual', message: 'Data de nascimento inválida' })
-      return
-    }
-    onSubmit(data)
-  }
 
   return (
     <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Text style={s.sectionTitle}>Dados corporais</Text>
+
         <View style={s.fields}>
-
-          <Controller control={control} name="sex"
-            render={({ field: { onChange, value } }) => (
-              <>
-                <SelectorField label="Sexo *" value={value} placeholder="Selecione"
-                  onPress={() => setSexModal(true)} error={errors.sex?.message} />
-                <PickerModal visible={sexModal} title="Sexo" options={SEX_OPTIONS}
-                  selected={value} onSelect={onChange} onClose={() => setSexModal(false)} />
-              </>
-            )}
-          />
-
-          <Controller control={control} name="birthDate"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                label="Data de nascimento *"
-                placeholder="DD/MM/AAAA"
-                keyboardType="numeric"
-                maxLength={10}
-                onChangeText={raw => handleDateChange(raw, onChange)}
-                onBlur={onBlur}
-                value={value}
-                error={errors.birthDate?.message}
-              />
-            )}
-          />
-
           <View style={s.row}>
             <View style={s.half}>
               <Controller control={control} name="weight"
@@ -178,12 +127,13 @@ export function StepBody({ form, onSubmit, onBack }: Props) {
         </View>
 
         <Text style={s.required}>* Campos obrigatórios</Text>
-        <Button label="Continuar" onPress={handleSubmit(handleValidatedSubmit)} style={s.btn} />
+        <Button label="Continuar" onPress={handleSubmit(onSubmit)} style={s.btn} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+// ─── Styles ──────────────────────────────────
 const s = StyleSheet.create({
   flex:   { flex: 1 },
   scroll: { flexGrow: 1, paddingHorizontal: spacing['6'], paddingBottom: spacing['10'] },

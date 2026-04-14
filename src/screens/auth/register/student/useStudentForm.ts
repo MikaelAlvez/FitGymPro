@@ -22,18 +22,14 @@ export const WEEK_DAYS: { value: WeekDay; label: string }[] = [
   { value: 'sunday',    label: 'Domingo'       },
 ];
 
-// ─── Schemas por step ────────────────────────
+// ─── Schemas ─────────────────────────────────
 export const stepBodySchema = z.object({
-  sex:         z.string({ message: 'Sexo é obrigatório' })
-                .min(1, 'Sexo é obrigatório'),
-  birthDate:   z.string({ message: 'Data de nascimento é obrigatória' })
-                .min(1, 'Data de nascimento é obrigatória'),
   weight:      z.string({ message: 'Peso é obrigatório' })
                 .min(1, 'Peso é obrigatório'),
   height:      z.string({ message: 'Altura é obrigatória' })
                 .min(1, 'Altura é obrigatória'),
   goal:        z.string({ message: 'Objetivo é obrigatório' })
-                .min(3, 'Descreva seu objetivo'),
+                .min(1, 'Objetivo é obrigatório'),
   focusMuscle: z.string({ message: 'Músculo foco é obrigatório' })
                 .min(3, 'Descreva o músculo foco'),
 });
@@ -73,12 +69,11 @@ export interface StudentProfileData
           StepGymData, StepCardioData, StepDaysData {}
 
 // ─── Hook ────────────────────────────────────
-export type StudentStep = 3 | 4 | 5 | 6 | 7; // continuação dos steps globais
+export type StudentStep = 3 | 4 | 5 | 6 | 7;
 
 export function useStudentForm() {
   const [step, setStep] = useState<StudentStep>(3);
 
-  // Acumula dados dos steps anteriores
   const [bodyData,       setBodyData]       = useState<StepBodyData | null>(null);
   const [experienceData, setExperienceData] = useState<StepExperienceData | null>(null);
   const [gymData,        setGymData]        = useState<StepGymData | null>(null);
