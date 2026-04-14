@@ -28,7 +28,7 @@ type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 
 export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
-  const { registerStudent, registerPersonal, updateUser } = useAuth();
+  const { registerStudent, registerPersonal, updateUser, activateSession } = useAuth();
   const {
     step, formOne, formAddress, formTwo,
     avatarUri, setAvatarUri,
@@ -43,10 +43,6 @@ export function RegisterScreen() {
   const [showSuccess,      setShowSuccess]      = React.useState(false);
   const [registeredName,   setRegisteredName]   = React.useState('');
 
-  // Total de steps depende do perfil selecionado
-  // Aluno: 3 globais + 5 internos = 8
-  // Personal: 3 globais + 3 internos = 6
-  // Antes de selecionar: mostra 8 (maior fluxo) para não mudar a barra
   const totalSteps = showPersonalFlow ? 6 : 8;
 
   const getCurrentStep = () => {
@@ -176,9 +172,7 @@ export function RegisterScreen() {
       {showSuccess && (
         <RegisterSuccess
           userName={registeredName}
-          onFinish={() => {
-            // RootNavigator redireciona automaticamente via isAuthenticated
-          }}
+          onFinish={activateSession}
         />
       )}
 

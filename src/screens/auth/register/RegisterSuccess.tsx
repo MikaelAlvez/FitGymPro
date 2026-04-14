@@ -46,8 +46,8 @@ export function RegisterSuccess({ userName, onFinish }: Props) {
       ]).start();
 
       // 3. Após mais 2s navega para a home
-      setTimeout(() => onFinish(), 2000);
-    }, 2500);
+      setTimeout(() => onFinish(), 9500);
+    }, 10000);
 
     return () => clearTimeout(timer);
   }, []);

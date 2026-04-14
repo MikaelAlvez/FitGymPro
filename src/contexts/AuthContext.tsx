@@ -8,7 +8,6 @@ import React, {
 } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { authService } from '../services/auth.service'
-import type { User } from '../services/auth.service'
 import type {
   RegisterStudentPayload,
   RegisterPersonalPayload,
@@ -16,7 +15,14 @@ import type {
 
 // ─── Types ───────────────────────────────────
 export type UserRole = 'PERSONAL' | 'STUDENT'
-export type { User }
+
+export interface User {
+  id:      string
+  name:    string
+  email:   string
+  role:    UserRole
+  avatar?: string
+}
 
 interface AuthState {
   user:            User | null
@@ -28,8 +34,9 @@ interface AuthState {
 interface AuthContextData extends AuthState {
   signIn:           (email: string, password: string) => Promise<void>
   signOut:          () => Promise<void>
-  registerStudent:  (payload: RegisterStudentPayload) => Promise<void>
-  registerPersonal: (payload: RegisterPersonalPayload) => Promise<void>
+  registerStudent:  (payload: RegisterStudentPayload) => Promise<User>
+  registerPersonal: (payload: RegisterPersonalPayload) => Promise<User>
+  activateSession:  () => Promise<void>
   updateUser:       (updated: Partial<User>) => Promise<void>
 }
 
@@ -128,14 +135,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ─── Register Student ─────────────────────────
   const registerStudent = useCallback(async (payload: RegisterStudentPayload) => {
     const { user, accessToken, refreshToken } = await authService.registerStudent(payload)
-    await persistSession(user, accessToken, refreshToken)
-  }, [persistSession])
+    // Salva tokens mas NÃO autentica ainda — deixa a tela de sucesso exibir primeiro
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.USER,          JSON.stringify(user)],
+      [STORAGE_KEYS.TOKEN,         accessToken],
+      [STORAGE_KEYS.REFRESH_TOKEN, refreshToken],
+    ])
+    // Retorna os dados sem alterar o estado de autenticação
+    return user
+  }, [])
 
   // ─── Register Personal ────────────────────────
   const registerPersonal = useCallback(async (payload: RegisterPersonalPayload) => {
     const { user, accessToken, refreshToken } = await authService.registerPersonal(payload)
-    await persistSession(user, accessToken, refreshToken)
-  }, [persistSession])
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.USER,          JSON.stringify(user)],
+      [STORAGE_KEYS.TOKEN,         accessToken],
+      [STORAGE_KEYS.REFRESH_TOKEN, refreshToken],
+    ])
+    return user
+  }, [])
+
+  // ─── Ativa autenticação (chamado após tela de sucesso) ───
+  const activateSession = useCallback(async () => {
+    try {
+      const [storedUser, storedToken] = await AsyncStorage.multiGet([
+        STORAGE_KEYS.USER,
+        STORAGE_KEYS.TOKEN,
+      ])
+      const user  = storedUser[1]  ? (JSON.parse(storedUser[1]) as User) : null
+      const token = storedToken[1] ?? null
+      setState({ user, token, isLoading: false, isAuthenticated: true })
+    } catch {
+      setState(s => ({ ...s, isAuthenticated: false }))
+    }
+  }, [])
 
   return (
     <AuthContext.Provider value={{
@@ -144,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       registerStudent,
       registerPersonal,
+      activateSession,
       updateUser,
     }}>
       {children}
