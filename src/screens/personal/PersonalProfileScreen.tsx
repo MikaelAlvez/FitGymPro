@@ -41,16 +41,16 @@ export function PersonalProfileScreen() {
   const [sexModal, setSexModal] = useState(false)
 
   const [form, setForm] = useState({
-    name:         user?.name             ?? '',
-    phone:        (user as any)?.phone         ?? '',
-    sex:          (user as any)?.sex           ?? '',
-    birthDate:    (user as any)?.birthDate     ?? '',
-    cep:          (user as any)?.cep           ?? '',
-    street:       (user as any)?.street        ?? '',
-    number:       (user as any)?.number        ?? '',
-    neighborhood: (user as any)?.neighborhood  ?? '',
-    city:         (user as any)?.city          ?? '',
-    state:        (user as any)?.state         ?? '',
+    name:         user?.name          ?? '',
+    phone:        user?.phone         ?? '',
+    sex:          user?.sex           ?? '',
+    birthDate:    user?.birthDate     ?? '',
+    cep:          user?.cep           ?? '',
+    street:       user?.street        ?? '',
+    number:       user?.number        ?? '',
+    neighborhood: user?.neighborhood  ?? '',
+    city:         user?.city          ?? '',
+    state:        user?.state         ?? '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
