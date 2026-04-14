@@ -171,43 +171,58 @@ export function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Meu perfil</Text>
-        <View style={{ width: 24 }} />
-      </View>
 
-      <View style={styles.stepIndicator}>
-        {Array.from({ length: totalSteps }).map((_, i) => (
-          <View
-            key={i}
-            style={[styles.stepDot, i < getCurrentStep() && styles.stepDotActive]}
-          />
-        ))}
-      </View>
+      {/* Tela de sucesso — sobrepõe tudo */}
+      {showSuccess && (
+        <RegisterSuccess
+          userName={registeredName}
+          onFinish={() => {
+            // RootNavigator redireciona automaticamente via isAuthenticated
+          }}
+        />
+      )}
 
-      {showStudentFlow ? (
-        <StudentRegisterFlow
-          onComplete={handleStudentComplete}
-          onStepChange={setInnerStep}
-          onBack={handleStudentBack}
-          onRegisterBack={(fn) => { innerBackRef.current = fn }}
-        />
-      ) : showPersonalFlow ? (
-        <PersonalRegisterFlow
-          onComplete={handlePersonalComplete}
-          onStepChange={setInnerStep}
-          onBack={handlePersonalBack}
-          onRegisterBack={(fn) => { innerBackRef.current = fn }}
-        />
-      ) : step === 1 ? (
-        <StepOne form={formOne} avatarUri={avatarUri} onPickAvatar={handlePickAvatar} onSubmit={goToStep2} />
-      ) : step === 2 ? (
-        <StepAddress form={formAddress} onSubmit={goToStep3} />
-      ) : (
-        <StepTwo form={formTwo} onSubmit={handleRoleSelected} isLoading={loading} />
+      {!showSuccess && (
+        <>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Meu perfil</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <View style={styles.stepIndicator}>
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <View
+                key={i}
+                style={[styles.stepDot, i < getCurrentStep() && styles.stepDotActive]}
+              />
+            ))}
+          </View>
+
+          {showStudentFlow ? (
+            <StudentRegisterFlow
+              onComplete={handleStudentComplete}
+              onStepChange={setInnerStep}
+              onBack={handleStudentBack}
+              onRegisterBack={(fn) => { innerBackRef.current = fn }}
+            />
+          ) : showPersonalFlow ? (
+            <PersonalRegisterFlow
+              onComplete={handlePersonalComplete}
+              onStepChange={setInnerStep}
+              onBack={handlePersonalBack}
+              onRegisterBack={(fn) => { innerBackRef.current = fn }}
+            />
+          ) : step === 1 ? (
+            <StepOne form={formOne} avatarUri={avatarUri} onPickAvatar={handlePickAvatar} onSubmit={goToStep2} />
+          ) : step === 2 ? (
+            <StepAddress form={formAddress} onSubmit={goToStep3} />
+          ) : (
+            <StepTwo form={formTwo} onSubmit={handleRoleSelected} isLoading={loading} />
+          )}
+        </>
       )}
     </SafeAreaView>
   );
