@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { isValidDate } from '../../../../utils/date';
 
 // ─── Enums ───────────────────────────────────
 export type ClassFormat = 'presential' | 'online' | 'hybrid';
@@ -22,11 +21,6 @@ export const WEEK_DAYS: { value: WeekDay; label: string }[] = [
 
 // ─── Schemas ─────────────────────────────────
 export const stepBodySchema = z.object({
-  sex:            z.string({ message: 'Sexo é obrigatório' })
-                   .min(1, 'Sexo é obrigatório'),
-  birthDate:      z.string({ message: 'Data de nascimento é obrigatória' })
-                   .min(10, 'Data inválida')
-                   .refine(isValidDate, { message: 'Data de nascimento inválida' }),
   weight:         z.string({ message: 'Peso é obrigatório' })
                    .min(1, 'Peso é obrigatório'),
   height:         z.string({ message: 'Altura é obrigatória' })
@@ -50,7 +44,7 @@ export const stepFormatSchema = z.object({
 export const stepDaysSchema = z.object({
   days: z.array(z.enum([
     'monday','tuesday','wednesday','thursday','friday','saturday','sunday',
-  ])).min(1, 'Selecione ao menos um dia'),
+  ])).min(1, 'Selecione ao menos um dia disponível'),
 });
 
 export type StepBodyData   = z.infer<typeof stepBodySchema>;
