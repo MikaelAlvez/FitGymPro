@@ -117,7 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ...prev, user: newUser }
     })
   }, [])
-
   // ─── Sign In ─────────────────────────────────
   const signIn = useCallback(async (email: string, password: string) => {
     const { user, accessToken, refreshToken } = await authService.login({ email, password })
