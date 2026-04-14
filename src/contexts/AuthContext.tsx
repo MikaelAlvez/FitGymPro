@@ -17,11 +17,20 @@ import type {
 export type UserRole = 'PERSONAL' | 'STUDENT'
 
 export interface User {
-  id:      string
-  name:    string
-  email:   string
-  role:    UserRole
-  avatar?: string
+  id:           string
+  name:         string
+  email:        string
+  role:         UserRole
+  avatar?:      string
+  phone?:       string
+  sex?:         string
+  birthDate?:   string
+  cep?:         string
+  street?:      string
+  number?:      string
+  neighborhood?: string
+  city?:        string
+  state?:       string
 }
 
 interface AuthState {
