@@ -205,8 +205,30 @@ export function StudentProfileScreen() {
               placeholder="DD/MM/AAAA" keyboardType="numeric" maxLength={10}
               onChangeText={raw => set('birthDate', maskDate(raw))}
               error={errors.birthDate} />
-          </View>
 
+            {/*E-mail — bloqueado */}
+            <View>
+              <Text style={s.fieldLabel}>E-mail</Text>
+              <View style={s.lockedField}>
+                <Text style={s.lockedValue}>{user?.email}</Text>
+                <Ionicons name="lock-closed" size={16} color={colors.textDisabled} />
+              </View>
+            </View>
+
+            {/*CPF — bloqueado */}
+            <View>
+              <Text style={s.fieldLabel}>CPF</Text>
+              <View style={s.lockedField}>
+                <Text style={s.lockedValue}>
+                  {user?.cpf
+                    ? user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+                    : '—'}
+                </Text>
+                <Ionicons name="lock-closed" size={16} color={colors.textDisabled} />
+              </View>
+            </View>
+          </View>
+                  
           {/* Endereço */}
           <Text style={s.sectionTitle}>Endereço</Text>
           <View style={s.card}>
@@ -363,4 +385,23 @@ const s = StyleSheet.create({
   stateUf:           { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.primary },
   stateName:         { flex: 1, fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
   stateNameActive:   { fontFamily: typography.family.semiBold, color: colors.primary },
+
+  // Campos bloqueados
+  lockedField: {
+  flexDirection:   'row',
+  alignItems:      'center',
+  justifyContent:  'space-between',
+  backgroundColor: colors.surfaceHigh,
+  borderRadius:    radii.lg,
+  borderWidth:     1.5,
+  borderColor:     colors.border,
+  height:          52,
+  paddingHorizontal: spacing['4'],
+  opacity:         0.6,
+  },
+  lockedValue: {
+  fontFamily: typography.family.regular,
+  fontSize:   typography.size.base,
+  color:      colors.textSecondary,
+},
 })
