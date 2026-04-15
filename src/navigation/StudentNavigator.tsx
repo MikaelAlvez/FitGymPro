@@ -1,32 +1,21 @@
-import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
+import React from 'react'
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { Ionicons } from '@expo/vector-icons'
 
-import { StudentHomeScreen }    from '../screens/student/StudentHomeScreen';
-import { StudentMetricsScreen } from '../screens/student/StudentMetricsScreen';
-import { StudentProfileScreen } from '../screens/student/StudentProfileScreen';
-import { colors, typography } from '../theme';
+import { StudentHomeScreen }    from '../screens/student/StudentHomeScreen'
+import { StudentMetricsScreen } from '../screens/student/StudentMetricsScreen'
+import { StudentProfileScreen } from '../screens/student/StudentProfileScreen'
+import { colors, typography }   from '../theme'
 
 export type StudentTabParamList = {
-  Home:    undefined;
-  Metrics: undefined;
-  Profile: undefined;
-};
+  Home:    undefined
+  Metrics: undefined
+  Profile: undefined
+}
 
-const Tab = createBottomTabNavigator<StudentTabParamList>();
+const Tab = createBottomTabNavigator<StudentTabParamList>()
 
-type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
-
-const TABS: {
-  name:       keyof StudentTabParamList;
-  label:      string;
-  icon:       IoniconsName;
-  iconActive: IoniconsName;
-}[] = [
-  { name: 'Home',    label: 'Início',   icon: 'home-outline',          iconActive: 'home'           },
-  { name: 'Metrics', label: 'Métricas', icon: 'stats-chart-outline',   iconActive: 'stats-chart'    },
-  { name: 'Profile', label: 'Perfil',   icon: 'person-outline',        iconActive: 'person'         },
-];
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
 
 export function StudentNavigator() {
   return (
@@ -49,23 +38,36 @@ export function StudentNavigator() {
         },
       }}
     >
-      {TABS.map(({ name, label, icon, iconActive }) => (
-        <Tab.Screen
-          key={name}
-          name={name}
-          options={{
-            tabBarLabel: label,
-            tabBarIcon: ({ focused, color, size }) => (
-              <Ionicons name={focused ? iconActive : icon} size={size} color={color} />
-            ),
-          }}
-          component={
-            name === 'Home'    ? StudentHomeScreen    :
-            name === 'Metrics' ? StudentMetricsScreen :
-            StudentProfileScreen
-          }
-        />
-      ))}
+      <Tab.Screen
+        name="Home"
+        component={StudentHomeScreen}
+        options={{
+          tabBarLabel: 'Início',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Metrics"
+        component={StudentMetricsScreen}
+        options={{
+          tabBarLabel: 'Métricas',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={StudentProfileScreen}
+        options={{
+          tabBarLabel: 'Perfil',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
+          ),
+        }}
+      />
     </Tab.Navigator>
-  );
+  )
 }

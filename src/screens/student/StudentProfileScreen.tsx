@@ -1,16 +1,19 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, Modal, Image,
-  TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  Image, Alert, Modal, FlatList,
+  KeyboardAvoidingView, Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
-import { useAuth }       from '../../contexts/AuthContext'
-import { apiRequest }    from '../../services/api'
-import { userService }   from '../../services/user.service'
-import type { StudentProfile } from '../../services/user.service'
+
+import { Input }           from '../../components/ui/Input'
+import { Button }          from '../../components/ui/Button'
+import { useAuth }         from '../../contexts/AuthContext'
+import { userService }     from '../../services/user.service'
+import { uploadAvatar, pickImage, takePhoto } from '../../services/upload.service'
+import { isValidDate }     from '../../utils/date'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
 // ─── Config ──────────────────────────────────
@@ -22,306 +25,319 @@ const getBaseUrl = () => {
   return 'http://10.0.2.2:3333'
 }
 
-// ─── Helpers ─────────────────────────────────
-function calcIMC(weight: string, height: string): string {
-  const w = parseFloat(weight)
-  const h = parseFloat(height) / 100
-  if (!w || !h) return '—'
-  return (w / (h * h)).toFixed(1)
+// ─── Dados ───────────────────────────────────
+const SEX_OPTIONS = ['Masculino', 'Feminino', 'Prefiro não informar']
+
+const STATES = [
+  { uf: 'AC', name: 'Acre' },
+  { uf: 'AL', name: 'Alagoas' },
+  { uf: 'AP', name: 'Amapá' },
+  { uf: 'AM', name: 'Amazonas' },
+  { uf: 'BA', name: 'Bahia' },
+  { uf: 'CE', name: 'Ceará' },
+  { uf: 'DF', name: 'Distrito Federal' },
+  { uf: 'ES', name: 'Espírito Santo' },
+  { uf: 'GO', name: 'Goiás' },
+  { uf: 'MA', name: 'Maranhão' },
+  { uf: 'MT', name: 'Mato Grosso' },
+  { uf: 'MS', name: 'Mato Grosso do Sul' },
+  { uf: 'MG', name: 'Minas Gerais' },
+  { uf: 'PA', name: 'Pará' },
+  { uf: 'PB', name: 'Paraíba' },
+  { uf: 'PR', name: 'Paraná' },
+  { uf: 'PE', name: 'Pernambuco' },
+  { uf: 'PI', name: 'Piauí' },
+  { uf: 'RJ', name: 'Rio de Janeiro' },
+  { uf: 'RN', name: 'Rio Grande do Norte' },
+  { uf: 'RS', name: 'Rio Grande do Sul' },
+  { uf: 'RO', name: 'Rondônia' },
+  { uf: 'RR', name: 'Roraima' },
+  { uf: 'SC', name: 'Santa Catarina' },
+  { uf: 'SP', name: 'São Paulo' },
+  { uf: 'SE', name: 'Sergipe' },
+  { uf: 'TO', name: 'Tocantins' },
+]
+
+// ─── Máscaras ─────────────────────────────────
+function maskPhone(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2)  return `(${d}`
+  if (d.length <= 7)  return `(${d.slice(0,2)}) ${d.slice(2)}`
+  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
 }
 
-function imcLabel(imc: string): { label: string; color: string } {
-  const v = parseFloat(imc)
-  if (isNaN(v)) return { label: '', color: colors.textSecondary }
-  if (v < 18.5) return { label: 'Abaixo do peso', color: colors.warning ?? '#F59E0B' }
-  if (v < 24.9) return { label: 'Peso normal',    color: colors.success }
-  if (v < 29.9) return { label: 'Sobrepeso',      color: colors.warning ?? '#F59E0B' }
-  return             { label: 'Obesidade',         color: colors.error }
+function maskCep(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 8)
+  return d.length > 5 ? `${d.slice(0,5)}-${d.slice(5)}` : d
 }
 
-// ─── Mock treino ──────────────────────────────
-const WORKOUT = {
-  name:      'Treino A — Peito e Tríceps',
-  personal:  'Personal Trainer',
-  exercises: [
-    { id: '1', name: 'Supino reto',      sets: '4x12', done: false },
-    { id: '2', name: 'Crucifixo',        sets: '3x15', done: false },
-    { id: '3', name: 'Supino inclinado', sets: '3x12', done: false },
-    { id: '4', name: 'Tríceps pulley',   sets: '4x12', done: false },
-    { id: '5', name: 'Tríceps francês',  sets: '3x12', done: false },
-  ],
+function maskDate(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 8)
+  if (d.length > 4) return `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}`
+  if (d.length > 2) return `${d.slice(0,2)}/${d.slice(2)}`
+  return d
 }
 
-// ─── Screen ──────────────────────────────────
-export function StudentHomeScreen() {
-  const { user, signOut } = useAuth()
-  const firstName = user?.name?.split(' ')[0] ?? 'Aluno'
+function maskCpf(raw: string): string {
+  const d = raw.replace(/\D/g, '')
+  if (d.length <= 11)
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, (_, a, b, c, e) =>
+      e ? `${a}.${b}.${c}-${e}` : c ? `${a}.${b}.${c}` : b ? `${a}.${b}` : a
+    )
+  return raw
+}
+
+// ─── Component ────────────────────────────────
+export function StudentProfileScreen() {
+  const { user, updateUser } = useAuth()
   const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
-  const today = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long', day: 'numeric', month: 'long',
+
+  const [saving,     setSaving]     = useState(false)
+  const [sexModal,   setSexModal]   = useState(false)
+  const [stateModal, setStateModal] = useState(false)
+
+  const [form, setForm] = useState({
+    name:         user?.name         ?? '',
+    phone:        user?.phone        ?? '',
+    sex:          user?.sex          ?? '',
+    birthDate:    user?.birthDate    ?? '',
+    cep:          user?.cep          ?? '',
+    street:       user?.street       ?? '',
+    number:       user?.number       ?? '',
+    neighborhood: user?.neighborhood ?? '',
+    city:         user?.city         ?? '',
+    state:        user?.state        ?? '',
   })
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const [profile,        setProfile]        = useState<StudentProfile | null>(null)
-  const [loadingProfile, setLoadingProfile] = useState(true)
-  const [exercises,      setExercises]      = useState(WORKOUT.exercises)
-  const [menuVisible,    setMenuVisible]    = useState(false)
-
-  // Estado do modal de edição de métricas
-  const [metricsModal,  setMetricsModal]  = useState(false)
-  const [weightInput,   setWeightInput]   = useState('')
-  const [heightInput,   setHeightInput]   = useState('')
-  const [savingMetrics, setSavingMetrics] = useState(false)
-
-  const doneCount = exercises.filter(e => e.done).length
-  const progress  = exercises.length > 0 ? doneCount / exercises.length : 0
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await apiRequest<{ studentProfile: StudentProfile }>(
-          '/auth/me/profile',
-          { authenticated: true },
-        )
-        setProfile(data.studentProfile)
-      } catch {
-        // silencia
-      } finally {
-        setLoadingProfile(false)
-      }
-    })()
-  }, [])
-
-  // Abre modal já preenchido com valores atuais
-  const openMetricsModal = () => {
-    setWeightInput(profile?.weight ?? '')
-    setHeightInput(profile?.height ?? '')
-    setMetricsModal(true)
+  const set = (field: string, value: string) => {
+    setForm(p => ({ ...p, [field]: value }))
+    setErrors(p => ({ ...p, [field]: '' }))
   }
 
-  // Salva peso e altura
-  const handleSaveMetrics = async () => {
-    if (!weightInput || !heightInput) {
-      Alert.alert('Atenção', 'Preencha peso e altura.')
-      return
-    }
-    try {
-      setSavingMetrics(true)
-      const result = await userService.updateStudentMetrics({
-        weight: weightInput,
-        height: heightInput,
-      })
-      setProfile(result.studentProfile)
-      setMetricsModal(false)
-    } catch {
-      Alert.alert('Erro', 'Não foi possível atualizar as métricas.')
-    } finally {
-      setSavingMetrics(false)
-    }
-  }
-
-  // IMC calculado em tempo real pelo input
-  const liveImc   = calcIMC(
-    metricsModal ? weightInput : (profile?.weight ?? ''),
-    metricsModal ? heightInput : (profile?.height ?? ''),
-  )
-  const imc       = profile ? calcIMC(profile.weight, profile.height) : '—'
-  const imcInfo   = imcLabel(imc)
-
-  const METRICS = [
-    { label: 'Peso',     value: profile ? `${profile.weight} kg` : '—', icon: 'scale-outline'     as const },
-    { label: 'Altura',   value: profile ? `${profile.height} cm` : '—', icon: 'resize-outline'    as const },
-    { label: 'IMC',      value: imc,                                      icon: 'analytics-outline' as const },
-    { label: 'Objetivo', value: profile?.goal ?? '—',                    icon: 'fitness-outline'   as const },
-  ]
-
-  const toggleExercise = (id: string) =>
-    setExercises(prev => prev.map(e => e.id === id ? { ...e, done: !e.done } : e))
-
-  const handleLogout = () => {
-    Alert.alert('Sair', 'Deseja realmente sair da sua conta?', [
+  // ─── Avatar ───────────────────────────────
+  const handlePickAvatar = () => {
+    Alert.alert('Foto de perfil', 'Escolha uma opção', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => signOut() },
+      { text: 'Tirar foto',          onPress: async () => { const uri = await takePhoto(); if (uri) doUpload(uri) } },
+      { text: 'Escolher da galeria', onPress: async () => { const uri = await pickImage(); if (uri) doUpload(uri) } },
     ])
-    setMenuVisible(false)
   }
+
+  const doUpload = async (uri: string) => {
+    try {
+      const url = await uploadAvatar(uri)
+      await updateUser({ avatar: url })
+    } catch {
+      Alert.alert('Erro', 'Não foi possível atualizar a foto.')
+    }
+  }
+
+  // ─── Salvar ───────────────────────────────
+  const handleSave = async () => {
+    const errs: Record<string, string> = {}
+    if (!form.name.trim() || form.name.length < 3) errs.name = 'Nome deve ter ao menos 3 caracteres'
+    if (form.birthDate && !isValidDate(form.birthDate)) errs.birthDate = 'Data de nascimento inválida'
+    if (Object.keys(errs).length) { setErrors(errs); return }
+
+    try {
+      setSaving(true)
+      const updated = await userService.updateProfile({
+        name:         form.name         || undefined,
+        phone:        form.phone        || undefined,
+        sex:          form.sex          || undefined,
+        birthDate:    form.birthDate    || undefined,
+        cep:          form.cep          || undefined,
+        street:       form.street       || undefined,
+        number:       form.number       || undefined,
+        neighborhood: form.neighborhood || undefined,
+        city:         form.city         || undefined,
+        state:        form.state        || undefined,
+      })
+      await updateUser(updated)
+      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!')
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message ?? 'Não foi possível salvar.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const selectedStateName = STATES.find(s => s.uf === form.state)
 
   return (
     <SafeAreaView style={s.safe}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+      <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
-        <View style={s.header}>
-          <View style={s.headerLeft}>
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={s.avatar} />
-            ) : (
-              <View style={s.avatarPlaceholder}>
-                <Text style={s.avatarInitial}>{firstName.charAt(0).toUpperCase()}</Text>
+          {/* Avatar */}
+          <View style={s.avatarSection}>
+            <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.8}>
+              {avatarUrl
+                ? <Image source={{ uri: avatarUrl }} style={s.avatar} />
+                : (
+                  <View style={s.avatarPlaceholder}>
+                    <Text style={s.avatarInitial}>{user?.name?.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )
+              }
+              <View style={s.avatarBadge}>
+                <Ionicons name="camera" size={14} color={colors.white} />
               </View>
-            )}
+            </TouchableOpacity>
+            <Text style={s.avatarName}>{user?.name}</Text>
+            <Text style={s.avatarRole}>Aluno</Text>
+          </View>
+
+          {/* Dados pessoais */}
+          <Text style={s.sectionTitle}>Dados pessoais</Text>
+          <View style={s.card}>
+            <Input label="Nome *" value={form.name}
+              onChangeText={v => set('name', v)} error={errors.name} />
+
+            <Input label="Telefone" value={form.phone} keyboardType="phone-pad" maxLength={15}
+              onChangeText={raw => set('phone', maskPhone(raw))} />
+
+            {/* Sexo */}
             <View>
-              <Text style={s.greeting}>Olá, {firstName} 💪</Text>
-              <Text style={s.date}>{today}</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={s.notifBtn} onPress={() => setMenuVisible(true)}>
-            <Ionicons name="ellipsis-vertical" size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Métricas */}
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Minhas métricas</Text>
-          {/* Botão de edição */}
-          <TouchableOpacity style={s.editBtn} onPress={openMetricsModal} activeOpacity={0.7}>
-            <Ionicons name="pencil-outline" size={15} color={colors.primary} />
-            <Text style={s.editBtnText}>Editar</Text>
-          </TouchableOpacity>
-        </View>
-
-        {loadingProfile ? (
-          <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing['4'] }} />
-        ) : (
-          <>
-            <View style={s.metricsGrid}>
-              {METRICS.map(m => (
-                <View key={m.label} style={s.metricCard}>
-                  <Ionicons name={m.icon} size={20} color={colors.primary} />
-                  <Text style={s.metricValue} numberOfLines={1}>{m.value}</Text>
-                  <Text style={s.metricLabel}>{m.label}</Text>
-                </View>
-              ))}
-            </View>
-            {profile && (
-              <Text style={[s.imcLabel, { color: imcInfo.color }]}>
-                {imcInfo.label}
-              </Text>
-            )}
-          </>
-        )}
-
-        {/* Treino do dia */}
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Treino de hoje</Text>
-          <View style={s.progressBadge}>
-            <Text style={s.progressBadgeText}>{doneCount}/{exercises.length}</Text>
-          </View>
-        </View>
-
-        <View style={s.workoutCard}>
-          <View style={s.workoutHeader}>
-            <View style={s.workoutIconBox}>
-              <Ionicons name="barbell" size={20} color={colors.primary} />
-            </View>
-            <View style={s.workoutInfo}>
-              <Text style={s.workoutName}>{WORKOUT.name}</Text>
-              <Text style={s.workoutPersonal}>Personal: {WORKOUT.personal}</Text>
-            </View>
-          </View>
-
-          <View style={s.progressBar}>
-            <View style={[s.progressFill, { width: `${progress * 100}%` as any }]} />
-          </View>
-          <Text style={s.progressText}>{Math.round(progress * 100)}% concluído</Text>
-
-          <View style={s.exerciseList}>
-            {exercises.map((ex, i) => (
-              <TouchableOpacity
-                key={ex.id}
-                style={[s.exerciseRow, i < exercises.length - 1 && s.exerciseDivider]}
-                onPress={() => toggleExercise(ex.id)}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={ex.done ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={22}
-                  color={ex.done ? colors.success : colors.border}
-                />
-                <View style={s.exerciseInfo}>
-                  <Text style={[s.exerciseName, ex.done && s.exerciseDone]}>{ex.name}</Text>
-                  <Text style={s.exerciseSets}>{ex.sets}</Text>
-                </View>
+              <Text style={s.fieldLabel}>Sexo</Text>
+              <TouchableOpacity style={s.selector} onPress={() => setSexModal(true)} activeOpacity={0.8}>
+                <Text style={form.sex ? s.selectorValue : s.selectorPlaceholder}>
+                  {form.sex || 'Selecione'}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
-            ))}
+            </View>
+
+            {/* Data de nascimento */}
+            <Input label="Data de nascimento" value={form.birthDate}
+              placeholder="DD/MM/AAAA" keyboardType="numeric" maxLength={10}
+              onChangeText={raw => set('birthDate', maskDate(raw))}
+              error={errors.birthDate} />
+
+            {/* E-mail — bloqueado */}
+            <View>
+              <Text style={s.fieldLabel}>E-mail</Text>
+              <View style={s.lockedField}>
+                <Text style={s.lockedValue}>{user?.email}</Text>
+                <Ionicons name="lock-closed" size={16} color={colors.textDisabled} />
+              </View>
+            </View>
+
+            {/* CPF — bloqueado */}
+            <View>
+              <Text style={s.fieldLabel}>CPF</Text>
+              <View style={s.lockedField}>
+                <Text style={s.lockedValue}>
+                  {user?.cpf ? maskCpf(user.cpf) : '—'}
+                </Text>
+                <Ionicons name="lock-closed" size={16} color={colors.textDisabled} />
+              </View>
+            </View>
           </View>
-        </View>
 
-      </ScrollView>
+          {/* Endereço */}
+          <Text style={s.sectionTitle}>Endereço</Text>
+          <View style={s.card}>
+            <Input label="CEP" value={form.cep} keyboardType="numeric" maxLength={9}
+              onChangeText={raw => set('cep', maskCep(raw))} />
 
-      {/* Modal — Editar métricas */}
-      <Modal visible={metricsModal} transparent animationType="slide" onRequestClose={() => setMetricsModal(false)}>
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setMetricsModal(false)} />
+            <Input label="Rua" value={form.street}
+              onChangeText={v => set('street', v)} />
+
+            <View style={s.row}>
+              <View style={{ width: 90 }}>
+                <Input label="Nº" value={form.number} keyboardType="numeric"
+                  onChangeText={v => set('number', v)} />
+              </View>
+              <View style={s.flex}>
+                <Input label="Bairro" value={form.neighborhood}
+                  onChangeText={v => set('neighborhood', v)} />
+              </View>
+            </View>
+
+            <Input label="Cidade" value={form.city}
+              onChangeText={v => set('city', v)} />
+
+            {/* Estado — seletor */}
+            <View>
+              <Text style={s.fieldLabel}>Estado</Text>
+              <TouchableOpacity style={s.selector} onPress={() => setStateModal(true)} activeOpacity={0.8}>
+                <Text style={form.state ? s.selectorValue : s.selectorPlaceholder}>
+                  {form.state ? `${form.state} — ${selectedStateName?.name}` : 'Selecione o estado'}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <Button label="Salvar alterações" onPress={handleSave} loading={saving} style={s.btn} />
+
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Modal — Sexo */}
+      <Modal visible={sexModal} transparent animationType="slide" onRequestClose={() => setSexModal(false)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setSexModal(false)} />
         <View style={s.sheet}>
           <View style={s.sheetHeader}>
-            <Text style={s.sheetTitle}>Editar métricas</Text>
-            <TouchableOpacity onPress={() => setMetricsModal(false)}>
+            <Text style={s.sheetTitle}>Sexo</Text>
+            <TouchableOpacity onPress={() => setSexModal(false)}>
               <Ionicons name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-
-          <View style={s.sheetBody}>
-            {/* Peso */}
-            <View style={s.metricInputGroup}>
-              <Text style={s.metricInputLabel}>Peso (kg)</Text>
-              <TextInput
-                style={s.metricInput}
-                value={weightInput}
-                onChangeText={setWeightInput}
-                keyboardType="numeric"
-                placeholder="Ex: 75.5"
-                placeholderTextColor={colors.textDisabled}
-              />
-            </View>
-
-            {/* Altura */}
-            <View style={s.metricInputGroup}>
-              <Text style={s.metricInputLabel}>Altura (cm)</Text>
-              <TextInput
-                style={s.metricInput}
-                value={heightInput}
-                onChangeText={setHeightInput}
-                keyboardType="numeric"
-                placeholder="Ex: 175"
-                placeholderTextColor={colors.textDisabled}
-              />
-            </View>
-
-            {/* IMC calculado em tempo real */}
-            {weightInput && heightInput ? (
-              <View style={s.imcPreview}>
-                <Ionicons name="analytics-outline" size={18} color={colors.primary} />
-                <Text style={s.imcPreviewText}>
-                  IMC calculado:{' '}
-                  <Text style={{ color: imcLabel(liveImc).color, fontFamily: typography.family.bold }}>
-                    {liveImc} — {imcLabel(liveImc).label}
-                  </Text>
-                </Text>
-              </View>
-            ) : null}
-
-            <TouchableOpacity
-              style={[s.saveBtn, savingMetrics && { opacity: 0.6 }]}
-              onPress={handleSaveMetrics}
-              disabled={savingMetrics}
-              activeOpacity={0.8}
-            >
-              {savingMetrics
-                ? <ActivityIndicator color={colors.white} />
-                : <Text style={s.saveBtnText}>Salvar</Text>
-              }
-            </TouchableOpacity>
-          </View>
+          <FlatList
+            data={SEX_OPTIONS}
+            keyExtractor={i => i}
+            renderItem={({ item }) => {
+              const active = item === form.sex
+              return (
+                <TouchableOpacity
+                  style={[s.option, active && s.optionActive]}
+                  onPress={() => { set('sex', item); setSexModal(false) }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.optionText, active && s.optionTextActive]}>{item}</Text>
+                  {active && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                </TouchableOpacity>
+              )
+            }}
+          />
         </View>
       </Modal>
 
-      {/* Menu dropdown */}
-      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
-        <TouchableOpacity style={s.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)} />
-        <View style={s.menuBox}>
-          <TouchableOpacity style={s.menuItem} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color={colors.error} />
-            <Text style={s.menuItemTextDanger}>Sair da conta</Text>
-          </TouchableOpacity>
+      {/* Modal — Estado */}
+      <Modal visible={stateModal} transparent animationType="slide" onRequestClose={() => setStateModal(false)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setStateModal(false)} />
+        <View style={[s.sheet, { maxHeight: '70%' }]}>
+          <View style={s.sheetHeader}>
+            <Text style={s.sheetTitle}>Selecione o estado</Text>
+            <TouchableOpacity onPress={() => setStateModal(false)}>
+              <Ionicons name="close" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={STATES}
+            keyExtractor={item => item.uf}
+            renderItem={({ item }) => {
+              const active = item.uf === form.state
+              return (
+                <TouchableOpacity
+                  style={[s.stateOption, active && s.stateOptionActive]}
+                  onPress={() => { set('state', item.uf); setStateModal(false) }}
+                  activeOpacity={0.7}
+                >
+                  <View style={s.stateUfBadge}>
+                    <Text style={s.stateUf}>{item.uf}</Text>
+                  </View>
+                  <Text style={[s.stateName, active && s.stateNameActive]}>
+                    {item.name}
+                  </Text>
+                  {active && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                </TouchableOpacity>
+              )
+            }}
+          />
         </View>
       </Modal>
     </SafeAreaView>
@@ -331,87 +347,52 @@ export function StudentHomeScreen() {
 // ─── Styles ──────────────────────────────────
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
+  flex:   { flex: 1 },
   scroll: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  // Header
-  header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing['5'] },
-  headerLeft:  { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
-  avatar:      { width: 46, height: 46, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
-  avatarPlaceholder: { width: 46, height: 46, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.primary },
-  avatarInitial:     { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.white },
-  greeting: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
-  date:     { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'], textTransform: 'capitalize' },
-  notifBtn: { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  // Avatar
+  avatarSection:     { alignItems: 'center', paddingVertical: spacing['6'] },
+  avatar:            { width: 90, height: 90, borderRadius: radii.full, borderWidth: 3, borderColor: colors.primary },
+  avatarPlaceholder: { width: 90, height: 90, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.primary },
+  avatarInitial:     { fontFamily: typography.family.bold, fontSize: typography.size['2xl'], color: colors.white },
+  avatarBadge:       { position: 'absolute', bottom: 2, right: 2, width: 26, height: 26, borderRadius: radii.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  avatarName:        { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary, marginTop: spacing['2'] },
+  avatarRole:        { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: 2 },
 
-  // Section header
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing['5'], marginBottom: spacing['3'] },
-  sectionTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
+  // Sections
+  sectionTitle: { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary, marginBottom: spacing['3'], marginTop: spacing['4'] },
+  card:         { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], gap: spacing['4'], ...shadows.sm },
 
-  // Botão editar
-  editBtn:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
-  editBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
+  // Selector genérico
+  fieldLabel:          { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary, marginBottom: spacing['1'] },
+  selector:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'] },
+  selectorValue:       { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  selectorPlaceholder: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled },
 
-  // Métricas
-  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['3'], marginBottom: spacing['1'] },
-  metricCard:  { width: '47%', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], alignItems: 'center', gap: spacing['2'], ...shadows.sm },
-  metricValue: { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary },
-  metricLabel: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
-  imcLabel:    { fontFamily: typography.family.medium, fontSize: typography.size.xs, textAlign: 'center', marginBottom: spacing['2'] },
+  // Campos bloqueados
+  lockedField: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], opacity: 0.6 },
+  lockedValue: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textSecondary },
 
-  // Progress badge
-  progressBadge:     { backgroundColor: colors.primary, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
-  progressBadgeText: { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.white },
+  row: { flexDirection: 'row', gap: spacing['3'] },
+  btn: { marginTop: spacing['6'] },
 
-  // Workout
-  workoutCard:    { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['5'], ...shadows.md },
-  workoutHeader:  { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], marginBottom: spacing['4'] },
-  workoutIconBox: { width: 44, height: 44, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
-  workoutInfo:    { flex: 1 },
-  workoutName:    { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-  workoutPersonal:{ fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
-  progressBar:    { height: 6, backgroundColor: colors.surfaceHigh, borderRadius: radii.full, overflow: 'hidden', marginBottom: spacing['1'] },
-  progressFill:   { height: '100%', backgroundColor: colors.primary, borderRadius: radii.full },
-  progressText:   { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, textAlign: 'right', marginBottom: spacing['4'] },
+  // Modal base
+  overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], paddingBottom: spacing['8'], maxHeight: '50%' },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
+  sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
 
-  // Exercises
-  exerciseList:    { gap: 0 },
-  exerciseRow:     { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['3'] },
-  exerciseDivider: { borderBottomWidth: 1, borderBottomColor: colors.divider },
-  exerciseInfo:    { flex: 1 },
-  exerciseName:    { fontFamily: typography.family.medium, fontSize: typography.size.md, color: colors.textPrimary },
-  exerciseDone:    { textDecorationLine: 'line-through', color: colors.textDisabled },
-  exerciseSets:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
+  // Opções do modal de sexo
+  option:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing['4'], paddingHorizontal: spacing['6'], borderBottomWidth: 1, borderBottomColor: colors.divider },
+  optionActive:    { backgroundColor: colors.surfaceHigh },
+  optionText:      { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  optionTextActive:{ fontFamily: typography.family.semiBold, color: colors.primary },
 
-  //Modal métricas
-  overlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet:      { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], paddingBottom: spacing['8'] },
-  sheetHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
-  sheetTitle: { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
-  sheetBody:  { padding: spacing['6'], gap: spacing['4'] },
-
-  metricInputGroup: { gap: spacing['1'] },
-  metricInputLabel: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
-  metricInput: {
-    backgroundColor: colors.surfaceHigh,
-    borderRadius:    radii.lg,
-    borderWidth:     1.5,
-    borderColor:     colors.border,
-    height:          52,
-    paddingHorizontal: spacing['4'],
-    fontFamily:      typography.family.regular,
-    fontSize:        typography.size.base,
-    color:           colors.textPrimary,
-  },
-
-  imcPreview:     { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'] },
-  imcPreviewText: { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, flex: 1 },
-
-  saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center', marginTop: spacing['2'] },
-  saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
-
-  // Menu
-  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  menuBox:     { position: 'absolute', top: 90, right: spacing['5'], backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, ...shadows.md, minWidth: 160 },
-  menuItem:    { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['4'], paddingHorizontal: spacing['4'] },
-  menuItemTextDanger: { fontFamily: typography.family.medium, fontSize: typography.size.md, color: colors.error },
+  // Opções do modal de estado
+  stateOption:       { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['3'], paddingHorizontal: spacing['6'], borderBottomWidth: 1, borderBottomColor: colors.divider },
+  stateOptionActive: { backgroundColor: colors.surfaceHigh },
+  stateUfBadge:      { width: 36, height: 36, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  stateUf:           { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.primary },
+  stateName:         { flex: 1, fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  stateNameActive:   { fontFamily: typography.family.semiBold, color: colors.primary },
 })
