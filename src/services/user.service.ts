@@ -14,7 +14,7 @@ export interface UpdateProfilePayload {
   state?:        string
 }
 
-export interface UpdateStudentMetricsPayload {
+export interface UpdateMetricsPayload {
   weight: string
   height: string
 }
@@ -32,6 +32,17 @@ export interface StudentProfile {
   birthDate:    string
 }
 
+export interface PersonalProfile {
+  weight:        string
+  height:        string
+  sex:           string
+  birthDate:     string
+  cref:          string
+  course:        string
+  classFormat:   string
+  availableDays: string[]
+}
+
 export const userService = {
   updateProfile: (payload: UpdateProfilePayload) =>
     apiRequest<User>('/user/profile', {
@@ -40,8 +51,20 @@ export const userService = {
       body:          JSON.stringify(payload),
     }),
 
-  updateStudentMetrics: (payload: UpdateStudentMetricsPayload) =>
-    apiRequest<{ studentProfile: StudentProfile }>('/user/student-metrics', {
+  // Unificado — backend detecta role automaticamente
+  updateMetrics: (payload: UpdateMetricsPayload) =>
+    apiRequest<{ studentProfile?: StudentProfile; personalProfile?: PersonalProfile }>(
+      '/user/metrics',
+      {
+        method:        'PUT',
+        authenticated: true,
+        body:          JSON.stringify(payload),
+      },
+    ),
+
+  // Mantido por compatibilidade com StudentHomeScreen
+  updateStudentMetrics: (payload: UpdateMetricsPayload) =>
+    apiRequest<{ studentProfile: StudentProfile }>('/user/metrics', {
       method:        'PUT',
       authenticated: true,
       body:          JSON.stringify(payload),

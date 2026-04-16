@@ -34,7 +34,7 @@ export function RootNavigator() {
     <NavigationContainer theme={NAV_THEME}>
       {!isAuthenticated ? (
         <AuthNavigator />
-      ) : user?.role === 'personal' ? (
+      ) : user?.role === 'PERSONAL' ? (
         <PersonalNavigator />
       ) : (
         <StudentNavigator />

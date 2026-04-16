@@ -1,35 +1,21 @@
-import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
+import React from 'react'
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { Ionicons } from '@expo/vector-icons'
 
-import { PersonalHomeScreen }     from '../screens/personal/PersonalHomeScreen';
-import { StudentsScreen }         from '../screens/personal/StudentsScreen';
-import { WorkoutsScreen }         from '../screens/personal/WorkoutsScreen';
-import { PersonalProfileScreen }  from '../screens/personal/PersonalProfileScreen';
-import { colors, typography } from '../theme';
+import { PersonalHomeScreen }    from '../screens/personal/PersonalHomeScreen'
+import { StudentsScreen }        from '../screens/personal/StudentsScreen'
+import { WorkoutsScreen }        from '../screens/personal/WorkoutsScreen'
+import { PersonalProfileScreen } from '../screens/personal/PersonalProfileScreen'
+import { colors, typography }    from '../theme'
 
 export type PersonalTabParamList = {
-  Home:     undefined;
-  Students: undefined;
-  Workouts: undefined;
-  Profile:  undefined;
-};
+  Home:     undefined
+  Students: undefined
+  Workouts: undefined
+  Profile:  undefined
+}
 
-const Tab = createBottomTabNavigator<PersonalTabParamList>();
-
-type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
-
-const TABS: {
-  name:       keyof PersonalTabParamList;
-  label:      string;
-  icon:       IoniconsName;
-  iconActive: IoniconsName;
-}[] = [
-  { name: 'Home',     label: 'Início',  icon: 'home-outline',    iconActive: 'home'           },
-  { name: 'Students', label: 'Alunos',  icon: 'people-outline',  iconActive: 'people'         },
-  { name: 'Workouts', label: 'Treinos', icon: 'barbell-outline', iconActive: 'barbell'        },
-  { name: 'Profile',  label: 'Perfil',  icon: 'person-outline',  iconActive: 'person'         },
-];
+const Tab = createBottomTabNavigator<PersonalTabParamList>()
 
 export function PersonalNavigator() {
   return (
@@ -52,24 +38,46 @@ export function PersonalNavigator() {
         },
       }}
     >
-      {TABS.map(({ name, label, icon, iconActive }) => (
-        <Tab.Screen
-          key={name}
-          name={name}
-          options={{
-            tabBarLabel: label,
-            tabBarIcon: ({ focused, color, size }) => (
-              <Ionicons name={focused ? iconActive : icon} size={size} color={color} />
-            ),
-          }}
-          component={
-            name === 'Home'     ? PersonalHomeScreen    :
-            name === 'Students' ? StudentsScreen        :
-            name === 'Workouts' ? WorkoutsScreen        :
-            PersonalProfileScreen
-          }
-        />
-      ))}
+      <Tab.Screen
+        name="Home"
+        component={PersonalHomeScreen}
+        options={{
+          tabBarLabel: 'Início',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Students"
+        component={StudentsScreen}
+        options={{
+          tabBarLabel: 'Alunos',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Workouts"
+        component={WorkoutsScreen}
+        options={{
+          tabBarLabel: 'Treinos',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'barbell' : 'barbell-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={PersonalProfileScreen}
+        options={{
+          tabBarLabel: 'Perfil',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
+          ),
+        }}
+      />
     </Tab.Navigator>
-  );
+  )
 }
