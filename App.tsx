@@ -1,19 +1,21 @@
-import React from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import React, { useEffect } from 'react'
+import { StatusBar } from 'expo-status-bar'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
+import * as NavigationBar from 'expo-navigation-bar'
+import { Platform } from 'react-native'
 import {
   useFonts,
   Inter_400Regular,
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
-} from '@expo-google-fonts/inter';
-import * as SplashScreen from 'expo-splash-screen';
+} from '@expo-google-fonts/inter'
+import * as SplashScreen from 'expo-splash-screen'
+import { AuthProvider }  from './src/contexts/AuthContext'
+import { RootNavigator } from './src/navigation/RootNavigator'
+import { colors } from './src/theme'
 
-import { AuthProvider }  from './src/contexts/AuthContext';
-import { RootNavigator } from './src/navigation/RootNavigator';
-
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync()
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -21,13 +23,21 @@ export default function App() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-  });
+  })
+
+  // Esconde a barra de navegação do Android
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setVisibilityAsync('hidden')
+      NavigationBar.setBehaviorAsync('overlay-swipe')
+    }
+  }, [])
 
   const onLayoutRootView = React.useCallback(async () => {
-    if (fontsLoaded) await SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+    if (fontsLoaded) await SplashScreen.hideAsync()
+  }, [fontsLoaded])
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded) return null
 
   return (
     <SafeAreaProvider onLayout={onLayoutRootView}>
@@ -36,5 +46,5 @@ export default function App() {
         <RootNavigator />
       </AuthProvider>
     </SafeAreaProvider>
-  );
+  )
 }

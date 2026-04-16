@@ -186,16 +186,6 @@ export function PersonalProfileScreen() {
 
           <Button label="Salvar alterações" onPress={handleSave} loading={saving} style={s.btn} />
 
-          <TouchableOpacity style={s.logoutBtn} onPress={() =>
-            Alert.alert('Sair', 'Deseja realmente sair?', [
-              { text: 'Cancelar', style: 'cancel' },
-              { text: 'Sair', style: 'destructive', onPress: signOut },
-            ])
-          }>
-            <Ionicons name="log-out-outline" size={20} color={colors.error} />
-            <Text style={s.logoutText}>Sair da conta</Text>
-          </TouchableOpacity>
-
         </ScrollView>
       </KeyboardAvoidingView>
 
