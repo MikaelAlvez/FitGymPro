@@ -2,20 +2,18 @@ import React from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
 
-import { StudentHomeScreen }    from '../screens/student/StudentHomeScreen'
-import { StudentMetricsScreen } from '../screens/student/StudentMetricsScreen'
-import { StudentProfileScreen } from '../screens/student/StudentProfileScreen'
-import { colors, typography }   from '../theme'
+import { StudentHomeScreen }     from '../screens/student/StudentHomeScreen'
+import { StudentPersonalsScreen } from '../screens/student/StudentPersonalsScreen'
+import { StudentProfileScreen }  from '../screens/student/StudentProfileScreen'
+import { colors, typography }    from '../theme'
 
 export type StudentTabParamList = {
-  Home:    undefined
-  Metrics: undefined
-  Profile: undefined
+  Home:     undefined
+  Personals: undefined
+  Profile:  undefined
 }
 
 const Tab = createBottomTabNavigator<StudentTabParamList>()
-
-type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
 
 export function StudentNavigator() {
   return (
@@ -49,12 +47,12 @@ export function StudentNavigator() {
         }}
       />
       <Tab.Screen
-        name="Metrics"
-        component={StudentMetricsScreen}
+        name="Personals"
+        component={StudentPersonalsScreen}
         options={{
-          tabBarLabel: 'Métricas',
+          tabBarLabel: 'Personais',
           tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={size} color={color} />
           ),
         }}
       />

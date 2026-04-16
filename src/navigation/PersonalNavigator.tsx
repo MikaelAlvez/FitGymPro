@@ -2,16 +2,18 @@ import React from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
 
-import { PersonalHomeScreen }    from '../screens/personal/PersonalHomeScreen'
-import { StudentsScreen }        from '../screens/personal/StudentsScreen'
-import { WorkoutsScreen }        from '../screens/personal/WorkoutsScreen'
-import { PersonalProfileScreen } from '../screens/personal/PersonalProfileScreen'
-import { colors, typography }    from '../theme'
+import { PersonalHomeScreen }     from '../screens/personal/PersonalHomeScreen'
+import { StudentsScreen }         from '../screens/personal/StudentsScreen'
+import { WorkoutsScreen }         from '../screens/personal/WorkoutsScreen'
+import { PersonalRequestsScreen } from '../screens/personal/PersonalRequestsScreen'
+import { PersonalProfileScreen }  from '../screens/personal/PersonalProfileScreen'
+import { colors, typography }     from '../theme'
 
 export type PersonalTabParamList = {
   Home:     undefined
   Students: undefined
   Workouts: undefined
+  Requests: undefined
   Profile:  undefined
 }
 
@@ -65,6 +67,16 @@ export function PersonalNavigator() {
           tabBarLabel: 'Treinos',
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons name={focused ? 'barbell' : 'barbell-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Requests"
+        component={PersonalRequestsScreen}
+        options={{
+          tabBarLabel: 'Solicitações',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'mail' : 'mail-outline'} size={size} color={color} />
           ),
         }}
       />
