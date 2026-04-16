@@ -27,11 +27,17 @@ export default function App() {
 
   // Esconde a barra de navegação do Android
   useEffect(() => {
-    if (Platform.OS === 'android') {
+  if (Platform.OS === 'android') {
+    NavigationBar.setVisibilityAsync('hidden')
+    NavigationBar.setBehaviorAsync('overlay-swipe')
+
+    const interval = setInterval(() => {
       NavigationBar.setVisibilityAsync('hidden')
-      NavigationBar.setBehaviorAsync('overlay-swipe')
-    }
-  }, [])
+    }, 3000) // reaplica a cada 3s
+
+    return () => clearInterval(interval)
+  }
+}, [])
 
   const onLayoutRootView = React.useCallback(async () => {
     if (fontsLoaded) await SplashScreen.hideAsync()
