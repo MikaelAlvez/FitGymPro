@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
 import { personalRequestService } from '../../services/personal-request.service'
-import type { PersonalRequest } from '../../services/personal-request.service'
+import type { PersonalRequest }   from '../../services/personal-request.service'
+import { useRequests }            from '../../contexts/RequestsContext'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
 const getBaseUrl = () => {
@@ -25,6 +26,8 @@ const EXPERIENCE_LABEL: Record<string, string> = {
 }
 
 export function PersonalRequestsScreen() {
+  const { loadPendingCount } = useRequests()
+
   const [requests,   setRequests]   = useState<PersonalRequest[]>([])
   const [loading,    setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -50,6 +53,12 @@ export function PersonalRequestsScreen() {
     load(true)
   }
 
+  //Após aceitar ou recusar, recarrega lista e atualiza badge
+  const refresh = useCallback(async () => {
+    await load(true)
+    await loadPendingCount()
+  }, [load, loadPendingCount])
+
   const handleAccept = (item: PersonalRequest) => {
     Alert.alert(
       'Aceitar solicitação',
@@ -63,7 +72,7 @@ export function PersonalRequestsScreen() {
               setProcessing(item.id)
               await personalRequestService.acceptRequest(item.id)
               Alert.alert('Aceito!', `${item.student?.name} agora é seu aluno.`)
-              load(true)
+              await refresh() // ✅
             } catch (err: any) {
               Alert.alert('Erro', err?.message ?? 'Não foi possível aceitar.')
             } finally {
@@ -89,7 +98,7 @@ export function PersonalRequestsScreen() {
               setProcessing(item.id)
               await personalRequestService.rejectRequest(item.id)
               Alert.alert('Recusado', 'A solicitação foi recusada.')
-              load(true)
+              await refresh() // ✅
             } catch (err: any) {
               Alert.alert('Erro', err?.message ?? 'Não foi possível recusar.')
             } finally {
@@ -102,16 +111,15 @@ export function PersonalRequestsScreen() {
   }
 
   const renderRequest = ({ item }: { item: PersonalRequest }) => {
-    const student    = item.student
-    const avatarUrl  = student?.avatar ? `${getBaseUrl()}${student.avatar}` : null
+    const student      = item.student
+    const avatarUrl    = student?.avatar ? `${getBaseUrl()}${student.avatar}` : null
     const isProcessing = processing === item.id
-    const experience = student?.studentProfile?.experience
+    const experience   = student?.studentProfile?.experience
       ? EXPERIENCE_LABEL[student.studentProfile.experience] ?? student.studentProfile.experience
       : null
 
     return (
       <View style={s.card}>
-        {/* Avatar + info */}
         <View style={s.cardTop}>
           {avatarUrl
             ? <Image source={{ uri: avatarUrl }} style={s.avatar} />
@@ -146,7 +154,6 @@ export function PersonalRequestsScreen() {
           </View>
         </View>
 
-        {/* Mensagem */}
         {item.message && (
           <View style={s.msgBox}>
             <Ionicons name="chatbubble-outline" size={14} color={colors.textSecondary} />
@@ -154,12 +161,10 @@ export function PersonalRequestsScreen() {
           </View>
         )}
 
-        {/* Data */}
         <Text style={s.date}>
           Solicitado em {new Date(item.createdAt).toLocaleDateString('pt-BR')}
         </Text>
 
-        {/* Botões */}
         <View style={s.actions}>
           <TouchableOpacity
             style={[s.rejectBtn, isProcessing && { opacity: 0.5 }]}
@@ -229,15 +234,15 @@ export function PersonalRequestsScreen() {
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
 
-  header:     { paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['3'] },
-  headerTitle:{ fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
-  headerSub:  { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
+  header:      { paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['3'] },
+  headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
+  headerSub:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
 
   list: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  card: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
+  card:    { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
 
-  cardTop:           { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
   avatar:            { width: 52, height: 52, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
   avatarPlaceholder: { width: 52, height: 52, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.primary },
   avatarInitial:     { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.white },

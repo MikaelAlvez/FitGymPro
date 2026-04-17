@@ -1,12 +1,14 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
+import { View, Text, StyleSheet } from 'react-native'
 
 import { PersonalHomeScreen }     from '../screens/personal/PersonalHomeScreen'
 import { StudentsScreen }         from '../screens/personal/StudentsScreen'
 import { WorkoutsScreen }         from '../screens/personal/WorkoutsScreen'
 import { PersonalRequestsScreen } from '../screens/personal/PersonalRequestsScreen'
 import { PersonalProfileScreen }  from '../screens/personal/PersonalProfileScreen'
+import { RequestsProvider, useRequests } from '../contexts/RequestsContext'
 import { colors, typography }     from '../theme'
 
 export type PersonalTabParamList = {
@@ -19,7 +21,15 @@ export type PersonalTabParamList = {
 
 const Tab = createBottomTabNavigator<PersonalTabParamList>()
 
-export function PersonalNavigator() {
+// ─── Navigator interno (acessa o contexto) ────
+function PersonalTabs() {
+  const { pendingCount, loadPendingCount } = useRequests()
+
+  // Carrega o contador ao montar
+  useEffect(() => {
+    loadPendingCount()
+  }, [loadPendingCount])
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -76,7 +86,16 @@ export function PersonalNavigator() {
         options={{
           tabBarLabel: 'Solicitações',
           tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons name={focused ? 'mail' : 'mail-outline'} size={size} color={color} />
+            <View>
+              <Ionicons name={focused ? 'mail' : 'mail-outline'} size={size} color={color} />
+              {pendingCount > 0 && (
+                <View style={s.badge}>
+                  <Text style={s.badgeText}>
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />
@@ -93,3 +112,32 @@ export function PersonalNavigator() {
     </Tab.Navigator>
   )
 }
+
+// ─── Navigator externo (provê o contexto) ─────
+export function PersonalNavigator() {
+  return (
+    <RequestsProvider>
+      <PersonalTabs />
+    </RequestsProvider>
+  )
+}
+
+const s = StyleSheet.create({
+  badge: {
+    position:        'absolute',
+    top:             -4,
+    right:           -8,
+    minWidth:        18,
+    height:          18,
+    borderRadius:    9,
+    backgroundColor: colors.error,
+    alignItems:      'center',
+    justifyContent:  'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    fontFamily: typography.family.bold,
+    fontSize:   10,
+    color:      '#fff',
+  },
+})
