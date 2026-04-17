@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, FlatList, Image, Modal, Alert,
@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
 import { useAuth }     from '../../contexts/AuthContext'
+import { apiRequest }  from '../../services/api'
 import { userService } from '../../services/user.service'
 import type { PersonalProfile } from '../../services/user.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
@@ -19,6 +20,14 @@ const getBaseUrl = () => {
     ?? (Constants.manifest as any)?.debuggerHost
   if (host) return `http://${host.split(':')[0]}:3333`
   return 'http://10.0.2.2:3333'
+}
+
+// ─── Types ───────────────────────────────────
+interface Student {
+  id:     string
+  name:   string
+  avatar: string | null
+  studentProfile: { goal: string } | null
 }
 
 // ─── Helpers ─────────────────────────────────
@@ -38,15 +47,7 @@ function imcInfo(imc: string): { label: string; color: string } {
   return             { label: 'Obesidade',         color: colors.error }
 }
 
-// ─── Mock data ───────────────────────────────
-const MOCK_STUDENTS = [
-  { id: '1', name: 'Carlos Silva',  goal: 'Hipertrofia',     initials: 'CS', active: true  },
-  { id: '2', name: 'Ana Souza',     goal: 'Emagrecimento',   initials: 'AS', active: true  },
-  { id: '3', name: 'Pedro Lima',    goal: 'Resistência',     initials: 'PL', active: false },
-  { id: '4', name: 'Julia Mendes',  goal: 'Hipertrofia',     initials: 'JM', active: true  },
-  { id: '5', name: 'Marcos Rocha',  goal: 'Condicionamento', initials: 'MR', active: true  },
-]
-
+// ─── Mock data (agenda e treinos permanecem mock) ─────
 const MOCK_AGENDA = [
   { id: '1', name: 'Carlos Silva', time: '08:00', type: 'Presencial', done: true  },
   { id: '2', name: 'Ana Souza',    time: '09:30', type: 'Online',     done: false },
@@ -70,31 +71,30 @@ export function PersonalHomeScreen() {
   })
 
   // ─── Estado ───────────────────────────────
-  const [weight,        setWeight]        = useState('')
-  const [height,        setHeight]        = useState('')
-  const [loadingMetrics,setLoadingMetrics]= useState(true)
-  const [metricsModal,  setMetricsModal]  = useState(false)
-  const [weightInput,   setWeightInput]   = useState('')
-  const [heightInput,   setHeightInput]   = useState('')
-  const [savingMetrics, setSavingMetrics] = useState(false)
-  const [menuVisible,   setMenuVisible]   = useState(false)
+  const [weight,         setWeight]         = useState('')
+  const [height,         setHeight]         = useState('')
+  const [loadingMetrics, setLoadingMetrics] = useState(true)
+  const [metricsModal,   setMetricsModal]   = useState(false)
+  const [weightInput,    setWeightInput]    = useState('')
+  const [heightInput,    setHeightInput]    = useState('')
+  const [savingMetrics,  setSavingMetrics]  = useState(false)
+  const [menuVisible,    setMenuVisible]    = useState(false)
 
-  const totalStudents  = MOCK_STUDENTS.length
-  const activeStudents = MOCK_STUDENTS.filter(s => s.active).length
-  const doneAgenda     = MOCK_AGENDA.filter(a => a.done).length
+  //Alunos
+  const [students,        setStudents]        = useState<Student[]>([])
+  const [loadingStudents, setLoadingStudents] = useState(true)
 
-  // ─── Busca métricas do personal ──────────
+  const doneAgenda = MOCK_AGENDA.filter(a => a.done).length
+
+  // ─── Busca métricas ───────────────────────
   useEffect(() => {
     ;(async () => {
       try {
-        // Tenta buscar do contexto primeiro (se já vier do login)
         if ((user as any)?.weight && (user as any)?.height) {
           setWeight((user as any).weight)
           setHeight((user as any).height)
           return
         }
-        // Busca do endpoint de perfil completo
-        const { apiRequest } = await import('../../services/api')
         const data = await apiRequest<{ personalProfile: PersonalProfile }>(
           '/auth/me/profile',
           { authenticated: true },
@@ -102,12 +102,29 @@ export function PersonalHomeScreen() {
         if (data?.personalProfile?.weight) setWeight(data.personalProfile.weight)
         if (data?.personalProfile?.height) setHeight(data.personalProfile.height)
       } catch {
-        // silencia — exibe '—'
+        // silencia
       } finally {
         setLoadingMetrics(false)
       }
     })()
   }, [])
+
+  //Busca alunos vinculados
+  const loadStudents = useCallback(async () => {
+    try {
+      const data = await apiRequest<Student[]>(
+        '/user/my-students',
+        { authenticated: true },
+      )
+      setStudents(data)
+    } catch {
+      // silencia
+    } finally {
+      setLoadingStudents(false)
+    }
+  }, [])
+
+  useEffect(() => { loadStudents() }, [loadStudents])
 
   const imc     = calcIMC(weight, height)
   const imcData = imcInfo(imc)
@@ -126,10 +143,7 @@ export function PersonalHomeScreen() {
     }
     try {
       setSavingMetrics(true)
-      const result = await userService.updateMetrics({
-        weight: weightInput,
-        height: heightInput,
-      })
+      const result = await userService.updateMetrics({ weight: weightInput, height: heightInput })
       if (result.personalProfile) {
         setWeight(result.personalProfile.weight ?? '')
         setHeight(result.personalProfile.height ?? '')
@@ -179,12 +193,12 @@ export function PersonalHomeScreen() {
         <View style={s.summaryRow}>
           <View style={[s.summaryCard, { backgroundColor: colors.primary }]}>
             <Ionicons name="people" size={22} color={colors.white} />
-            <Text style={[s.summaryNumber, { color: colors.white }]}>{totalStudents}</Text>
+            <Text style={[s.summaryNumber, { color: colors.white }]}>{students.length}</Text>
             <Text style={[s.summaryLabel,  { color: colors.white }]}>Total</Text>
           </View>
           <View style={s.summaryCard}>
             <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-            <Text style={s.summaryNumber}>{activeStudents}</Text>
+            <Text style={s.summaryNumber}>{students.length}</Text>
             <Text style={s.summaryLabel}>Ativos</Text>
           </View>
           <View style={s.summaryCard}>
@@ -255,34 +269,48 @@ export function PersonalHomeScreen() {
           </View>
         ))}
 
-        {/* ── Lista de alunos ── */}
+        {/* ── Meus alunos ── */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>Meus alunos</Text>
           <TouchableOpacity>
             <Text style={s.seeAll}>Ver todos</Text>
           </TouchableOpacity>
         </View>
-        <FlatList
-          data={MOCK_STUDENTS}
-          keyExtractor={i => i.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.studentsRow}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={s.studentChip} activeOpacity={0.8}>
-              <View style={[s.studentAvatar, !item.active && { opacity: 0.5 }]}>
-                <Text style={s.studentAvatarText}>{item.initials}</Text>
-              </View>
-              <Text style={s.studentName} numberOfLines={1}>{item.name.split(' ')[0]}</Text>
-              <Text style={s.studentGoal} numberOfLines={1}>{item.goal}</Text>
-              {!item.active && (
-                <View style={s.inactiveBadge}>
-                  <Text style={s.inactiveBadgeText}>Inativo</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-        />
+
+        {loadingStudents ? (
+          <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing['3'] }} />
+        ) : students.length === 0 ? (
+          <View style={s.emptyStudents}>
+            <Ionicons name="people-outline" size={32} color={colors.textDisabled} />
+            <Text style={s.emptyStudentsText}>Nenhum aluno vinculado ainda</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={students}
+            keyExtractor={i => i.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.studentsRow}
+            renderItem={({ item }) => {
+              const avatarUrl = item.avatar ? `${getBaseUrl()}${item.avatar}` : null
+              const initials  = item.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+              return (
+                <TouchableOpacity style={s.studentChip} activeOpacity={0.8}>
+                  {avatarUrl
+                    ? <Image source={{ uri: avatarUrl }} style={s.studentAvatar} />
+                    : (
+                      <View style={s.studentAvatarPlaceholder}>
+                        <Text style={s.studentAvatarText}>{initials}</Text>
+                      </View>
+                    )
+                  }
+                  <Text style={s.studentName} numberOfLines={1}>{item.name.split(' ')[0]}</Text>
+                  <Text style={s.studentGoal} numberOfLines={1}>{item.studentProfile?.goal ?? '—'}</Text>
+                </TouchableOpacity>
+              )
+            }}
+          />
+        )}
 
         {/* ── Treinos criados ── */}
         <View style={s.sectionHeader}>
@@ -384,7 +412,6 @@ const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  // Header
   header:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing['5'] },
   headerLeft:        { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
   avatar:            { width: 46, height: 46, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
@@ -394,30 +421,25 @@ const s = StyleSheet.create({
   date:              { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'], textTransform: 'capitalize' },
   menuBtn:           { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
 
-  // Summary
   summaryRow:    { flexDirection: 'row', gap: spacing['3'], marginBottom: spacing['2'] },
   summaryCard:   { flex: 1, backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], alignItems: 'center', gap: spacing['1'], ...shadows.sm },
   summaryNumber: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
   summaryLabel:  { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, textAlign: 'center' },
 
-  // Section
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing['5'], marginBottom: spacing['3'] },
   sectionTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
   sectionSub:    { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary },
   seeAll:        { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
 
-  // Edit btn
   editBtn:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
   editBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
 
-  // Métricas
   metricsRow:  { flexDirection: 'row', gap: spacing['3'], marginBottom: spacing['1'] },
   metricCard:  { flex: 1, backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], alignItems: 'center', gap: spacing['2'], ...shadows.sm },
   metricValue: { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary },
   metricLabel: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
   imcLabel:    { fontFamily: typography.family.medium, fontSize: typography.size.xs, textAlign: 'center', marginBottom: spacing['2'] },
 
-  // Agenda
   agendaCard:     { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
   agendaCardDone: { opacity: 0.5 },
   agendaLine:     { width: 3, height: 36, borderRadius: radii.full, backgroundColor: colors.primary },
@@ -429,24 +451,23 @@ const s = StyleSheet.create({
   dot:            { width: 3, height: 3, borderRadius: radii.full, backgroundColor: colors.textDisabled },
   textDone:       { color: colors.textDisabled },
 
-  // Students
-  studentsRow:       { gap: spacing['3'], paddingVertical: spacing['2'] },
-  studentChip:       { width: 90, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['3'], gap: spacing['2'], ...shadows.sm },
-  studentAvatar:     { width: 44, height: 44, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center' },
-  studentAvatarText: { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.white },
-  studentName:       { fontFamily: typography.family.semiBold, fontSize: typography.size.xs, color: colors.textPrimary },
-  studentGoal:       { fontFamily: typography.family.regular, fontSize: 9, color: colors.textSecondary, textAlign: 'center' },
-  inactiveBadge:     { backgroundColor: colors.surfaceHigh, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 1 },
-  inactiveBadgeText: { fontFamily: typography.family.regular, fontSize: 8, color: colors.textDisabled },
+  studentsRow:            { gap: spacing['3'], paddingVertical: spacing['2'] },
+  studentChip:            { width: 90, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['3'], gap: spacing['2'], ...shadows.sm },
+  studentAvatar:          { width: 44, height: 44, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
+  studentAvatarPlaceholder:{ width: 44, height: 44, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center' },
+  studentAvatarText:      { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.white },
+  studentName:            { fontFamily: typography.family.semiBold, fontSize: typography.size.xs, color: colors.textPrimary },
+  studentGoal:            { fontFamily: typography.family.regular, fontSize: 9, color: colors.textSecondary, textAlign: 'center' },
 
-  // Workouts
+  emptyStudents:     { alignItems: 'center', gap: spacing['2'], paddingVertical: spacing['4'] },
+  emptyStudentsText: { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled },
+
   workoutCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
   workoutIcon: { width: 44, height: 44, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
   workoutInfo: { flex: 1 },
   workoutName: { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
   workoutMeta: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: spacing['1'] },
 
-  // Modal métricas
   overlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet:         { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], paddingBottom: spacing['8'] },
   sheetHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -460,7 +481,6 @@ const s = StyleSheet.create({
   saveBtn:       { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center', marginTop: spacing['2'] },
   saveBtnText:   { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
 
-  // Menu
   menuOverlay:        { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
   menuBox:            { position: 'absolute', top: 90, right: spacing['5'], backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, ...shadows.md, minWidth: 160 },
   menuItem:           { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['4'], paddingHorizontal: spacing['4'] },
