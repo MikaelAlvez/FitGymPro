@@ -15,13 +15,13 @@ export interface PersonalItem {
 }
 
 export interface PersonalRequest {
-  id:        string
-  studentId: string
-  personalId:string
-  status:    'PENDING' | 'ACCEPTED' | 'REJECTED'
-  message:   string | null
-  createdAt: string
-  updatedAt: string
+  id:         string
+  studentId:  string
+  personalId: string
+  status:     'PENDING' | 'ACCEPTED' | 'REJECTED'
+  message:    string | null
+  createdAt:  string
+  updatedAt:  string
   student?: {
     id:     string
     name:   string
@@ -65,11 +65,13 @@ export const personalRequestService = {
     apiRequest<{ message: string }>(`/personal-request/${id}/accept`, {
       method:        'PUT',
       authenticated: true,
+      body:          JSON.stringify({}),
     }),
 
   rejectRequest: (id: string) =>
     apiRequest<{ message: string }>(`/personal-request/${id}/reject`, {
       method:        'PUT',
       authenticated: true,
+      body:          JSON.stringify({}),
     }),
 }
