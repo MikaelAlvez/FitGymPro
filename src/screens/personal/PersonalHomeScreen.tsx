@@ -12,6 +12,7 @@ import { apiRequest }  from '../../services/api'
 import { userService } from '../../services/user.service'
 import type { PersonalProfile } from '../../services/user.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
+import { useNavigation } from '@react-navigation/native'
 
 // ─── Config ──────────────────────────────────
 const getBaseUrl = () => {
@@ -164,6 +165,8 @@ export function PersonalHomeScreen() {
     setMenuVisible(false)
   }
 
+  const navigation = useNavigation<any>()
+
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
@@ -295,7 +298,14 @@ export function PersonalHomeScreen() {
               const avatarUrl = item.avatar ? `${getBaseUrl()}${item.avatar}` : null
               const initials  = item.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
               return (
-                <TouchableOpacity style={s.studentChip} activeOpacity={0.8}>
+                <TouchableOpacity
+                  style={s.studentChip}
+                  activeOpacity={0.8}
+                  onPress={() => navigation.navigate('StudentsStack', {   // ✅
+                    screen:  'StudentDetail',
+                    params:  { student: item },
+                  })}
+                >
                   {avatarUrl
                     ? <Image source={{ uri: avatarUrl }} style={s.studentAvatar} />
                     : (
