@@ -1,31 +1,50 @@
 import React, { useEffect } from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { Ionicons } from '@expo/vector-icons'
 import { View, Text, StyleSheet } from 'react-native'
 
 import { PersonalHomeScreen }     from '../screens/personal/PersonalHomeScreen'
 import { StudentsScreen }         from '../screens/personal/StudentsScreen'
+import { StudentDetailScreen }    from '../screens/personal/StudentDetailScreen'
 import { WorkoutsScreen }         from '../screens/personal/WorkoutsScreen'
 import { PersonalRequestsScreen } from '../screens/personal/PersonalRequestsScreen'
 import { PersonalProfileScreen }  from '../screens/personal/PersonalProfileScreen'
 import { RequestsProvider, useRequests } from '../contexts/RequestsContext'
 import { colors, typography }     from '../theme'
 
+// ─── Types ───────────────────────────────────
 export type PersonalTabParamList = {
-  Home:     undefined
-  Students: undefined
-  Workouts: undefined
-  Requests: undefined
-  Profile:  undefined
+  Home:         undefined
+  StudentsStack: undefined
+  Workouts:     undefined
+  Requests:     undefined
+  Profile:      undefined
 }
 
-const Tab = createBottomTabNavigator<PersonalTabParamList>()
+export type StudentsStackParamList = {
+  StudentsList:  undefined
+  StudentDetail: { student: any }
+}
 
-// ─── Navigator interno (acessa o contexto) ────
+// ─── Navigators ──────────────────────────────
+const Tab   = createBottomTabNavigator<PersonalTabParamList>()
+const Stack = createNativeStackNavigator<StudentsStackParamList>()
+
+// ─── Stack de Alunos ─────────────────────────
+function StudentsStackNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="StudentsList"  component={StudentsScreen}       />
+      <Stack.Screen name="StudentDetail" component={StudentDetailScreen}  />
+    </Stack.Navigator>
+  )
+}
+
+// ─── Tabs ─────────────────────────────────────
 function PersonalTabs() {
   const { pendingCount, loadPendingCount } = useRequests()
 
-  // Carrega o contador ao montar
   useEffect(() => {
     loadPendingCount()
   }, [loadPendingCount])
@@ -61,8 +80,8 @@ function PersonalTabs() {
         }}
       />
       <Tab.Screen
-        name="Students"
-        component={StudentsScreen}
+        name="StudentsStack"
+        component={StudentsStackNavigator}
         options={{
           tabBarLabel: 'Alunos',
           tabBarIcon: ({ focused, color, size }) => (
@@ -113,7 +132,7 @@ function PersonalTabs() {
   )
 }
 
-// ─── Navigator externo (provê o contexto) ─────
+// ─── Navigator principal ──────────────────────
 export function PersonalNavigator() {
   return (
     <RequestsProvider>
@@ -124,15 +143,15 @@ export function PersonalNavigator() {
 
 const s = StyleSheet.create({
   badge: {
-    position:        'absolute',
-    top:             -4,
-    right:           -8,
-    minWidth:        18,
-    height:          18,
-    borderRadius:    9,
-    backgroundColor: colors.error,
-    alignItems:      'center',
-    justifyContent:  'center',
+    position:          'absolute',
+    top:               -4,
+    right:             -8,
+    minWidth:          18,
+    height:            18,
+    borderRadius:      9,
+    backgroundColor:   colors.error,
+    alignItems:        'center',
+    justifyContent:    'center',
     paddingHorizontal: 3,
   },
   badgeText: {
