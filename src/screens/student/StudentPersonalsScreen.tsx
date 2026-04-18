@@ -95,19 +95,40 @@ export function StudentPersonalsScreen() {
     load(true)
   }
 
-  const handleOpenRequest = (personal: PersonalItem) => {
-    if (personal.requestStatus === 'PENDING') {
-      Alert.alert('Aguardando', 'Sua solicitação está sendo analisada pelo personal.')
-      return
-    }
-    if (personal.requestStatus === 'ACCEPTED') {
-      Alert.alert('Vinculado', `Você já está vinculado a ${personal.name}.`)
-      return
-    }
-    setSelected(personal)
-    setMessage('')
-    setMsgModal(true)
+const handleOpenRequest = (personal: PersonalItem) => {
+  if (personal.requestStatus === 'PENDING') {
+    Alert.alert('Aguardando', 'Sua solicitação está sendo analisada pelo personal.')
+    return
   }
+  if (personal.requestStatus === 'ACCEPTED') {
+    Alert.alert('Vinculado', `Você já está vinculado a ${personal.name}.`)
+    return
+  }
+
+  // Verifica se já tem PENDING ou ACCEPTED em outro personal
+  const hasPending  = personals.some(p => p.id !== personal.id && p.requestStatus === 'PENDING')
+  const hasAccepted = personals.some(p => p.id !== personal.id && p.requestStatus === 'ACCEPTED')
+
+  if (hasAccepted) {
+    Alert.alert(
+      'Já vinculado',
+      'Você já possui um personal. Para solicitar outro, primeiro desvincule-se do atual na aba de perfil.',
+    )
+    return
+  }
+
+  if (hasPending) {
+    Alert.alert(
+      'Solicitação pendente',
+      'Você já possui uma solicitação pendente. Aguarde a resposta antes de solicitar outro personal.',
+    )
+    return
+  }
+
+  setSelected(personal)
+  setMessage('')
+  setMsgModal(true)
+}
 
   const handleSendRequest = async () => {
     if (!selected) return
