@@ -52,4 +52,11 @@ export const workoutService = {
       authenticated: true,
       body:          JSON.stringify({}),
     }),
+
+  deactivateStudent: (studentId: string) =>
+    apiRequest<{ message: string }>(`/user/student/${studentId}/deactivate`, {
+      method:        'PUT',
+      authenticated: true,
+      body:          JSON.stringify({}),
+  }),
 }

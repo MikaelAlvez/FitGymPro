@@ -25,20 +25,32 @@ const FORMAT_LABEL: Record<string, string> = {
   hybrid:     'Híbrido',
 }
 
+const FORMAT_FILTERS = [
+  { key: '',           label: 'Todos'      },
+  { key: 'presential', label: 'Presencial' },
+  { key: 'online',     label: 'Online'     },
+  { key: 'hybrid',     label: 'Híbrido'    },
+]
+
 const STATUS_CONFIG = {
-  PENDING:  { label: 'Aguardando', color: '#F59E0B', icon: 'time-outline'          as const },
+  PENDING:  { label: 'Aguardando', color: '#F59E0B',      icon: 'time-outline'     as const },
   ACCEPTED: { label: 'Aceito',     color: colors.success, icon: 'checkmark-circle' as const },
   REJECTED: { label: 'Recusado',   color: colors.error,   icon: 'close-circle'     as const },
 }
 
 export function StudentPersonalsScreen() {
-  const [personals,   setPersonals]   = useState<PersonalItem[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [refreshing,  setRefreshing]  = useState(false)
-  const [msgModal,    setMsgModal]    = useState(false)
-  const [selected,    setSelected]    = useState<PersonalItem | null>(null)
-  const [message,     setMessage]     = useState('')
-  const [sending,     setSending]     = useState(false)
+  const [personals,  setPersonals]  = useState<PersonalItem[]>([])
+  const [filtered,   setFiltered]   = useState<PersonalItem[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [msgModal,   setMsgModal]   = useState(false)
+  const [selected,   setSelected]   = useState<PersonalItem | null>(null)
+  const [message,    setMessage]    = useState('')
+  const [sending,    setSending]    = useState(false)
+
+  // ─── Filtros ──────────────────────────────
+  const [search,       setSearch]       = useState('')
+  const [formatFilter, setFormatFilter] = useState('')
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -54,6 +66,29 @@ export function StudentPersonalsScreen() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Filtro combinado: texto + modalidade
+  useEffect(() => {
+    let result = personals
+
+    if (formatFilter) {
+      result = result.filter(p => p.personalProfile?.classFormat === formatFilter)
+    }
+
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.personalProfile?.cref?.toLowerCase().includes(q) ||
+        p.city?.toLowerCase().includes(q) ||
+        p.state?.toLowerCase().includes(q) ||
+        (p.personalProfile?.classFormat &&
+          FORMAT_LABEL[p.personalProfile.classFormat]?.toLowerCase().includes(q))
+      )
+    }
+
+    setFiltered(result)
+  }, [search, formatFilter, personals])
 
   const onRefresh = () => {
     setRefreshing(true)
@@ -90,19 +125,14 @@ export function StudentPersonalsScreen() {
   }
 
   const renderPersonal = ({ item }: { item: PersonalItem }) => {
-    const avatarUrl  = item.avatar ? `${getBaseUrl()}${item.avatar}` : null
-    const status     = item.requestStatus ? STATUS_CONFIG[item.requestStatus] : null
+    const avatarUrl   = item.avatar ? `${getBaseUrl()}${item.avatar}` : null
+    const status      = item.requestStatus ? STATUS_CONFIG[item.requestStatus] : null
     const formatLabel = item.personalProfile?.classFormat
       ? FORMAT_LABEL[item.personalProfile.classFormat] ?? item.personalProfile.classFormat
       : null
 
     return (
-      <TouchableOpacity
-        style={s.card}
-        onPress={() => handleOpenRequest(item)}
-        activeOpacity={0.8}
-      >
-        {/* Avatar */}
+      <TouchableOpacity style={s.card} onPress={() => handleOpenRequest(item)} activeOpacity={0.8}>
         {avatarUrl
           ? <Image source={{ uri: avatarUrl }} style={s.avatar} />
           : (
@@ -112,14 +142,11 @@ export function StudentPersonalsScreen() {
           )
         }
 
-        {/* Info */}
         <View style={s.info}>
           <Text style={s.name}>{item.name}</Text>
-
           {item.personalProfile?.cref && (
             <Text style={s.cref}>CREF: {item.personalProfile.cref}</Text>
           )}
-
           <View style={s.tags}>
             {formatLabel && (
               <View style={s.tag}>
@@ -136,7 +163,6 @@ export function StudentPersonalsScreen() {
           </View>
         </View>
 
-        {/* Status ou botão */}
         {status ? (
           <View style={[s.statusBadge, { backgroundColor: `${status.color}20` }]}>
             <Ionicons name={status.icon} size={14} color={status.color} />
@@ -156,14 +182,52 @@ export function StudentPersonalsScreen() {
       {/* Header */}
       <View style={s.header}>
         <Text style={s.headerTitle}>Personal Trainers</Text>
-        <Text style={s.headerSub}>Encontre um personal e solicite acompanhamento</Text>
+        <Text style={s.headerSub}>
+          {filtered.length} personal{filtered.length !== 1 ? 'is' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
+        </Text>
+      </View>
+
+      {/* Busca */}
+      <View style={s.searchRow}>
+        <View style={s.searchBox}>
+          <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+          <TextInput
+            style={s.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Nome, CREF, cidade, estado..."
+            placeholderTextColor={colors.textDisabled}
+            autoCapitalize="none"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* ✅ Filtros de modalidade */}
+      <View style={s.filtersRow}>
+        {FORMAT_FILTERS.map(f => (
+          <TouchableOpacity
+            key={f.key}
+            style={[s.filterChip, formatFilter === f.key && s.filterChipActive]}
+            onPress={() => setFormatFilter(f.key)}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.filterChipText, formatFilter === f.key && s.filterChipTextActive]}>
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {loading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['10'] }} />
       ) : (
         <FlatList
-          data={personals}
+          data={filtered}
           keyExtractor={i => i.id}
           renderItem={renderPersonal}
           contentContainerStyle={s.list}
@@ -174,7 +238,17 @@ export function StudentPersonalsScreen() {
           ListEmptyComponent={
             <View style={s.empty}>
               <Ionicons name="people-outline" size={48} color={colors.textDisabled} />
-              <Text style={s.emptyText}>Nenhum personal disponível</Text>
+              <Text style={s.emptyText}>
+                {search || formatFilter ? 'Nenhum personal encontrado' : 'Nenhum personal disponível'}
+              </Text>
+              {(search || formatFilter) && (
+                <TouchableOpacity
+                  onPress={() => { setSearch(''); setFormatFilter('') }}
+                  style={s.clearFiltersBtn}
+                >
+                  <Text style={s.clearFiltersBtnText}>Limpar filtros</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
         />
@@ -239,42 +313,45 @@ export function StudentPersonalsScreen() {
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
 
-  header:     { paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['3'] },
-  headerTitle:{ fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
-  headerSub:  { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
+  header:      { paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['2'] },
+  headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
+  headerSub:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
+
+  // Busca
+  searchRow:   { paddingHorizontal: spacing['5'], paddingTop: spacing['3'], paddingBottom: spacing['2'] },
+  searchBox:   { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 48, paddingHorizontal: spacing['4'], gap: spacing['2'] },
+  searchInput: { flex: 1, fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+
+  // Filtros de modalidade
+  filtersRow:          { flexDirection: 'row', paddingHorizontal: spacing['5'], paddingBottom: spacing['3'], gap: spacing['2'] },
+  filterChip:          { paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], borderRadius: radii.full, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
+  filterChipActive:    { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterChipText:      { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
+  filterChipTextActive:{ color: colors.white },
 
   list: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  card: {
-    flexDirection:    'row',
-    alignItems:       'center',
-    backgroundColor:  colors.surface,
-    borderRadius:     radii.xl,
-    padding:          spacing['4'],
-    marginBottom:     spacing['3'],
-    gap:              spacing['3'],
-    ...shadows.sm,
-  },
-
+  card:              { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
   avatar:            { width: 52, height: 52, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
   avatarPlaceholder: { width: 52, height: 52, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.primary },
   avatarInitial:     { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.white },
 
-  info:  { flex: 1 },
-  name:  { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-  cref:  { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
-  tags:  { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['1'], marginTop: spacing['2'] },
-  tag:   { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surfaceHigh, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
+  info:    { flex: 1 },
+  name:    { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  cref:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
+  tags:    { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['1'], marginTop: spacing['2'] },
+  tag:     { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surfaceHigh, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
   tagText: { fontFamily: typography.family.regular, fontSize: 10, color: colors.textSecondary },
 
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: spacing['1'] },
   statusText:  { fontFamily: typography.family.medium, fontSize: typography.size.xs },
   requestBtn:  { width: 36, height: 36, borderRadius: radii.full, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
 
-  empty:     { alignItems: 'center', marginTop: spacing['10'], gap: spacing['3'] },
-  emptyText: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled },
+  empty:              { alignItems: 'center', marginTop: spacing['10'], gap: spacing['3'] },
+  emptyText:          { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled },
+  clearFiltersBtn:    { paddingHorizontal: spacing['4'], paddingVertical: spacing['2'], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.primary },
+  clearFiltersBtnText:{ fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
 
-  // Modal
   overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], paddingBottom: spacing['8'] },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },

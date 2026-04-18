@@ -10,6 +10,7 @@ import Constants from 'expo-constants'
 import { workoutService } from '../../services/workout.service'
 import type { Workout, Exercise } from '../../services/workout.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
+import { userService } from '../../services/user.service'
 
 const getBaseUrl = () => {
   const host = Constants.expoConfig?.hostUri
@@ -60,7 +61,7 @@ export function StudentDetailScreen() {
   const [workoutModal,    setWorkoutModal]    = useState(false)
   const [saving,          setSaving]          = useState(false)
 
-  // ✅ Controla se está editando ou criando
+  //Controla se está editando ou criando
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null)
 
   // ─── Form ─────────────────────────────────
@@ -106,7 +107,7 @@ export function StudentDetailScreen() {
     setEditingWorkout(null)
   }
 
-  // ✅ Abre modal preenchido para edição
+  //Abre modal preenchido para edição
   const openEditModal = (workout: Workout) => {
     setEditingWorkout(workout)
     setWName(workout.name)
@@ -125,7 +126,7 @@ export function StudentDetailScreen() {
     setWorkoutModal(true)
   }
 
-  // ✅ Salva (cria ou atualiza)
+  //Salva (cria ou atualiza)
   const handleSaveWorkout = async () => {
     if (!wName.trim()) { Alert.alert('Atenção', 'Informe o nome do treino.'); return }
     if (wDays.length === 0) { Alert.alert('Atenção', 'Selecione ao menos um dia.'); return }
@@ -178,6 +179,30 @@ export function StudentDetailScreen() {
     ])
   }
 
+  const handleDeactivate = () => {
+    Alert.alert(
+      'Inativar aluno',
+      `Deseja inativar ${student.name}? Ele deixará de aparecer na sua lista de alunos, mas seus dados serão mantidos.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text:  'Inativar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await userService.deactivateStudent(student.id)
+              Alert.alert('Pronto', `${student.name} foi inativado.`, [
+                { text: 'OK', onPress: () => navigation.goBack() },
+              ])
+            } catch (err: any) {
+              Alert.alert('Erro', err?.message ?? 'Não foi possível inativar.')
+            }
+          },
+        },
+      ],
+    )
+  }
+
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
@@ -188,7 +213,14 @@ export function StudentDetailScreen() {
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={s.headerTitle}>Perfil do Aluno</Text>
-          <View style={{ width: 40 }} />
+          {/* ✅ Botão de inativar no canto direito */}
+          <TouchableOpacity
+            style={s.deactivateBtn}
+            onPress={handleDeactivate}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="person-remove-outline" size={20} color={colors.error} />
+          </TouchableOpacity>
         </View>
 
         {/* ── Card do aluno ── */}
@@ -266,7 +298,7 @@ export function StudentDetailScreen() {
                     ))}
                   </View>
                 </View>
-                {/* ✅ Botões editar e excluir */}
+                {/* Botões editar e excluir */}
                 <View style={s.workoutActions}>
                   <TouchableOpacity
                     onPress={() => openEditModal(workout)}
@@ -314,7 +346,7 @@ export function StudentDetailScreen() {
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { setWorkoutModal(false); resetForm() }} />
         <View style={s.sheet}>
           <View style={s.sheetHeader}>
-            {/* ✅ Título muda conforme modo */}
+            {/* Título muda conforme modo */}
             <Text style={s.sheetTitle}>{editingWorkout ? 'Editar treino' : 'Novo treino'}</Text>
             <TouchableOpacity onPress={() => { setWorkoutModal(false); resetForm() }}>
               <Ionicons name="close" size={22} color={colors.textSecondary} />
@@ -417,7 +449,7 @@ export function StudentDetailScreen() {
               />
             </View>
 
-            {/* ✅ Botão muda conforme modo */}
+            {/* Botão muda conforme modo */}
             <TouchableOpacity
               style={[s.saveBtn, saving && { opacity: 0.6 }]}
               onPress={handleSaveWorkout}
@@ -470,7 +502,6 @@ const s = StyleSheet.create({
   workoutIconBox:  { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
   workoutInfo:     { flex: 1 },
   workoutName:     { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-  // ✅ Novos estilos para os botões de ação
   workoutActions:  { flexDirection: 'row', gap: spacing['2'] },
   workoutActionBtn:{ width: 32, height: 32, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
 
@@ -516,4 +547,13 @@ const s = StyleSheet.create({
 
   saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
+
+  deactivateBtn: {
+  width:           40,
+  height:          40,
+  borderRadius:    radii.full,
+  backgroundColor: `${colors.error}15`,
+  alignItems:      'center',
+  justifyContent:  'center',
+},
 })

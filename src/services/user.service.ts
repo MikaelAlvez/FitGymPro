@@ -33,8 +33,8 @@ export interface StudentProfile {
 }
 
 export interface PersonalProfile {
-  weight:        string
-  height:        string
+  weight?:       string
+  height?:       string
   sex:           string
   birthDate:     string
   cref:          string
@@ -51,7 +51,6 @@ export const userService = {
       body:          JSON.stringify(payload),
     }),
 
-  // Unificado — backend detecta role automaticamente
   updateMetrics: (payload: UpdateMetricsPayload) =>
     apiRequest<{ studentProfile?: StudentProfile; personalProfile?: PersonalProfile }>(
       '/user/metrics',
@@ -62,11 +61,18 @@ export const userService = {
       },
     ),
 
-  // Mantido por compatibilidade com StudentHomeScreen
   updateStudentMetrics: (payload: UpdateMetricsPayload) =>
     apiRequest<{ studentProfile: StudentProfile }>('/user/metrics', {
       method:        'PUT',
       authenticated: true,
       body:          JSON.stringify(payload),
+    }),
+
+  // Inativar aluno
+  deactivateStudent: (studentId: string) =>
+    apiRequest<{ message: string }>(`/user/student/${studentId}/deactivate`, {
+      method:        'PUT',
+      authenticated: true,
+      body:          JSON.stringify({}),
     }),
 }
