@@ -3,12 +3,14 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
 
 import { StudentHomeScreen }     from '../screens/student/StudentHomeScreen'
+import { StudentWorkoutsScreen } from '../screens/student/StudentWorkoutsScreen'
 import { StudentPersonalsScreen } from '../screens/student/StudentPersonalsScreen'
 import { StudentProfileScreen }  from '../screens/student/StudentProfileScreen'
 import { colors, typography }    from '../theme'
 
 export type StudentTabParamList = {
   Home:     undefined
+  Workouts: undefined
   Personals: undefined
   Profile:  undefined
 }
@@ -43,6 +45,16 @@ export function StudentNavigator() {
           tabBarLabel: 'Início',
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Workouts"
+        component={StudentWorkoutsScreen}
+        options={{
+          tabBarLabel: 'Treinos',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'barbell' : 'barbell-outline'} size={size} color={color} />
           ),
         }}
       />

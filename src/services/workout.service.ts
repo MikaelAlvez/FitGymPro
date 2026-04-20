@@ -59,4 +59,7 @@ export const workoutService = {
       authenticated: true,
       body:          JSON.stringify({}),
   }),
+
+  myWorkouts: () =>
+    apiRequest<Workout[]>('/workouts/my', { authenticated: true }),
 }
