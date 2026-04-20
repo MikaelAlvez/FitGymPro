@@ -14,7 +14,6 @@ import type { PersonalProfile } from '../../services/user.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 import { useNavigation, useFocusEffect } from '@react-navigation/native'
 
-// ─── Config ──────────────────────────────────
 const getBaseUrl = () => {
   const host = Constants.expoConfig?.hostUri
     ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
@@ -23,15 +22,15 @@ const getBaseUrl = () => {
   return 'http://10.0.2.2:3333'
 }
 
-// ─── Types ───────────────────────────────────
+// Adicionado active
 interface Student {
   id:     string
   name:   string
   avatar: string | null
+  active: boolean
   studentProfile: { goal: string } | null
 }
 
-// ─── Helpers ─────────────────────────────────
 function calcIMC(weight: string, height: string): string {
   const w = parseFloat(weight)
   const h = parseFloat(height) / 100
@@ -48,7 +47,6 @@ function imcInfo(imc: string): { label: string; color: string } {
   return             { label: 'Obesidade',         color: colors.error }
 }
 
-// ─── Mock data (agenda e treinos permanecem mock) ─────
 const MOCK_AGENDA = [
   { id: '1', name: 'Carlos Silva', time: '08:00', type: 'Presencial', done: true  },
   { id: '2', name: 'Ana Souza',    time: '09:30', type: 'Online',     done: false },
@@ -62,16 +60,15 @@ const MOCK_WORKOUTS = [
   { id: '3', name: 'Treino C — Pernas e Ombros', students: 5, updatedAt: 'há 3 dias' },
 ]
 
-// ─── Screen ──────────────────────────────────
 export function PersonalHomeScreen() {
   const { user, signOut } = useAuth()
+  const navigation        = useNavigation<any>()
   const firstName = user?.name?.split(' ')[0] ?? 'Personal'
   const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
 
-  // ─── Estado ───────────────────────────────
   const [weight,         setWeight]         = useState('')
   const [height,         setHeight]         = useState('')
   const [loadingMetrics, setLoadingMetrics] = useState(true)
@@ -80,14 +77,15 @@ export function PersonalHomeScreen() {
   const [heightInput,    setHeightInput]    = useState('')
   const [savingMetrics,  setSavingMetrics]  = useState(false)
   const [menuVisible,    setMenuVisible]    = useState(false)
-
-  //Alunos
   const [students,        setStudents]        = useState<Student[]>([])
   const [loadingStudents, setLoadingStudents] = useState(true)
 
-  const doneAgenda = MOCK_AGENDA.filter(a => a.done).length
+  const doneAgenda     = MOCK_AGENDA.filter(a => a.done).length
 
-  // ─── Busca métricas ───────────────────────
+  // Contagens separadas
+  const totalStudents  = students.length
+  const activeStudents = students.filter(s => s.active).length
+
   useEffect(() => {
     ;(async () => {
       try {
@@ -110,13 +108,9 @@ export function PersonalHomeScreen() {
     })()
   }, [])
 
-  //Busca alunos vinculados
   const loadStudents = useCallback(async () => {
     try {
-      const data = await apiRequest<Student[]>(
-        '/user/my-students',
-        { authenticated: true },
-      )
+      const data = await apiRequest<Student[]>('/user/my-students', { authenticated: true })
       setStudents(data)
     } catch {
       // silencia
@@ -126,10 +120,9 @@ export function PersonalHomeScreen() {
   }, [])
 
   useFocusEffect(
-    useCallback(() => {
-      loadStudents()
-    }, [loadStudents]),
+    useCallback(() => { loadStudents() }, [loadStudents]),
   )
+
   const imc     = calcIMC(weight, height)
   const imcData = imcInfo(imc)
   const liveImc = calcIMC(weightInput, heightInput)
@@ -168,8 +161,6 @@ export function PersonalHomeScreen() {
     setMenuVisible(false)
   }
 
-  const navigation = useNavigation<any>()
-
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
@@ -199,12 +190,12 @@ export function PersonalHomeScreen() {
         <View style={s.summaryRow}>
           <View style={[s.summaryCard, { backgroundColor: colors.primary }]}>
             <Ionicons name="people" size={22} color={colors.white} />
-            <Text style={[s.summaryNumber, { color: colors.white }]}>{students.length}</Text>
+            <Text style={[s.summaryNumber, { color: colors.white }]}>{totalStudents}</Text>
             <Text style={[s.summaryLabel,  { color: colors.white }]}>Total</Text>
           </View>
           <View style={s.summaryCard}>
             <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-            <Text style={s.summaryNumber}>{students.length}</Text>
+            <Text style={s.summaryNumber}>{activeStudents}</Text>
             <Text style={s.summaryLabel}>Ativos</Text>
           </View>
           <View style={s.summaryCard}>
@@ -302,15 +293,15 @@ export function PersonalHomeScreen() {
               const initials  = item.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
               return (
                 <TouchableOpacity
-                  style={s.studentChip}
+                  style={[s.studentChip, !item.active && { opacity: 0.5 }]} 
                   activeOpacity={0.8}
-                  onPress={() => navigation.navigate('StudentsStack', {   // ✅
-                    screen:  'StudentDetail',
-                    params:  { student: item },
+                  onPress={() => navigation.navigate('StudentsStack', {
+                    screen: 'StudentDetail',
+                    params: { student: item },
                   })}
                 >
                   {avatarUrl
-                    ? <Image source={{ uri: avatarUrl }} style={s.studentAvatar} />
+                    ? <Image source={{ uri: avatarUrl }} style={[s.studentAvatar, !item.active && { borderColor: colors.border }]} />
                     : (
                       <View style={s.studentAvatarPlaceholder}>
                         <Text style={s.studentAvatarText}>{initials}</Text>
@@ -318,7 +309,10 @@ export function PersonalHomeScreen() {
                     )
                   }
                   <Text style={s.studentName} numberOfLines={1}>{item.name.split(' ')[0]}</Text>
-                  <Text style={s.studentGoal} numberOfLines={1}>{item.studentProfile?.goal ?? '—'}</Text>
+                  {/* Mostra Inativo ou objetivo */}
+                  <Text style={[s.studentGoal, !item.active && { color: colors.error }]} numberOfLines={1}>
+                    {item.active ? (item.studentProfile?.goal ?? '—') : 'Inativo'}
+                  </Text>
                 </TouchableOpacity>
               )
             }}
@@ -420,7 +414,6 @@ export function PersonalHomeScreen() {
   )
 }
 
-// ─── Styles ──────────────────────────────────
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
@@ -464,13 +457,13 @@ const s = StyleSheet.create({
   dot:            { width: 3, height: 3, borderRadius: radii.full, backgroundColor: colors.textDisabled },
   textDone:       { color: colors.textDisabled },
 
-  studentsRow:            { gap: spacing['3'], paddingVertical: spacing['2'] },
-  studentChip:            { width: 90, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['3'], gap: spacing['2'], ...shadows.sm },
-  studentAvatar:          { width: 44, height: 44, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
+  studentsRow:             { gap: spacing['3'], paddingVertical: spacing['2'] },
+  studentChip:             { width: 90, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['3'], gap: spacing['2'], ...shadows.sm },
+  studentAvatar:           { width: 44, height: 44, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
   studentAvatarPlaceholder:{ width: 44, height: 44, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center' },
-  studentAvatarText:      { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.white },
-  studentName:            { fontFamily: typography.family.semiBold, fontSize: typography.size.xs, color: colors.textPrimary },
-  studentGoal:            { fontFamily: typography.family.regular, fontSize: 9, color: colors.textSecondary, textAlign: 'center' },
+  studentAvatarText:       { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.white },
+  studentName:             { fontFamily: typography.family.semiBold, fontSize: typography.size.xs, color: colors.textPrimary },
+  studentGoal:             { fontFamily: typography.family.regular, fontSize: 9, color: colors.textSecondary, textAlign: 'center' },
 
   emptyStudents:     { alignItems: 'center', gap: spacing['2'], paddingVertical: spacing['4'] },
   emptyStudentsText: { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled },
