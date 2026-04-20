@@ -36,10 +36,12 @@ const EXPERIENCE_LABEL: Record<string, string> = {
   advanced:     'Avançado',
 }
 
+// ✅ active adicionado
 interface StudentParam {
   id:     string
   name:   string
   avatar: string | null
+  active: boolean
   studentProfile: {
     goal:       string
     experience: string
@@ -56,15 +58,15 @@ export function StudentDetailScreen() {
   const avatarUrl = student.avatar ? `${getBaseUrl()}${student.avatar}` : null
   const initials  = student.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
 
+  // ✅ Estado local de ativo/inativo
+  const [isActive, setIsActive] = useState(student.active)
+
   const [workouts,        setWorkouts]        = useState<Workout[]>([])
   const [loadingWorkouts, setLoadingWorkouts] = useState(true)
   const [workoutModal,    setWorkoutModal]    = useState(false)
   const [saving,          setSaving]          = useState(false)
+  const [editingWorkout,  setEditingWorkout]  = useState<Workout | null>(null)
 
-  //Controla se está editando ou criando
-  const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null)
-
-  // ─── Form ─────────────────────────────────
   const [wName,     setWName]     = useState('')
   const [wDays,     setWDays]     = useState<string[]>([])
   const [wNotes,    setWNotes]    = useState('')
@@ -107,7 +109,6 @@ export function StudentDetailScreen() {
     setEditingWorkout(null)
   }
 
-  //Abre modal preenchido para edição
   const openEditModal = (workout: Workout) => {
     setEditingWorkout(workout)
     setWName(workout.name)
@@ -126,7 +127,6 @@ export function StudentDetailScreen() {
     setWorkoutModal(true)
   }
 
-  //Salva (cria ou atualiza)
   const handleSaveWorkout = async () => {
     if (!wName.trim()) { Alert.alert('Atenção', 'Informe o nome do treino.'); return }
     if (wDays.length === 0) { Alert.alert('Atenção', 'Selecione ao menos um dia.'); return }
@@ -134,7 +134,6 @@ export function StudentDetailScreen() {
       Alert.alert('Atenção', 'Preencha todos os campos dos exercícios.')
       return
     }
-
     try {
       setSaving(true)
       const payload = {
@@ -143,7 +142,6 @@ export function StudentDetailScreen() {
         notes:     wNotes.trim() || undefined,
         exercises: exercises.map((e, i) => ({ ...e, order: i })),
       }
-
       if (editingWorkout) {
         await workoutService.update(editingWorkout.id, payload)
         Alert.alert('Sucesso', 'Treino atualizado com sucesso!')
@@ -151,7 +149,6 @@ export function StudentDetailScreen() {
         await workoutService.create({ studentId: student.id, ...payload })
         Alert.alert('Sucesso', 'Treino criado com sucesso!')
       }
-
       setWorkoutModal(false)
       resetForm()
       loadWorkouts()
@@ -179,28 +176,37 @@ export function StudentDetailScreen() {
     ])
   }
 
-  const handleDeactivate = () => {
-    Alert.alert(
-      'Inativar aluno',
-      `Deseja inativar ${student.name}? Ele deixará de aparecer na sua lista de alunos, mas seus dados serão mantidos.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text:  'Inativar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
+  // ✅ Toggle inativar/reativar
+  const handleToggleActive = () => {
+    const actionTitle = isActive ? 'Inativar aluno' : 'Reativar aluno'
+    const actionMsg   = isActive
+      ? `Deseja inativar ${student.name}? Ele deixará de aparecer na lista de ativos, mas seus dados serão mantidos.`
+      : `Deseja reativar ${student.name}?`
+    const actionBtn   = isActive ? 'Inativar' : 'Reativar'
+    const actionStyle = isActive ? 'destructive' : 'default'
+
+    Alert.alert(actionTitle, actionMsg, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text:  actionBtn,
+        style: actionStyle as any,
+        onPress: async () => {
+          try {
+            if (isActive) {
               await userService.deactivateStudent(student.id)
-              Alert.alert('Pronto', `${student.name} foi inativado.`, [
-                { text: 'OK', onPress: () => navigation.goBack() },
-              ])
-            } catch (err: any) {
-              Alert.alert('Erro', err?.message ?? 'Não foi possível inativar.')
+              setIsActive(false)
+              Alert.alert('Pronto', `${student.name} foi inativado.`)
+            } else {
+              await userService.activateStudent(student.id)
+              setIsActive(true)
+              Alert.alert('Pronto', `${student.name} foi reativado.`)
             }
-          },
+          } catch (err: any) {
+            Alert.alert('Erro', err?.message ?? 'Não foi possível realizar a ação.')
+          }
         },
-      ],
-    )
+      },
+    ])
   }
 
   return (
@@ -212,14 +218,29 @@ export function StudentDetailScreen() {
           <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Perfil do Aluno</Text>
-          {/* ✅ Botão de inativar no canto direito */}
+
+          {/* ✅ Título + badge de status */}
+          <View style={s.headerCenter}>
+            <Text style={s.headerTitle}>Perfil do Aluno</Text>
+            <View style={[s.statusBadge, isActive ? s.statusActive : s.statusInactive]}>
+              <View style={[s.statusDot, isActive ? s.statusDotActive : s.statusDotInactive]} />
+              <Text style={[s.statusText, isActive ? s.statusTextActive : s.statusTextInactive]}>
+                {isActive ? 'Ativo' : 'Inativo'}
+              </Text>
+            </View>
+          </View>
+
+          {/* ✅ Botão muda ícone/cor conforme status */}
           <TouchableOpacity
-            style={s.deactivateBtn}
-            onPress={handleDeactivate}
+            style={[s.toggleBtn, isActive ? s.toggleBtnDeactivate : s.toggleBtnActivate]}
+            onPress={handleToggleActive}
             activeOpacity={0.8}
           >
-            <Ionicons name="person-remove-outline" size={20} color={colors.error} />
+            <Ionicons
+              name={isActive ? 'person-remove-outline' : 'person-add-outline'}
+              size={20}
+              color={isActive ? colors.error : colors.success}
+            />
           </TouchableOpacity>
         </View>
 
@@ -283,7 +304,6 @@ export function StudentDetailScreen() {
         ) : (
           workouts.map(workout => (
             <View key={workout.id} style={s.workoutCard}>
-              {/* Header do treino */}
               <View style={s.workoutHeader}>
                 <View style={s.workoutIconBox}>
                   <Ionicons name="barbell" size={20} color={colors.primary} />
@@ -298,7 +318,6 @@ export function StudentDetailScreen() {
                     ))}
                   </View>
                 </View>
-                {/* Botões editar e excluir */}
                 <View style={s.workoutActions}>
                   <TouchableOpacity
                     onPress={() => openEditModal(workout)}
@@ -317,7 +336,6 @@ export function StudentDetailScreen() {
                 </View>
               </View>
 
-              {/* Notas */}
               {workout.notes && (
                 <View style={s.notesBox}>
                   <Ionicons name="document-text-outline" size={14} color={colors.textSecondary} />
@@ -325,7 +343,6 @@ export function StudentDetailScreen() {
                 </View>
               )}
 
-              {/* Exercícios */}
               {workout.exercises.map((ex, i) => (
                 <View key={ex.id ?? i} style={[s.exerciseRow, i < workout.exercises.length - 1 && s.exerciseDivider]}>
                   <View style={s.exerciseIndex}>
@@ -346,7 +363,6 @@ export function StudentDetailScreen() {
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { setWorkoutModal(false); resetForm() }} />
         <View style={s.sheet}>
           <View style={s.sheetHeader}>
-            {/* Título muda conforme modo */}
             <Text style={s.sheetTitle}>{editingWorkout ? 'Editar treino' : 'Novo treino'}</Text>
             <TouchableOpacity onPress={() => { setWorkoutModal(false); resetForm() }}>
               <Ionicons name="close" size={22} color={colors.textSecondary} />
@@ -354,7 +370,6 @@ export function StudentDetailScreen() {
           </View>
           <ScrollView contentContainerStyle={s.sheetBody} showsVerticalScrollIndicator={false}>
 
-            {/* Nome */}
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Nome do treino *</Text>
               <TextInput
@@ -366,7 +381,6 @@ export function StudentDetailScreen() {
               />
             </View>
 
-            {/* Dias */}
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Dias da semana *</Text>
               <View style={s.daysSelector}>
@@ -385,7 +399,6 @@ export function StudentDetailScreen() {
               </View>
             </View>
 
-            {/* Exercícios */}
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Exercícios *</Text>
               {exercises.map((ex, i) => (
@@ -435,7 +448,6 @@ export function StudentDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Notas */}
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Observações (opcional)</Text>
               <TextInput
@@ -449,7 +461,6 @@ export function StudentDetailScreen() {
               />
             </View>
 
-            {/* Botão muda conforme modo */}
             <TouchableOpacity
               style={[s.saveBtn, saving && { opacity: 0.6 }]}
               onPress={handleSaveWorkout}
@@ -473,9 +484,27 @@ const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing['4'] },
-  backBtn:     { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary },
+  // Header
+  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing['4'] },
+  backBtn:      { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { flex: 1, alignItems: 'center', gap: 4 },
+  headerTitle:  { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary },
+
+  // ✅ Badge de status no header
+  statusBadge:        { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
+  statusActive:       { backgroundColor: `${colors.success}20` },
+  statusInactive:     { backgroundColor: colors.surfaceHigh },
+  statusDot:          { width: 6, height: 6, borderRadius: 3 },
+  statusDotActive:    { backgroundColor: colors.success },
+  statusDotInactive:  { backgroundColor: colors.textDisabled },
+  statusText:         { fontFamily: typography.family.medium, fontSize: 10 },
+  statusTextActive:   { color: colors.success },
+  statusTextInactive: { color: colors.textDisabled },
+
+  // ✅ Botão toggle ativar/inativar
+  toggleBtn:           { width: 40, height: 40, borderRadius: radii.full, alignItems: 'center', justifyContent: 'center' },
+  toggleBtnDeactivate: { backgroundColor: `${colors.error}15` },
+  toggleBtnActivate:   { backgroundColor: `${colors.success}15` },
 
   studentCard:       { backgroundColor: colors.surface, borderRadius: radii['2xl'], padding: spacing['5'], alignItems: 'center', gap: spacing['3'], marginBottom: spacing['2'], ...shadows.sm },
   avatar:            { width: 80, height: 80, borderRadius: radii.full, borderWidth: 3, borderColor: colors.primary },
@@ -497,13 +526,13 @@ const s = StyleSheet.create({
   empty:     { alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['8'] },
   emptyText: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled },
 
-  workoutCard:     { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
-  workoutHeader:   { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
-  workoutIconBox:  { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
-  workoutInfo:     { flex: 1 },
-  workoutName:     { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-  workoutActions:  { flexDirection: 'row', gap: spacing['2'] },
-  workoutActionBtn:{ width: 32, height: 32, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  workoutCard:      { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
+  workoutHeader:    { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
+  workoutIconBox:   { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  workoutInfo:      { flex: 1 },
+  workoutName:      { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  workoutActions:   { flexDirection: 'row', gap: spacing['2'] },
+  workoutActionBtn: { width: 32, height: 32, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
 
   daysRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['1'], marginTop: spacing['1'] },
   dayBadge:     { backgroundColor: `${colors.primary}20`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
@@ -511,12 +540,12 @@ const s = StyleSheet.create({
   notesBox:     { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'] },
   notesText:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, flex: 1 },
 
-  exerciseRow:      { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['2'] },
-  exerciseDivider:  { borderBottomWidth: 1, borderBottomColor: colors.divider },
-  exerciseIndex:    { width: 24, height: 24, borderRadius: radii.full, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
-  exerciseIndexText:{ fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.primary },
-  exerciseName:     { flex: 1, fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textPrimary },
-  exerciseSets:     { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
+  exerciseRow:       { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['2'] },
+  exerciseDivider:   { borderBottomWidth: 1, borderBottomColor: colors.divider },
+  exerciseIndex:     { width: 24, height: 24, borderRadius: radii.full, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  exerciseIndexText: { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.primary },
+  exerciseName:      { flex: 1, fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textPrimary },
+  exerciseSets:      { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
 
   overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '90%' },
@@ -547,13 +576,4 @@ const s = StyleSheet.create({
 
   saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
-
-  deactivateBtn: {
-  width:           40,
-  height:          40,
-  borderRadius:    radii.full,
-  backgroundColor: `${colors.error}15`,
-  alignItems:      'center',
-  justifyContent:  'center',
-},
 })

@@ -51,6 +51,7 @@ export const userService = {
       body:          JSON.stringify(payload),
     }),
 
+  // Atualizar métricas (endpoint genérico para ambos os perfis, retorna os dados atualizados do perfil correspondente)
   updateMetrics: (payload: UpdateMetricsPayload) =>
     apiRequest<{ studentProfile?: StudentProfile; personalProfile?: PersonalProfile }>(
       '/user/metrics',
@@ -61,6 +62,7 @@ export const userService = {
       },
     ),
 
+  // Atualizar métricas do aluno (endpoint específico para estudantes)
   updateStudentMetrics: (payload: UpdateMetricsPayload) =>
     apiRequest<{ studentProfile: StudentProfile }>('/user/metrics', {
       method:        'PUT',
@@ -75,4 +77,12 @@ export const userService = {
       authenticated: true,
       body:          JSON.stringify({}),
     }),
+
+  // Reativar aluno
+  activateStudent: (studentId: string) =>
+    apiRequest<{ message: string }>(`/user/student/${studentId}/activate`, {
+      method:        'PUT',
+      authenticated: true,
+      body:          JSON.stringify({}),
+  }),
 }
