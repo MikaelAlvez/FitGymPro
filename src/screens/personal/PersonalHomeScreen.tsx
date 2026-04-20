@@ -12,7 +12,7 @@ import { apiRequest }  from '../../services/api'
 import { userService } from '../../services/user.service'
 import type { PersonalProfile } from '../../services/user.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useFocusEffect } from '@react-navigation/native'
 
 // ─── Config ──────────────────────────────────
 const getBaseUrl = () => {
@@ -125,8 +125,11 @@ export function PersonalHomeScreen() {
     }
   }, [])
 
-  useEffect(() => { loadStudents() }, [loadStudents])
-
+  useFocusEffect(
+    useCallback(() => {
+      loadStudents()
+    }, [loadStudents]),
+  )
   const imc     = calcIMC(weight, height)
   const imcData = imcInfo(imc)
   const liveImc = calcIMC(weightInput, heightInput)

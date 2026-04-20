@@ -5,7 +5,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import Constants from 'expo-constants'
 import { apiRequest } from '../../services/api'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
@@ -61,7 +61,11 @@ export function StudentsScreen() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useFocusEffect(
+    useCallback(() => {
+      load()
+    }, [load]),
+  )
 
   useEffect(() => {
     const q = search.toLowerCase()
