@@ -100,19 +100,39 @@ const handleOpenRequest = (personal: PersonalItem) => {
     Alert.alert('Aguardando', 'Sua solicitação está sendo analisada pelo personal.')
     return
   }
+
+  // Se já está vinculado a este personal, oferece desvinculação
   if (personal.requestStatus === 'ACCEPTED') {
-    Alert.alert('Vinculado', `Você já está vinculado a ${personal.name}.`)
+    Alert.alert(
+      'Desvincular personal',
+      `Deseja se desvincular de ${personal.name}? Você poderá solicitar outro personal depois.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text:  'Desvincular',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await personalRequestService.unlinkPersonal()
+              Alert.alert('Desvinculado', 'Você foi desvinculado do personal com sucesso.')
+              load(true)
+            } catch (err: any) {
+              Alert.alert('Erro', err?.message ?? 'Não foi possível desvincular.')
+            }
+          },
+        },
+      ],
+    )
     return
   }
 
-  // Verifica se já tem PENDING ou ACCEPTED em outro personal
   const hasPending  = personals.some(p => p.id !== personal.id && p.requestStatus === 'PENDING')
   const hasAccepted = personals.some(p => p.id !== personal.id && p.requestStatus === 'ACCEPTED')
 
   if (hasAccepted) {
     Alert.alert(
       'Já vinculado',
-      'Você já possui um personal. Para solicitar outro, primeiro desvincule-se do atual na aba de perfil.',
+      'Você já possui um personal. Para solicitar outro, clique no seu personal atual e solicite a desvinculação.',
     )
     return
   }

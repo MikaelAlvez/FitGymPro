@@ -74,4 +74,11 @@ export const personalRequestService = {
       authenticated: true,
       body:          JSON.stringify({}),
     }),
+
+  unlinkPersonal: () =>
+    apiRequest<{ message: string }>('/personal-request/unlink', {
+      method:        'POST',
+      authenticated: true,
+      body:          JSON.stringify({}),
+    }),
 }
