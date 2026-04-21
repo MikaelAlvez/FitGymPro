@@ -27,7 +27,7 @@ export interface Workout {
 }
 
 export interface CreateWorkoutPayload {
-  studentId: string
+  studentId?: string
   name:      string
   days:      string[]
   notes?:    string

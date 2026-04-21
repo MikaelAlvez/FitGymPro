@@ -211,11 +211,21 @@ export function StudentHomeScreen() {
         {/* Treino de hoje */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>Treino de hoje</Text>
-          {todayWorkout && (
-            <View style={s.progressBadge}>
-              <Text style={s.progressBadgeText}>{doneCount}/{totalExercises}</Text>
-            </View>
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing['2'] }}>
+            {todayWorkout && (
+              <View style={s.progressBadge}>
+                <Text style={s.progressBadgeText}>{doneCount}/{totalExercises}</Text>
+              </View>
+            )}
+            {/* Botão criar treino */}
+            <TouchableOpacity
+              style={s.editBtn}
+              onPress={() => {/* navegar para aba Treinos com modal aberto */}}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loadingWorkout ? (
