@@ -185,7 +185,7 @@ export function StudentWorkoutsScreen() {
         {/* Botão criar */}
         <TouchableOpacity style={s.createBtn} onPress={openCreateModal} activeOpacity={0.8}>
           <Ionicons name="add" size={18} color={colors.white} />
-          <Text style={s.createBtnText}>Novo</Text>
+          <Text style={s.createBtnText}>Novo Treino</Text>
         </TouchableOpacity>
       </View>
 

@@ -8,12 +8,12 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
 import { useFocusEffect } from '@react-navigation/native'
-import { useAuth }       from '../../contexts/AuthContext'
-import { apiRequest }    from '../../services/api'
-import { userService }   from '../../services/user.service'
+import { useAuth }        from '../../contexts/AuthContext'
+import { apiRequest }     from '../../services/api'
+import { userService }    from '../../services/user.service'
 import { workoutService } from '../../services/workout.service'
 import type { StudentProfile } from '../../services/user.service'
-import type { Workout } from '../../services/workout.service'
+import type { Workout, Exercise } from '../../services/workout.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
 const getBaseUrl = () => {
@@ -24,7 +24,6 @@ const getBaseUrl = () => {
   return 'http://10.0.2.2:3333'
 }
 
-// Dia da semana atual em inglês (mesmo formato do backend)
 const TODAY_KEY = (() => {
   const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
   return days[new Date().getDay()]
@@ -34,6 +33,16 @@ const DAY_LABELS: Record<string, string> = {
   monday: 'Seg', tuesday: 'Ter', wednesday: 'Qua',
   thursday: 'Qui', friday: 'Sex', saturday: 'Sáb', sunday: 'Dom',
 }
+
+const DAYS = [
+  { key: 'monday',    label: 'Seg' },
+  { key: 'tuesday',   label: 'Ter' },
+  { key: 'wednesday', label: 'Qua' },
+  { key: 'thursday',  label: 'Qui' },
+  { key: 'friday',    label: 'Sex' },
+  { key: 'saturday',  label: 'Sáb' },
+  { key: 'sunday',    label: 'Dom' },
+]
 
 function calcIMC(weight: string, height: string): string {
   const w = parseFloat(weight)
@@ -59,33 +68,40 @@ export function StudentHomeScreen() {
     weekday: 'long', day: 'numeric', month: 'long',
   })
 
+  // ─── Perfil e métricas ────────────────────
   const [profile,        setProfile]        = useState<StudentProfile | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
-  const [menuVisible,    setMenuVisible]    = useState(false)
+  const [metricsModal,   setMetricsModal]   = useState(false)
+  const [weightInput,    setWeightInput]    = useState('')
+  const [heightInput,    setHeightInput]    = useState('')
+  const [savingMetrics,  setSavingMetrics]  = useState(false)
 
-  // Treinos reais
+  // ─── Treino de hoje ───────────────────────
   const [todayWorkout,   setTodayWorkout]   = useState<Workout | null>(null)
   const [loadingWorkout, setLoadingWorkout] = useState(true)
   const [doneExercises,  setDoneExercises]  = useState<Set<string>>(new Set())
 
-  // Edição de métricas
-  const [metricsModal,  setMetricsModal]  = useState(false)
-  const [weightInput,   setWeightInput]   = useState('')
-  const [heightInput,   setHeightInput]   = useState('')
-  const [savingMetrics, setSavingMetrics] = useState(false)
+  // ─── Menu ─────────────────────────────────
+  const [menuVisible, setMenuVisible] = useState(false)
 
+  // ─── Modal criar treino ───────────────────
+  const [workoutModal, setWorkoutModal] = useState(false)
+  const [saving,       setSaving]       = useState(false)
+  const [wName,     setWName]     = useState('')
+  const [wDays,     setWDays]     = useState<string[]>([])
+  const [wNotes,    setWNotes]    = useState('')
+  const [exercises, setExercises] = useState<Exercise[]>([
+    { name: '', sets: '', reps: '', order: 0 },
+  ])
+
+  // ─── Load ─────────────────────────────────
   const loadData = useCallback(async () => {
     try {
       const [profileData, workoutsData] = await Promise.all([
-        apiRequest<{ studentProfile: StudentProfile }>(
-          '/auth/me/profile', { authenticated: true }
-        ),
+        apiRequest<{ studentProfile: StudentProfile }>('/auth/me/profile', { authenticated: true }),
         workoutService.myWorkouts(),
       ])
-
       setProfile(profileData.studentProfile)
-
-      // Filtra treino do dia atual
       const todayW = workoutsData.find(w => w.days.includes(TODAY_KEY)) ?? null
       setTodayWorkout(todayW)
       setDoneExercises(new Set())
@@ -97,25 +113,12 @@ export function StudentHomeScreen() {
     }
   }, [])
 
-  useFocusEffect(
-    useCallback(() => { loadData() }, [loadData]),
-  )
+  useFocusEffect(useCallback(() => { loadData() }, [loadData]))
 
+  // ─── Métricas ─────────────────────────────
   const imc     = profile ? calcIMC(profile.weight, profile.height) : '—'
   const imcData = imcLabel(imc)
   const liveImc = calcIMC(weightInput, heightInput)
-
-  const doneCount = doneExercises.size
-  const totalExercises = todayWorkout?.exercises.length ?? 0
-  const progress = totalExercises > 0 ? doneCount / totalExercises : 0
-
-  const toggleExercise = (id: string) => {
-    setDoneExercises(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
 
   const openMetricsModal = () => {
     setWeightInput(profile?.weight ?? '')
@@ -124,10 +127,7 @@ export function StudentHomeScreen() {
   }
 
   const handleSaveMetrics = async () => {
-    if (!weightInput || !heightInput) {
-      Alert.alert('Atenção', 'Preencha peso e altura.')
-      return
-    }
+    if (!weightInput || !heightInput) { Alert.alert('Atenção', 'Preencha peso e altura.'); return }
     try {
       setSavingMetrics(true)
       const result = await userService.updateStudentMetrics({ weight: weightInput, height: heightInput })
@@ -140,6 +140,67 @@ export function StudentHomeScreen() {
     }
   }
 
+  // ─── Exercícios do treino de hoje ─────────
+  const doneCount      = doneExercises.size
+  const totalExercises = todayWorkout?.exercises.length ?? 0
+  const progress       = totalExercises > 0 ? doneCount / totalExercises : 0
+
+  const toggleExercise = (id: string) => {
+    setDoneExercises(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  // ─── Modal criar treino ───────────────────
+  const toggleDay = (day: string) =>
+    setWDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+
+  const addExercise = () =>
+    setExercises(prev => [...prev, { name: '', sets: '', reps: '', order: prev.length }])
+
+  const removeExercise = (index: number) => {
+    if (exercises.length === 1) return
+    setExercises(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const updateExercise = (index: number, field: keyof Exercise, value: string) =>
+    setExercises(prev => prev.map((e, i) => i === index ? { ...e, [field]: value } : e))
+
+  const resetWorkoutForm = () => {
+    setWName(''); setWDays([]); setWNotes('')
+    setExercises([{ name: '', sets: '', reps: '', order: 0 }])
+  }
+
+  const handleSaveWorkout = async () => {
+    if (!wName.trim()) { Alert.alert('Atenção', 'Informe o nome do treino.'); return }
+    if (wDays.length === 0) { Alert.alert('Atenção', 'Selecione ao menos um dia.'); return }
+    if (exercises.some(e => !e.name.trim() || !e.sets.trim() || !e.reps.trim())) {
+      Alert.alert('Atenção', 'Preencha todos os campos dos exercícios.')
+      return
+    }
+    try {
+      setSaving(true)
+      await workoutService.create({
+        studentId: user!.id,
+        name:      wName.trim(),
+        days:      wDays,
+        notes:     wNotes.trim() || undefined,
+        exercises: exercises.map((e, i) => ({ ...e, order: i })),
+      })
+      Alert.alert('Sucesso', 'Treino criado!')
+      setWorkoutModal(false)
+      resetWorkoutForm()
+      loadData()
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message ?? 'Não foi possível salvar.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ─── Logout ───────────────────────────────
   const handleLogout = () => {
     Alert.alert('Sair', 'Deseja realmente sair da sua conta?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -211,19 +272,20 @@ export function StudentHomeScreen() {
         {/* Treino de hoje */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>Treino de hoje</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing['2'] }}>
+          <View style={s.sectionActions}>
             {todayWorkout && (
               <View style={s.progressBadge}>
                 <Text style={s.progressBadgeText}>{doneCount}/{totalExercises}</Text>
               </View>
             )}
-            {/* Botão criar treino */}
+            {/* ✅ Abre modal direto na home */}
             <TouchableOpacity
-              style={s.editBtn}
-              onPress={() => {/* navegar para aba Treinos com modal aberto */}}
-              activeOpacity={0.7}
+              style={s.createBtn}
+              onPress={() => { resetWorkoutForm(); setWorkoutModal(true) }}
+              activeOpacity={0.8}
             >
-              <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+              <Ionicons name="add" size={18} color={colors.white} />
+              <Text style={s.createBtnText}>Novo Treino</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -234,7 +296,9 @@ export function StudentHomeScreen() {
           <View style={s.emptyWorkout}>
             <Ionicons name="barbell-outline" size={36} color={colors.textDisabled} />
             <Text style={s.emptyWorkoutText}>Nenhum treino para hoje</Text>
-            <Text style={s.emptyWorkoutSub}>Seu personal ainda não criou um treino para {DAY_LABELS[TODAY_KEY] ?? 'hoje'}</Text>
+            <Text style={s.emptyWorkoutSub}>
+              Crie um treino ou aguarde seu personal para {DAY_LABELS[TODAY_KEY] ?? 'hoje'}
+            </Text>
           </View>
         ) : (
           <View style={s.workoutCard}>
@@ -244,15 +308,14 @@ export function StudentHomeScreen() {
               </View>
               <View style={s.workoutInfo}>
                 <Text style={s.workoutName}>{todayWorkout.name}</Text>
-                {todayWorkout.personal && (
-                <Text style={s.workoutPersonal}>
-                  Por: {todayWorkout.personal.name}
-                  {todayWorkout.personal.personalProfile?.cref
-                    ? ` · ${todayWorkout.personal.personalProfile.cref}`
-                    : ''}
-                </Text>
+                {todayWorkout.personal ? (
+                  <Text style={s.workoutBy}>
+                    Por: {todayWorkout.personal.name}
+                    {todayWorkout.personal.personalProfile?.cref ? ` · ${todayWorkout.personal.personalProfile.cref}` : ''}
+                  </Text>
+                ) : (
+                  <Text style={[s.workoutBy, { color: colors.primary }]}>Treino próprio</Text>
                 )}
-                {/* Dias do treino */}
                 <View style={s.daysRow}>
                   {todayWorkout.days.map(d => (
                     <View key={d} style={[s.dayBadge, d === TODAY_KEY && s.dayBadgeToday]}>
@@ -265,7 +328,6 @@ export function StudentHomeScreen() {
               </View>
             </View>
 
-            {/* Notas */}
             {todayWorkout.notes && (
               <View style={s.notesBox}>
                 <Ionicons name="document-text-outline" size={14} color={colors.textSecondary} />
@@ -273,13 +335,11 @@ export function StudentHomeScreen() {
               </View>
             )}
 
-            {/* Barra de progresso */}
             <View style={s.progressBar}>
               <View style={[s.progressFill, { width: `${progress * 100}%` as any }]} />
             </View>
             <Text style={s.progressText}>{Math.round(progress * 100)}% concluído</Text>
 
-            {/* Exercícios */}
             <View style={s.exerciseList}>
               {todayWorkout.exercises.map((ex, i) => {
                 const done = doneExercises.has(ex.id ?? String(i))
@@ -308,7 +368,7 @@ export function StudentHomeScreen() {
 
       </ScrollView>
 
-      {/* Modal métricas */}
+      {/* ── Modal métricas ── */}
       <Modal visible={metricsModal} transparent animationType="slide" onRequestClose={() => setMetricsModal(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setMetricsModal(false)} />
         <View style={s.sheet}>
@@ -321,25 +381,11 @@ export function StudentHomeScreen() {
           <View style={s.sheetBody}>
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Peso (kg)</Text>
-              <TextInput
-                style={s.input}
-                value={weightInput}
-                onChangeText={setWeightInput}
-                keyboardType="numeric"
-                placeholder="Ex: 75.5"
-                placeholderTextColor={colors.textDisabled}
-              />
+              <TextInput style={s.input} value={weightInput} onChangeText={setWeightInput} keyboardType="numeric" placeholder="Ex: 75.5" placeholderTextColor={colors.textDisabled} />
             </View>
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Altura (cm)</Text>
-              <TextInput
-                style={s.input}
-                value={heightInput}
-                onChangeText={setHeightInput}
-                keyboardType="numeric"
-                placeholder="Ex: 175"
-                placeholderTextColor={colors.textDisabled}
-              />
+              <TextInput style={s.input} value={heightInput} onChangeText={setHeightInput} keyboardType="numeric" placeholder="Ex: 175" placeholderTextColor={colors.textDisabled} />
             </View>
             {weightInput && heightInput ? (
               <View style={s.imcPreview}>
@@ -352,22 +398,84 @@ export function StudentHomeScreen() {
                 </Text>
               </View>
             ) : null}
-            <TouchableOpacity
-              style={[s.saveBtn, savingMetrics && { opacity: 0.6 }]}
-              onPress={handleSaveMetrics}
-              disabled={savingMetrics}
-              activeOpacity={0.8}
-            >
-              {savingMetrics
-                ? <ActivityIndicator color={colors.white} />
-                : <Text style={s.saveBtnText}>Salvar</Text>
-              }
+            <TouchableOpacity style={[s.saveBtn, savingMetrics && { opacity: 0.6 }]} onPress={handleSaveMetrics} disabled={savingMetrics} activeOpacity={0.8}>
+              {savingMetrics ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>Salvar</Text>}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Menu dropdown */}
+      {/* ── Modal criar treino ── */}
+      <Modal visible={workoutModal} transparent animationType="slide" onRequestClose={() => { setWorkoutModal(false); resetWorkoutForm() }}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { setWorkoutModal(false); resetWorkoutForm() }} />
+        <View style={s.sheet}>
+          <View style={s.sheetHeader}>
+            <Text style={s.sheetTitle}>Novo treino</Text>
+            <TouchableOpacity onPress={() => { setWorkoutModal(false); resetWorkoutForm() }}>
+              <Ionicons name="close" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={s.sheetBody} showsVerticalScrollIndicator={false}>
+
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Nome do treino *</Text>
+              <TextInput style={s.input} value={wName} onChangeText={setWName} placeholder="Ex: Treino A — Peito" placeholderTextColor={colors.textDisabled} />
+            </View>
+
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Dias da semana *</Text>
+              <View style={s.daysSelector}>
+                {DAYS.map(d => (
+                  <TouchableOpacity key={d.key} style={[s.daySelectorItem, wDays.includes(d.key) && s.daySelectorItemActive]} onPress={() => toggleDay(d.key)} activeOpacity={0.8}>
+                    <Text style={[s.daySelectorText, wDays.includes(d.key) && s.daySelectorTextActive]}>{d.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Exercícios *</Text>
+              {exercises.map((ex, i) => (
+                <View key={i} style={s.exerciseForm}>
+                  <View style={s.exerciseFormHeader}>
+                    <Text style={s.exerciseFormIndex}>#{i + 1}</Text>
+                    <TouchableOpacity onPress={() => removeExercise(i)} disabled={exercises.length === 1}>
+                      <Ionicons name="remove-circle-outline" size={20} color={exercises.length === 1 ? colors.textDisabled : colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput style={s.input} value={ex.name} onChangeText={v => updateExercise(i, 'name', v)} placeholder="Nome do exercício" placeholderTextColor={colors.textDisabled} />
+                  <View style={s.setsRepsRow}>
+                    <View style={s.setsRepsField}>
+                      <Text style={s.setsRepsLabel}>Séries</Text>
+                      <TextInput style={s.inputSmall} value={ex.sets} onChangeText={v => updateExercise(i, 'sets', v)} placeholder="4" placeholderTextColor={colors.textDisabled} keyboardType="numeric" />
+                    </View>
+                    <View style={s.setsRepsField}>
+                      <Text style={s.setsRepsLabel}>Repetições</Text>
+                      <TextInput style={s.inputSmall} value={ex.reps} onChangeText={v => updateExercise(i, 'reps', v)} placeholder="12" placeholderTextColor={colors.textDisabled} keyboardType="numeric" />
+                    </View>
+                  </View>
+                </View>
+              ))}
+              <TouchableOpacity style={s.addExerciseBtn} onPress={addExercise} activeOpacity={0.8}>
+                <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+                <Text style={s.addExerciseBtnText}>Adicionar exercício</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Observações (opcional)</Text>
+              <TextInput style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} value={wNotes} onChangeText={setWNotes} placeholder="Ex: Descanso de 60s..." placeholderTextColor={colors.textDisabled} multiline maxLength={500} />
+            </View>
+
+            <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSaveWorkout} disabled={saving} activeOpacity={0.8}>
+              {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>Criar treino</Text>}
+            </TouchableOpacity>
+
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ── Menu dropdown ── */}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
         <TouchableOpacity style={s.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)} />
         <View style={s.menuBox}>
@@ -394,11 +502,15 @@ const s = StyleSheet.create({
   date:              { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'], textTransform: 'capitalize' },
   menuBtn:           { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
 
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing['5'], marginBottom: spacing['3'] },
-  sectionTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
+  sectionHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing['5'], marginBottom: spacing['3'] },
+  sectionTitle:   { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
+  sectionActions: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
 
   editBtn:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
   editBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
+
+  createBtn:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
+  createBtnText: { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.white },
 
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['3'], marginBottom: spacing['1'] },
   metricCard:  { width: '47%', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], alignItems: 'center', gap: spacing['2'], ...shadows.sm },
@@ -409,15 +521,16 @@ const s = StyleSheet.create({
   progressBadge:     { backgroundColor: colors.primary, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
   progressBadgeText: { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.white },
 
-  emptyWorkout:    { alignItems: 'center', gap: spacing['2'], paddingVertical: spacing['6'], backgroundColor: colors.surface, borderRadius: radii.xl, ...shadows.sm },
-  emptyWorkoutText:{ fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textSecondary },
-  emptyWorkoutSub: { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled, textAlign: 'center', paddingHorizontal: spacing['4'] },
+  emptyWorkout:     { alignItems: 'center', gap: spacing['2'], paddingVertical: spacing['6'], backgroundColor: colors.surface, borderRadius: radii.xl, ...shadows.sm },
+  emptyWorkoutText: { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textSecondary },
+  emptyWorkoutSub:  { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled, textAlign: 'center', paddingHorizontal: spacing['4'] },
 
   workoutCard:    { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['5'], ...shadows.md },
   workoutHeader:  { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], marginBottom: spacing['3'] },
   workoutIconBox: { width: 44, height: 44, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
   workoutInfo:    { flex: 1 },
   workoutName:    { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  workoutBy:      { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
 
   daysRow:           { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['1'], marginTop: spacing['1'] },
   dayBadge:          { backgroundColor: colors.surfaceHigh, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
@@ -440,23 +553,37 @@ const s = StyleSheet.create({
   exerciseDone:    { textDecorationLine: 'line-through', color: colors.textDisabled },
   exerciseSets:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
 
-  overlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet:        { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], paddingBottom: spacing['8'] },
-  sheetHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
-  sheetTitle:   { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
-  sheetBody:    { padding: spacing['6'], gap: spacing['4'] },
-  inputGroup:   { gap: spacing['1'] },
-  inputLabel:   { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
-  input:        { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
-  imcPreview:   { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'] },
-  imcPreviewText:{ fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, flex: 1 },
-  saveBtn:      { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center', marginTop: spacing['2'] },
-  saveBtnText:  { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
+  overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '90%' },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
+  sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
+  sheetBody:   { padding: spacing['6'], gap: spacing['4'], paddingBottom: spacing['10'] },
+  inputGroup:  { gap: spacing['2'] },
+  inputLabel:  { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
+  input:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  inputSmall:  { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 48, paddingHorizontal: spacing['3'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary, textAlign: 'center' },
+  imcPreview:  { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'] },
+  imcPreviewText: { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, flex: 1 },
+  saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
+
+  daysSelector:          { flexDirection: 'row', gap: spacing['2'], flexWrap: 'wrap' },
+  daySelectorItem:       { paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surfaceHigh },
+  daySelectorItemActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  daySelectorText:       { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
+  daySelectorTextActive: { color: colors.white },
+
+  exerciseForm:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'], gap: spacing['2'], marginBottom: spacing['2'] },
+  exerciseFormHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  exerciseFormIndex:  { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.primary },
+  setsRepsRow:        { flexDirection: 'row', gap: spacing['3'] },
+  setsRepsField:      { flex: 1, gap: spacing['1'] },
+  setsRepsLabel:      { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
+  addExerciseBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], paddingVertical: spacing['3'], borderWidth: 1.5, borderColor: colors.primary, borderRadius: radii.lg, borderStyle: 'dashed' },
+  addExerciseBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
 
   menuOverlay:        { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
   menuBox:            { position: 'absolute', top: 90, right: spacing['5'], backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, ...shadows.md, minWidth: 160 },
   menuItem:           { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['4'], paddingHorizontal: spacing['4'] },
   menuItemTextDanger: { fontFamily: typography.family.medium, fontSize: typography.size.md, color: colors.error },
-
-  workoutPersonal: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
 })
