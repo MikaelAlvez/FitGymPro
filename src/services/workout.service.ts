@@ -18,6 +18,12 @@ export interface Workout {
   createdAt:  string
   updatedAt:  string
   exercises:  Exercise[]
+  // Personal que criou o treino
+  personal?: {
+    id:   string
+    name: string
+    personalProfile: { cref: string } | null
+  }
 }
 
 export interface CreateWorkoutPayload {

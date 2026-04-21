@@ -234,6 +234,14 @@ export function StudentHomeScreen() {
               </View>
               <View style={s.workoutInfo}>
                 <Text style={s.workoutName}>{todayWorkout.name}</Text>
+                {todayWorkout.personal && (
+                <Text style={s.workoutPersonal}>
+                  Por: {todayWorkout.personal.name}
+                  {todayWorkout.personal.personalProfile?.cref
+                    ? ` · ${todayWorkout.personal.personalProfile.cref}`
+                    : ''}
+                </Text>
+                )}
                 {/* Dias do treino */}
                 <View style={s.daysRow}>
                   {todayWorkout.days.map(d => (
@@ -439,4 +447,6 @@ const s = StyleSheet.create({
   menuBox:            { position: 'absolute', top: 90, right: spacing['5'], backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, ...shadows.md, minWidth: 160 },
   menuItem:           { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['4'], paddingHorizontal: spacing['4'] },
   menuItemTextDanger: { fontFamily: typography.family.medium, fontSize: typography.size.md, color: colors.error },
+
+  workoutPersonal: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
 })

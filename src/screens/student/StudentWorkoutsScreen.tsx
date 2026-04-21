@@ -11,13 +11,13 @@ import type { Workout } from '../../services/workout.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
 const DAYS = [
-  { key: 'monday',    label: 'Segunda'   },
-  { key: 'tuesday',   label: 'Terça'     },
-  { key: 'wednesday', label: 'Quarta'    },
-  { key: 'thursday',  label: 'Quinta'    },
-  { key: 'friday',    label: 'Sexta'     },
-  { key: 'saturday',  label: 'Sábado'    },
-  { key: 'sunday',    label: 'Domingo'   },
+  { key: 'monday',    label: 'Seg' },
+  { key: 'tuesday',   label: 'Ter' },
+  { key: 'wednesday', label: 'Qua' },
+  { key: 'thursday',  label: 'Qui' },
+  { key: 'friday',    label: 'Sex' },
+  { key: 'saturday',  label: 'Sáb' },
+  { key: 'sunday',    label: 'Dom' },
 ]
 
 const DAY_SHORT: Record<string, string> = {
@@ -25,13 +25,10 @@ const DAY_SHORT: Record<string, string> = {
   thursday: 'Qui', friday: 'Sex', saturday: 'Sáb', sunday: 'Dom',
 }
 
-// Dia atual
 const TODAY_KEY = (() => {
   const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
   return days[new Date().getDay()]
 })()
-
-const ALL_FILTER = { key: 'all', label: 'Todos' }
 
 export function StudentWorkoutsScreen() {
   const [workouts,   setWorkouts]   = useState<Workout[]>([])
@@ -69,11 +66,11 @@ export function StudentWorkoutsScreen() {
     })
   }
 
-  // Só mostra dias que têm treino
-  const daysWithWorkout = DAYS.filter(d => workouts.some(w => w.days.includes(d.key)))
+  const hasToday = workouts.some(w => w.days.includes(TODAY_KEY))
 
   return (
     <SafeAreaView style={s.safe}>
+
       {/* Header */}
       <View style={s.header}>
         <Text style={s.headerTitle}>Meus Treinos</Text>
@@ -82,15 +79,12 @@ export function StudentWorkoutsScreen() {
         </Text>
       </View>
 
-      {/* Filtro por dia */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={s.filtersRow}
-      >
-        {/* Chip Todos */}
+      {/* Filtros */}
+      <View style={s.filtersRow}>
+
+        {/* Todos — largura automática */}
         <TouchableOpacity
-          style={[s.filterChip, dayFilter === 'all' && s.filterChipActive]}
+          style={[s.filterChipAuto, dayFilter === 'all' && s.filterChipActive]}
           onPress={() => setDayFilter('all')}
           activeOpacity={0.8}
         >
@@ -99,25 +93,29 @@ export function StudentWorkoutsScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Chip "Hoje" */}
-        {workouts.some(w => w.days.includes(TODAY_KEY)) && (
+        {/* Hoje — só aparece se tiver treino hoje */}
+        {hasToday && (
           <TouchableOpacity
-            style={[s.filterChip, s.filterChipToday, dayFilter === TODAY_KEY && s.filterChipActive]}
+            style={[s.filterChipAuto, s.filterChipToday, dayFilter === TODAY_KEY && s.filterChipActive]}
             onPress={() => setDayFilter(TODAY_KEY)}
             activeOpacity={0.8}
           >
-            <Ionicons name="today-outline" size={13} color={dayFilter === TODAY_KEY ? colors.white : colors.primary} />
+            <Ionicons
+              name="today-outline"
+              size={12}
+              color={dayFilter === TODAY_KEY ? colors.white : colors.primary}
+            />
             <Text style={[s.filterChipText, { color: dayFilter === TODAY_KEY ? colors.white : colors.primary }]}>
               Hoje
             </Text>
           </TouchableOpacity>
         )}
 
-        {/* Chips por dia */}
-        {daysWithWorkout.map(d => (
+        {/* ✅ 7 dias — largura fixa igual */}
+        {DAYS.map(d => (
           <TouchableOpacity
             key={d.key}
-            style={[s.filterChip, dayFilter === d.key && s.filterChipActive]}
+            style={[s.filterChipDay, dayFilter === d.key && s.filterChipActive]}
             onPress={() => setDayFilter(d.key)}
             activeOpacity={0.8}
           >
@@ -126,7 +124,7 @@ export function StudentWorkoutsScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
       {loading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['10'] }} />
@@ -148,7 +146,7 @@ export function StudentWorkoutsScreen() {
               <Text style={s.emptyText}>
                 {dayFilter === 'all'
                   ? 'Nenhum treino criado ainda'
-                  : `Nenhum treino para ${DAYS.find(d => d.key === dayFilter)?.label ?? dayFilter}`}
+                  : `Nenhum treino para ${DAY_SHORT[dayFilter] ?? dayFilter}`}
               </Text>
             </View>
           ) : (
@@ -158,14 +156,13 @@ export function StudentWorkoutsScreen() {
 
               return (
                 <View key={workout.id} style={[s.workoutCard, isToday && s.workoutCardToday]}>
-                  {/* Badge "Hoje" */}
+
                   {isToday && (
                     <View style={s.todayBadge}>
                       <Text style={s.todayBadgeText}>Hoje</Text>
                     </View>
                   )}
 
-                  {/* Header do treino */}
                   <TouchableOpacity
                     style={s.workoutHeader}
                     onPress={() => toggleExpand(workout.id)}
@@ -176,7 +173,14 @@ export function StudentWorkoutsScreen() {
                     </View>
                     <View style={s.workoutInfo}>
                       <Text style={s.workoutName}>{workout.name}</Text>
-                      {/* Dias em chips */}
+                      {workout.personal && (
+                      <Text style={s.workoutPersonal}>
+                        Criado por: {workout.personal.name}
+                        {workout.personal.personalProfile?.cref
+                          ? ` · ${workout.personal.personalProfile.cref}`
+                          : ''}
+                      </Text>
+                      )}
                       <View style={s.daysRow}>
                         {workout.days.map(d => (
                           <View key={d} style={[s.dayBadge, d === TODAY_KEY && s.dayBadgeToday]}>
@@ -194,7 +198,6 @@ export function StudentWorkoutsScreen() {
                     />
                   </TouchableOpacity>
 
-                  {/* Notas */}
                   {isExpanded && workout.notes && (
                     <View style={s.notesBox}>
                       <Ionicons name="document-text-outline" size={14} color={colors.textSecondary} />
@@ -202,7 +205,6 @@ export function StudentWorkoutsScreen() {
                     </View>
                   )}
 
-                  {/* Exercícios (expandido) */}
                   {isExpanded && (
                     <View style={s.exerciseList}>
                       <Text style={s.exerciseListTitle}>
@@ -225,7 +227,6 @@ export function StudentWorkoutsScreen() {
                     </View>
                   )}
 
-                  {/* Resumo quando fechado */}
                   {!isExpanded && (
                     <Text style={s.exerciseSummary}>
                       {workout.exercises.length} exercício{workout.exercises.length !== 1 ? 's' : ''}
@@ -249,9 +250,10 @@ const s = StyleSheet.create({
   headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
   headerSub:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
 
-  // Filtros
-  filtersRow:           { paddingHorizontal: spacing['5'], paddingVertical: spacing['3'], gap: spacing['2'] },
-  filterChip:           { paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], borderRadius: radii.full, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  filtersRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: spacing['5'], paddingVertical: spacing['3'], gap: spacing['2'] },
+  filterChipAuto: { height: 30, paddingHorizontal: spacing['3'], borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
+  filterChipDay:  { width: 46, height: 30, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+
   filterChipToday:      { borderColor: colors.primary },
   filterChipActive:     { backgroundColor: colors.primary, borderColor: colors.primary },
   filterChipText:       { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
@@ -262,7 +264,6 @@ const s = StyleSheet.create({
   empty:     { alignItems: 'center', marginTop: spacing['10'], gap: spacing['3'] },
   emptyText: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled, textAlign: 'center' },
 
-  // Workout card
   workoutCard:      { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['2'], ...shadows.sm },
   workoutCardToday: { borderWidth: 1.5, borderColor: `${colors.primary}40` },
 
@@ -294,4 +295,6 @@ const s = StyleSheet.create({
   exerciseInfo:      { flex: 1 },
   exerciseName:      { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textPrimary },
   exerciseSets:      { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
+
+  workoutPersonal: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
 })
