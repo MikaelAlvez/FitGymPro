@@ -1,14 +1,16 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Modal, TextInput, Alert,
+  ActivityIndicator, RefreshControl, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native'
 import { workoutService } from '../../services/workout.service'
-import type { Workout, Exercise } from '../../services/workout.service'
+import type { Workout } from '../../services/workout.service'
 import { useAuth } from '../../contexts/AuthContext'
+import { WorkoutFormModal } from '../../components/ui/WorkoutFormModal'
+import type { WorkoutPayload } from '../../components/ui/WorkoutFormModal'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
 const DAYS = [
@@ -36,22 +38,13 @@ export function StudentWorkoutsScreen() {
   const navigation = useNavigation<any>()
   const route      = useRoute<any>()
 
-  const [workouts,   setWorkouts]   = useState<Workout[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [dayFilter,  setDayFilter]  = useState('all')
-  const [expanded,   setExpanded]   = useState<Set<string>>(new Set())
-
-  // ─── Modal criar/editar ───────────────────
+  const [workouts,       setWorkouts]       = useState<Workout[]>([])
+  const [loading,        setLoading]        = useState(true)
+  const [refreshing,     setRefreshing]     = useState(false)
+  const [dayFilter,      setDayFilter]      = useState('all')
+  const [expanded,       setExpanded]       = useState<Set<string>>(new Set())
   const [workoutModal,   setWorkoutModal]   = useState(false)
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null)
-  const [saving,         setSaving]         = useState(false)
-  const [wName,     setWName]     = useState('')
-  const [wDays,     setWDays]     = useState<string[]>([])
-  const [wNotes,    setWNotes]    = useState('')
-  const [exercises, setExercises] = useState<Exercise[]>([
-    { name: '', sets: '', reps: '', order: 0 },
-  ])
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -68,10 +61,10 @@ export function StudentWorkoutsScreen() {
 
   useFocusEffect(useCallback(() => { load() }, [load]))
 
-  // ✅ Abre modal quando vier o parâmetro openCreate da home
   useEffect(() => {
     if (route.params?.openCreate) {
-      openCreateModal()
+      setEditingWorkout(null)
+      setWorkoutModal(true)
       navigation.setParams({ openCreate: false })
     }
   }, [route.params?.openCreate])
@@ -88,73 +81,19 @@ export function StudentWorkoutsScreen() {
     })
   }
 
-  const toggleDay = (day: string) =>
-    setWDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+  const openCreateModal = () => { setEditingWorkout(null); setWorkoutModal(true) }
+  const openEditModal   = (workout: Workout) => { setEditingWorkout(workout); setWorkoutModal(true) }
 
-  const addExercise = () =>
-    setExercises(prev => [...prev, { name: '', sets: '', reps: '', order: prev.length }])
-
-  const removeExercise = (index: number) => {
-    if (exercises.length === 1) return
-    setExercises(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const updateExercise = (index: number, field: keyof Exercise, value: string) =>
-    setExercises(prev => prev.map((e, i) => i === index ? { ...e, [field]: value } : e))
-
-  const resetForm = () => {
-    setWName('')
-    setWDays([])
-    setWNotes('')
-    setExercises([{ name: '', sets: '', reps: '', order: 0 }])
-    setEditingWorkout(null)
-  }
-
-  const openCreateModal = () => { resetForm(); setWorkoutModal(true) }
-
-  const openEditModal = (workout: Workout) => {
-    setEditingWorkout(workout)
-    setWName(workout.name)
-    setWDays(workout.days)
-    setWNotes(workout.notes ?? '')
-    setExercises(
-      workout.exercises.length > 0
-        ? workout.exercises.map(e => ({ name: e.name, sets: e.sets, reps: e.reps, order: e.order ?? 0 }))
-        : [{ name: '', sets: '', reps: '', order: 0 }],
-    )
-    setWorkoutModal(true)
-  }
-
-  const handleSave = async () => {
-    if (!wName.trim()) { Alert.alert('Atenção', 'Informe o nome do treino.'); return }
-    if (wDays.length === 0) { Alert.alert('Atenção', 'Selecione ao menos um dia.'); return }
-    if (exercises.some(e => !e.name.trim() || !e.sets.trim() || !e.reps.trim())) {
-      Alert.alert('Atenção', 'Preencha todos os campos dos exercícios.')
-      return
+  const handleSave = async (payload: WorkoutPayload) => {
+    if (editingWorkout) {
+      await workoutService.update(editingWorkout.id, payload)
+      Alert.alert('Sucesso', 'Treino atualizado!')
+    } else {
+      await workoutService.create({ ...payload, studentId: user!.id })
+      Alert.alert('Sucesso', 'Treino criado!')
     }
-    try {
-      setSaving(true)
-      const payload = {
-        name:      wName.trim(),
-        days:      wDays,
-        notes:     wNotes.trim() || undefined,
-        exercises: exercises.map((e, i) => ({ ...e, order: i })),
-      }
-      if (editingWorkout) {
-        await workoutService.update(editingWorkout.id, payload)
-        Alert.alert('Sucesso', 'Treino atualizado!')
-      } else {
-        await workoutService.create({ ...payload, studentId: user!.id })
-        Alert.alert('Sucesso', 'Treino criado!')
-      }
-      setWorkoutModal(false)
-      resetForm()
-      load(true)
-    } catch (err: any) {
-      Alert.alert('Erro', err?.message ?? 'Não foi possível salvar.')
-    } finally {
-      setSaving(false)
-    }
+    setWorkoutModal(false)
+    load(true)
   }
 
   const handleDelete = (id: string, name: string) => {
@@ -170,7 +109,6 @@ export function StudentWorkoutsScreen() {
     ])
   }
 
-  // ✅ Toggle ativar/inativar treino próprio
   const handleToggleActive = (workout: Workout) => {
     const action = workout.active ? 'inativar' : 'ativar'
     Alert.alert(
@@ -198,10 +136,81 @@ export function StudentWorkoutsScreen() {
 
   const hasToday = workouts.some(w => w.days.includes(TODAY_KEY))
 
+  // Renderiza exercícios com suporte a grupos e cardio
+  const renderExercises = (workout: Workout) => {
+    const items = workout.exercises
+    const rendered: React.ReactNode[] = []
+    let i = 0
+
+    while (i < items.length) {
+      const ex = items[i]
+
+      if (ex.type === 'cardio') {
+        rendered.push(
+          <View key={`cardio-${ex.id ?? i}`} style={[s.exerciseRow, i < items.length - 1 && s.exerciseDivider]}>
+            <View style={s.cardioIcon}>
+              <Ionicons name="bicycle" size={14} color={colors.info} />
+            </View>
+            <View style={s.exerciseInfo}>
+              <Text style={s.exerciseName}>{ex.name}</Text>
+              <Text style={s.exerciseSets}>{ex.duration ?? '—'} min</Text>
+            </View>
+          </View>
+        )
+        i++
+        continue
+      }
+
+      if (ex.groupId) {
+        const groupId    = ex.groupId
+        const groupLabel = ex.groupLabel ?? 'Grupo'
+        const groupItems: typeof items = []
+        while (i < items.length && items[i].groupId === groupId) {
+          groupItems.push(items[i])
+          i++
+        }
+        rendered.push(
+          <View key={`group-${groupId}`} style={s.groupBlock}>
+            <View style={s.groupBlockHeader}>
+              <Ionicons name="git-merge-outline" size={12} color={colors.primary} />
+              <Text style={s.groupBlockLabel}>{groupLabel}</Text>
+            </View>
+            {groupItems.map((gEx, gi) => (
+              <View key={gEx.id ?? gi} style={[s.exerciseRow, gi < groupItems.length - 1 && s.exerciseDivider]}>
+                <View style={s.exerciseIndex}>
+                  <Text style={s.exerciseIndexText}>{String.fromCharCode(65 + gi)}</Text>
+                </View>
+                <View style={s.exerciseInfo}>
+                  <Text style={s.exerciseName}>{gEx.name}</Text>
+                  <Text style={s.exerciseSets}>{gEx.sets} séries × {gEx.reps} reps</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )
+        continue
+      }
+
+      rendered.push(
+        <View key={ex.id ?? i} style={[s.exerciseRow, i < items.length - 1 && s.exerciseDivider]}>
+          <View style={s.exerciseIndex}>
+            <Text style={s.exerciseIndexText}>{i + 1}</Text>
+          </View>
+          <View style={s.exerciseInfo}>
+            <Text style={s.exerciseName}>{ex.name}</Text>
+            <Text style={s.exerciseSets}>{ex.sets} séries × {ex.reps} reps</Text>
+          </View>
+        </View>
+      )
+      i++
+    }
+
+    return rendered
+  }
+
   return (
     <SafeAreaView style={s.safe}>
 
-      {/* Header */}
       <View style={s.header}>
         <View>
           <Text style={s.headerTitle}>Meus Treinos</Text>
@@ -213,19 +222,16 @@ export function StudentWorkoutsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Filtros */}
       <View style={s.filtersRow}>
         <TouchableOpacity style={[s.filterChipAuto, dayFilter === 'all' && s.filterChipActive]} onPress={() => setDayFilter('all')} activeOpacity={0.8}>
           <Text style={[s.filterChipText, dayFilter === 'all' && s.filterChipTextActive]}>Todos ({workouts.length})</Text>
         </TouchableOpacity>
-
         {hasToday && (
           <TouchableOpacity style={[s.filterChipAuto, s.filterChipToday, dayFilter === TODAY_KEY && s.filterChipActive]} onPress={() => setDayFilter(TODAY_KEY)} activeOpacity={0.8}>
             <Ionicons name="today-outline" size={12} color={dayFilter === TODAY_KEY ? colors.white : colors.primary} />
             <Text style={[s.filterChipText, { color: dayFilter === TODAY_KEY ? colors.white : colors.primary }]}>Hoje</Text>
           </TouchableOpacity>
         )}
-
         {DAYS.map(d => (
           <TouchableOpacity key={d.key} style={[s.filterChipDay, dayFilter === d.key && s.filterChipActive]} onPress={() => setDayFilter(d.key)} activeOpacity={0.8}>
             <Text style={[s.filterChipText, dayFilter === d.key && s.filterChipTextActive]}>{d.label}</Text>
@@ -261,11 +267,8 @@ export function StudentWorkoutsScreen() {
 
               return (
                 <View key={workout.id} style={[s.workoutCard, isToday && s.workoutCardToday, !workout.active && s.workoutCardInactive]}>
-
                   {isToday && workout.active && (
-                    <View style={s.todayBadge}>
-                      <Text style={s.todayBadgeText}>Hoje</Text>
-                    </View>
+                    <View style={s.todayBadge}><Text style={s.todayBadgeText}>Hoje</Text></View>
                   )}
 
                   <TouchableOpacity style={s.workoutHeader} onPress={() => toggleExpand(workout.id)} activeOpacity={0.8}>
@@ -273,7 +276,6 @@ export function StudentWorkoutsScreen() {
                       <Ionicons name="barbell" size={20} color={workout.active ? colors.primary : colors.textDisabled} />
                     </View>
                     <View style={s.workoutInfo}>
-                      {/* ✅ Nome + badge ativo/inativo */}
                       <View style={s.nameRow}>
                         <Text style={[s.workoutName, !workout.active && { color: colors.textSecondary }]} numberOfLines={1}>
                           {workout.name}
@@ -304,37 +306,17 @@ export function StudentWorkoutsScreen() {
                       </View>
                     </View>
 
-                    {/* ✅ Botões — treinos próprios têm toggle + editar + excluir */}
                     {isOwn ? (
                       <View style={s.workoutActions}>
-                        {/* Toggle ativar/inativar */}
-                        <TouchableOpacity
-                          style={s.workoutActionBtn}
-                          onPress={() => handleToggleActive(workout)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Ionicons
-                            name={workout.active ? 'pause-circle-outline' : 'play-circle-outline'}
-                            size={16}
-                            color={workout.active ? colors.warning : colors.success}
-                          />
+                        <TouchableOpacity style={s.workoutActionBtn} onPress={() => handleToggleActive(workout)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name={workout.active ? 'pause-circle-outline' : 'play-circle-outline'} size={16} color={workout.active ? colors.warning : colors.success} />
                         </TouchableOpacity>
-                        {/* Editar — só se ativo */}
                         {workout.active && (
-                          <TouchableOpacity
-                            style={s.workoutActionBtn}
-                            onPress={() => openEditModal(workout)}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
+                          <TouchableOpacity style={s.workoutActionBtn} onPress={() => openEditModal(workout)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                             <Ionicons name="pencil-outline" size={16} color={colors.primary} />
                           </TouchableOpacity>
                         )}
-                        {/* Excluir */}
-                        <TouchableOpacity
-                          style={s.workoutActionBtn}
-                          onPress={() => handleDelete(workout.id, workout.name)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
+                        <TouchableOpacity style={s.workoutActionBtn} onPress={() => handleDelete(workout.id, workout.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                           <Ionicons name="trash-outline" size={16} color={colors.error} />
                         </TouchableOpacity>
                       </View>
@@ -355,17 +337,7 @@ export function StudentWorkoutsScreen() {
                       <Text style={s.exerciseListTitle}>
                         {workout.exercises.length} exercício{workout.exercises.length !== 1 ? 's' : ''}
                       </Text>
-                      {workout.exercises.map((ex, i) => (
-                        <View key={ex.id ?? i} style={[s.exerciseRow, i < workout.exercises.length - 1 && s.exerciseDivider]}>
-                          <View style={s.exerciseIndex}>
-                            <Text style={s.exerciseIndexText}>{i + 1}</Text>
-                          </View>
-                          <View style={s.exerciseInfo}>
-                            <Text style={s.exerciseName}>{ex.name}</Text>
-                            <Text style={s.exerciseSets}>{ex.sets} séries × {ex.reps} reps</Text>
-                          </View>
-                        </View>
-                      ))}
+                      {renderExercises(workout)}
                     </View>
                   )}
 
@@ -382,75 +354,12 @@ export function StudentWorkoutsScreen() {
         </ScrollView>
       )}
 
-      {/* ── Modal criar/editar treino ── */}
-      <Modal visible={workoutModal} transparent animationType="slide" onRequestClose={() => { setWorkoutModal(false); resetForm() }}>
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { setWorkoutModal(false); resetForm() }} />
-        <View style={s.sheet}>
-          <View style={s.sheetHeader}>
-            <Text style={s.sheetTitle}>{editingWorkout ? 'Editar treino' : 'Novo treino'}</Text>
-            <TouchableOpacity onPress={() => { setWorkoutModal(false); resetForm() }}>
-              <Ionicons name="close" size={22} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={s.sheetBody} showsVerticalScrollIndicator={false}>
-
-            <View style={s.inputGroup}>
-              <Text style={s.inputLabel}>Nome do treino *</Text>
-              <TextInput style={s.input} value={wName} onChangeText={setWName} placeholder="Ex: Treino A — Peito" placeholderTextColor={colors.textDisabled} />
-            </View>
-
-            <View style={s.inputGroup}>
-              <Text style={s.inputLabel}>Dias da semana *</Text>
-              <View style={s.daysSelector}>
-                {DAYS.map(d => (
-                  <TouchableOpacity key={d.key} style={[s.daySelectorItem, wDays.includes(d.key) && s.daySelectorItemActive]} onPress={() => toggleDay(d.key)} activeOpacity={0.8}>
-                    <Text style={[s.daySelectorText, wDays.includes(d.key) && s.daySelectorTextActive]}>{d.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={s.inputGroup}>
-              <Text style={s.inputLabel}>Exercícios *</Text>
-              {exercises.map((ex, i) => (
-                <View key={i} style={s.exerciseForm}>
-                  <View style={s.exerciseFormHeader}>
-                    <Text style={s.exerciseFormIndex}>#{i + 1}</Text>
-                    <TouchableOpacity onPress={() => removeExercise(i)} disabled={exercises.length === 1}>
-                      <Ionicons name="remove-circle-outline" size={20} color={exercises.length === 1 ? colors.textDisabled : colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                  <TextInput style={s.input} value={ex.name} onChangeText={v => updateExercise(i, 'name', v)} placeholder="Nome do exercício" placeholderTextColor={colors.textDisabled} />
-                  <View style={s.setsRepsRow}>
-                    <View style={s.setsRepsField}>
-                      <Text style={s.setsRepsLabel}>Séries</Text>
-                      <TextInput style={s.inputSmall} value={ex.sets} onChangeText={v => updateExercise(i, 'sets', v)} placeholder="4" placeholderTextColor={colors.textDisabled} keyboardType="numeric" />
-                    </View>
-                    <View style={s.setsRepsField}>
-                      <Text style={s.setsRepsLabel}>Repetições</Text>
-                      <TextInput style={s.inputSmall} value={ex.reps} onChangeText={v => updateExercise(i, 'reps', v)} placeholder="12" placeholderTextColor={colors.textDisabled} keyboardType="numeric" />
-                    </View>
-                  </View>
-                </View>
-              ))}
-              <TouchableOpacity style={s.addExerciseBtn} onPress={addExercise} activeOpacity={0.8}>
-                <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-                <Text style={s.addExerciseBtnText}>Adicionar exercício</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={s.inputGroup}>
-              <Text style={s.inputLabel}>Observações (opcional)</Text>
-              <TextInput style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} value={wNotes} onChangeText={setWNotes} placeholder="Ex: Descanso de 60s entre séries..." placeholderTextColor={colors.textDisabled} multiline maxLength={500} />
-            </View>
-
-            <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.8}>
-              {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>{editingWorkout ? 'Salvar alterações' : 'Criar treino'}</Text>}
-            </TouchableOpacity>
-
-          </ScrollView>
-        </View>
-      </Modal>
+      <WorkoutFormModal
+        visible={workoutModal}
+        onClose={() => setWorkoutModal(false)}
+        onSave={handleSave}
+        editingWorkout={editingWorkout}
+      />
     </SafeAreaView>
   )
 }
@@ -475,10 +384,10 @@ const s = StyleSheet.create({
 
   list: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  empty:       { alignItems: 'center', marginTop: spacing['10'], gap: spacing['3'] },
-  emptyText:   { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled, textAlign: 'center' },
-  emptyBtn:    { paddingHorizontal: spacing['4'], paddingVertical: spacing['2'], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.primary },
-  emptyBtnText:{ fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
+  empty:        { alignItems: 'center', marginTop: spacing['10'], gap: spacing['3'] },
+  emptyText:    { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled, textAlign: 'center' },
+  emptyBtn:     { paddingHorizontal: spacing['4'], paddingVertical: spacing['2'], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.primary },
+  emptyBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
 
   workoutCard:         { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['2'], ...shadows.sm },
   workoutCardToday:    { borderWidth: 1.5, borderColor: `${colors.primary}40` },
@@ -490,17 +399,14 @@ const s = StyleSheet.create({
   workoutHeader:    { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
   workoutIconBox:   { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
   workoutInfo:      { flex: 1 },
-
-  // ✅ Nome + badge na mesma linha
-  nameRow:            { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], flexWrap: 'wrap' },
-  workoutName:        { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-  activeBadge:        { borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
-  activeBadgeOn:      { backgroundColor: `${colors.success}20` },
-  activeBadgeOff:     { backgroundColor: colors.surfaceHigh },
-  activeBadgeText:    { fontFamily: typography.family.medium, fontSize: 10 },
-  activeBadgeTextOn:  { color: colors.success },
-  activeBadgeTextOff: { color: colors.textDisabled },
-
+  nameRow:          { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], flexWrap: 'wrap' },
+  workoutName:      { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  activeBadge:      { borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
+  activeBadgeOn:    { backgroundColor: `${colors.success}20` },
+  activeBadgeOff:   { backgroundColor: colors.surfaceHigh },
+  activeBadgeText:  { fontFamily: typography.family.medium, fontSize: 10 },
+  activeBadgeTextOn:{ color: colors.success },
+  activeBadgeTextOff:{ color: colors.textDisabled },
   workoutBy:        { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
   workoutActions:   { flexDirection: 'row', gap: spacing['2'] },
   workoutActionBtn: { width: 30, height: 30, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
@@ -525,34 +431,10 @@ const s = StyleSheet.create({
   exerciseInfo:      { flex: 1 },
   exerciseName:      { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textPrimary },
   exerciseSets:      { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
+  cardioIcon:        { width: 24, height: 24, borderRadius: radii.full, backgroundColor: `${colors.info}20`, alignItems: 'center', justifyContent: 'center' },
 
-  overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '90%' },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
-  sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
-  sheetBody:   { padding: spacing['6'], gap: spacing['4'], paddingBottom: spacing['10'] },
-
-  inputGroup:   { gap: spacing['2'] },
-  inputLabel:   { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
-  input:        { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
-  inputSmall:   { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 48, paddingHorizontal: spacing['3'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary, textAlign: 'center' },
-
-  daysSelector:          { flexDirection: 'row', gap: spacing['2'], flexWrap: 'wrap' },
-  daySelectorItem:       { paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surfaceHigh },
-  daySelectorItemActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  daySelectorText:       { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
-  daySelectorTextActive: { color: colors.white },
-
-  exerciseForm:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'], gap: spacing['2'], marginBottom: spacing['2'] },
-  exerciseFormHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  exerciseFormIndex:  { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.primary },
-  setsRepsRow:        { flexDirection: 'row', gap: spacing['3'] },
-  setsRepsField:      { flex: 1, gap: spacing['1'] },
-  setsRepsLabel:      { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
-
-  addExerciseBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], paddingVertical: spacing['3'], borderWidth: 1.5, borderColor: colors.primary, borderRadius: radii.lg, borderStyle: 'dashed' },
-  addExerciseBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
-
-  saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
+  // Grupo
+  groupBlock:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, marginBottom: spacing['2'], overflow: 'hidden', borderWidth: 1, borderColor: `${colors.primary}20` },
+  groupBlockHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing['3'], paddingVertical: spacing['1'], backgroundColor: `${colors.primary}10` },
+  groupBlockLabel:  { fontFamily: typography.family.bold, fontSize: 10, color: colors.primary },
 })

@@ -1,11 +1,15 @@
 import { apiRequest } from './api'
 
 export interface Exercise {
-  id?:    string
-  name:   string
-  sets:   string
-  reps:   string
-  order?: number
+  id?:        string
+  name:       string
+  sets:       string
+  reps:       string
+  order:      number
+  type?:      'exercise' | 'cardio'
+  groupId?:   string
+  groupLabel?:string
+  duration?:  string // "HH:MM"
 }
 
 export interface Workout {
