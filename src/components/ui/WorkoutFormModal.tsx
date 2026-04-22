@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons'
 import type { Exercise, Workout } from '../../services/workout.service'
 import { colors, typography, spacing, radii } from '../../theme'
 
-// ─── Helpers ─────────────────────────────────
 export const generateGroupId = () => Math.random().toString(36).slice(2, 8)
 
 const DAYS = [
@@ -20,14 +19,18 @@ const DAYS = [
   { key: 'sunday',    label: 'Dom' },
 ]
 
-const GROUP_LABELS = ['Bisset', 'Conjugado', 'Triset', 'Progr. de Carga', 'Composto']
+// Apenas Bisset (2) e Triset (3)
+const GROUP_OPTIONS = [
+  { label: 'Bisset',  max: 2 },
+  { label: 'Triset',  max: 3 },
+]
 
 interface Props {
-  visible:       boolean
-  onClose:       () => void
-  onSave:        (payload: WorkoutPayload) => Promise<void>
+  visible:        boolean
+  onClose:        () => void
+  onSave:         (payload: WorkoutPayload) => Promise<void>
   editingWorkout?: Workout | null
-  title?:        string
+  title?:         string
 }
 
 export interface WorkoutPayload {
@@ -46,8 +49,8 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
     { name: '', sets: '', reps: '', order: 0, type: 'exercise' },
   ])
 
-  // Preenche form quando for edição
   useEffect(() => {
+    if (!visible) return
     if (editingWorkout) {
       setWName(editingWorkout.name)
       setWDays(editingWorkout.days)
@@ -59,79 +62,67 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
               sets:       e.sets,
               reps:       e.reps,
               order:      e.order ?? 0,
-              type:       e.type       ?? 'exercise',
+              type:       e.type       ?? 'exercise' as const,
               groupId:    e.groupId    ?? undefined,
               groupLabel: e.groupLabel ?? undefined,
               duration:   e.duration   ?? undefined,
             }))
-          : [{ name: '', sets: '', reps: '', order: 0, type: 'exercise' }],
+          : [{ name: '', sets: '', reps: '', order: 0, type: 'exercise' as const }],
       )
     } else {
-      resetForm()
+      setWName('')
+      setWDays([])
+      setWNotes('')
+      setExercises([{ name: '', sets: '', reps: '', order: 0, type: 'exercise' }])
     }
-  }, [editingWorkout, visible])
-
-  const resetForm = () => {
-    setWName(''); setWDays([]); setWNotes('')
-    setExercises([{ name: '', sets: '', reps: '', order: 0, type: 'exercise' }])
-  }
+  }, [visible, editingWorkout])
 
   const toggleDay = (day: string) =>
     setWDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
 
-  const updateExercise = (index: number, field: keyof Exercise, value: string) =>
-    setExercises(prev => prev.map((e, i) => i === index ? { ...e, [field]: value } : e))
+  // Usa índice capturado corretamente
+  const updateExercise = (idx: number, field: keyof Exercise, value: string) =>
+    setExercises(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e))
 
-  const removeExercise = (index: number) => {
-    if (exercises.filter(e => e.type === 'exercise').length <= 1 && exercises[index].type === 'exercise') {
+  // Botão remover — captura idx no momento da chamada
+  const removeExercise = (idx: number) => {
+    const ex = exercises[idx]
+    if (ex.type === 'exercise' && exercises.filter(e => e.type === 'exercise' && !e.groupId).length <= 1 && !ex.groupId) {
       Alert.alert('Atenção', 'O treino precisa ter ao menos um exercício.')
       return
     }
-    setExercises(prev => prev.filter((_, i) => i !== index))
+    setExercises(prev => prev.filter((_, i) => i !== idx))
   }
 
-  // Adicionar exercício normal
   const addExercise = () =>
     setExercises(prev => [...prev, { name: '', sets: '', reps: '', order: prev.length, type: 'exercise' }])
 
-  // Adicionar cardio
   const addCardio = () =>
     setExercises(prev => [...prev, { name: '', sets: '', reps: '', order: prev.length, type: 'cardio', duration: '00:30' }])
 
-  // Criar grupo (bisset/conjugado etc) a partir de um exercício existente
-  const createGroup = (index: number, label: string) => {
+  // Cria grupo — verifica limite (bisset=2, triset=3)
+  const createGroup = (idx: number, label: string, max: number) => {
     const groupId = generateGroupId()
     setExercises(prev => {
       const updated = [...prev]
-      // Marca o exercício atual como parte do grupo
-      updated[index] = { ...updated[index], groupId, groupLabel: label }
-      // Insere novo exercício logo após, no mesmo grupo
-      updated.splice(index + 1, 0, {
-        name: '', sets: updated[index].sets, reps: updated[index].reps,
-        order: index + 1, type: 'exercise', groupId, groupLabel: label,
-      })
+      updated[idx] = { ...updated[idx], groupId, groupLabel: label }
+      // Insere exercícios adicionais para completar o grupo (max - 1 pois o atual já conta)
+      for (let n = 1; n < max; n++) {
+        updated.splice(idx + n, 0, {
+          name: '', sets: updated[idx].sets, reps: updated[idx].reps,
+          order: idx + n, type: 'exercise', groupId, groupLabel: label,
+        })
+      }
       return updated
     })
   }
 
-  // Adicionar exercício ao grupo existente
-  const addToGroup = (groupId: string, groupLabel: string, afterIndex: number) => {
+  // Remover do grupo — se restar 1, desagrupa
+  const removeFromGroup = (idx: number) => {
     setExercises(prev => {
-      const updated = [...prev]
-      updated.splice(afterIndex + 1, 0, {
-        name: '', sets: '', reps: '', order: afterIndex + 1,
-        type: 'exercise', groupId, groupLabel,
-      })
-      return updated
-    })
-  }
-
-  // Remover exercício do grupo (se restar 1 no grupo, remove o groupId de todos)
-  const removeFromGroup = (index: number) => {
-    setExercises(prev => {
-      const groupId    = prev[index].groupId
-      const updated    = prev.filter((_, i) => i !== index)
-      const remaining  = updated.filter(e => e.groupId === groupId)
+      const groupId   = prev[idx].groupId
+      const updated   = prev.filter((_, i) => i !== idx)
+      const remaining = updated.filter(e => e.groupId === groupId)
       if (remaining.length === 1) {
         return updated.map(e =>
           e.groupId === groupId ? { ...e, groupId: undefined, groupLabel: undefined } : e
@@ -144,6 +135,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
   const handleSave = async () => {
     if (!wName.trim()) { Alert.alert('Atenção', 'Informe o nome do treino.'); return }
     if (wDays.length === 0) { Alert.alert('Atenção', 'Selecione ao menos um dia.'); return }
+    if (exercises.length === 0) { Alert.alert('Atenção', 'Adicione ao menos um exercício.'); return }
 
     const regularExercises = exercises.filter(e => e.type === 'exercise')
     if (regularExercises.some(e => !e.name.trim() || !e.sets.trim() || !e.reps.trim())) {
@@ -155,10 +147,6 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
       Alert.alert('Atenção', 'Informe o nome do cardio.')
       return
     }
-    if (exercises.length === 0) {
-      Alert.alert('Atenção', 'Adicione ao menos um exercício.')
-      return
-    }
 
     try {
       setSaving(true)
@@ -168,7 +156,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
         notes:     wNotes.trim() || undefined,
         exercises: exercises.map((e, i) => ({ ...e, order: i })),
       })
-      resetForm()
+      // reset feito pelo useEffect quando visible muda
     } catch (err: any) {
       Alert.alert('Erro', err?.message ?? 'Não foi possível salvar.')
     } finally {
@@ -176,34 +164,37 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
     }
   }
 
-  // ─── Renderiza exercícios agrupados ───────
+  // ─── Renderiza lista de exercícios ────────
+  // Cada item recebe idx capturado como constante para evitar closure stale
   const renderExercises = () => {
-    const rendered: React.ReactNode[] = []
+    const nodes: React.ReactNode[] = []
     let i = 0
 
     while (i < exercises.length) {
-      const ex = exercises[i]
+      const ex  = exercises[i]
+      const idx = i // captura local do índice
 
+      // ── Cardio ────────────────────────────
       if (ex.type === 'cardio') {
-        rendered.push(
-          <View key={`cardio-${i}`} style={s.cardioForm}>
+        const cardioIdx = idx
+        nodes.push(
+          <View key={`cardio-${cardioIdx}`} style={s.cardioForm}>
             <View style={s.exerciseFormHeader}>
               <View style={s.cardioLabel}>
                 <Ionicons name="bicycle" size={14} color={colors.info} />
                 <Text style={s.cardioLabelText}>Cardio</Text>
               </View>
-              <TouchableOpacity onPress={() => removeExercise(i)}>
+              <TouchableOpacity onPress={() => removeExercise(cardioIdx)}>
                 <Ionicons name="remove-circle-outline" size={20} color={colors.error} />
               </TouchableOpacity>
             </View>
             <TextInput
               style={s.input}
               value={ex.name}
-              onChangeText={v => updateExercise(i, 'name', v)}
+              onChangeText={v => updateExercise(cardioIdx, 'name', v)}
               placeholder="Ex: Esteira, Bicicleta, Elíptico..."
               placeholderTextColor={colors.textDisabled}
             />
-            {/* Duração em horas e minutos */}
             <View style={s.durationRow}>
               <View style={s.durationField}>
                 <Text style={s.setsRepsLabel}>Horas</Text>
@@ -212,7 +203,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
                   value={ex.duration?.split(':')[0] ?? '00'}
                   onChangeText={v => {
                     const mins = ex.duration?.split(':')[1] ?? '00'
-                    updateExercise(i, 'duration', `${v.padStart(2,'0')}:${mins}`)
+                    updateExercise(cardioIdx, 'duration', `${v}:${mins}`)
                   }}
                   placeholder="00"
                   placeholderTextColor={colors.textDisabled}
@@ -228,7 +219,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
                   value={ex.duration?.split(':')[1] ?? '30'}
                   onChangeText={v => {
                     const hrs = ex.duration?.split(':')[0] ?? '00'
-                    updateExercise(i, 'duration', `${hrs}:${v.padStart(2,'0')}`)
+                    updateExercise(cardioIdx, 'duration', `${hrs}:${v}`)
                   }}
                   placeholder="30"
                   placeholderTextColor={colors.textDisabled}
@@ -243,7 +234,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
         continue
       }
 
-      // Exercício em grupo
+      // ── Grupo ─────────────────────────────
       if (ex.groupId) {
         const groupId    = ex.groupId
         const groupLabel = ex.groupLabel ?? 'Grupo'
@@ -254,30 +245,20 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
           i++
         }
 
-        const lastIdx = groupItems[groupItems.length - 1].idx
-
-        rendered.push(
+        nodes.push(
           <View key={`group-${groupId}`} style={s.groupContainer}>
-            {/* Header do grupo */}
             <View style={s.groupHeader}>
               <View style={s.groupLabelBadge}>
                 <Ionicons name="git-merge-outline" size={13} color={colors.primary} />
                 <Text style={s.groupLabelText}>{groupLabel}</Text>
               </View>
-              {/* Adicionar mais ao grupo */}
-              <TouchableOpacity
-                style={s.groupAddBtn}
-                onPress={() => addToGroup(groupId, groupLabel, lastIdx)}
-              >
-                <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
-                <Text style={s.groupAddBtnText}>Adicionar</Text>
-              </TouchableOpacity>
             </View>
 
             {groupItems.map(({ ex: gEx, idx: gIdx }, gi) => (
               <View key={`gex-${gIdx}`} style={[s.exerciseForm, gi < groupItems.length - 1 && s.exerciseFormGrouped]}>
                 <View style={s.exerciseFormHeader}>
                   <Text style={s.exerciseFormIndex}>{String.fromCharCode(65 + gi)}</Text>
+                  {/* removeFromGroup com gIdx capturado */}
                   <TouchableOpacity onPress={() => removeFromGroup(gIdx)}>
                     <Ionicons name="remove-circle-outline" size={20} color={colors.error} />
                   </TouchableOpacity>
@@ -292,11 +273,25 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
                 <View style={s.setsRepsRow}>
                   <View style={s.setsRepsField}>
                     <Text style={s.setsRepsLabel}>Séries</Text>
-                    <TextInput style={s.inputSmall} value={gEx.sets} onChangeText={v => updateExercise(gIdx, 'sets', v)} placeholder="4" placeholderTextColor={colors.textDisabled} keyboardType="numeric" />
+                    <TextInput
+                      style={s.inputSmall}
+                      value={gEx.sets}
+                      onChangeText={v => updateExercise(gIdx, 'sets', v)}
+                      placeholder="4"
+                      placeholderTextColor={colors.textDisabled}
+                      keyboardType="numeric"
+                    />
                   </View>
                   <View style={s.setsRepsField}>
                     <Text style={s.setsRepsLabel}>Repetições</Text>
-                    <TextInput style={s.inputSmall} value={gEx.reps} onChangeText={v => updateExercise(gIdx, 'reps', v)} placeholder="12" placeholderTextColor={colors.textDisabled} keyboardType="numeric" />
+                    <TextInput
+                      style={s.inputSmall}
+                      value={gEx.reps}
+                      onChangeText={v => updateExercise(gIdx, 'reps', v)}
+                      placeholder="12"
+                      placeholderTextColor={colors.textDisabled}
+                      keyboardType="numeric"
+                    />
                   </View>
                 </View>
               </View>
@@ -306,23 +301,24 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
         continue
       }
 
-      // Exercício simples — com opção de criar grupo
-      rendered.push(
-        <View key={`ex-${i}`} style={s.exerciseForm}>
+      // ── Exercício simples ─────────────────
+      const simpleIdx = idx
+      nodes.push(
+        <View key={`ex-${simpleIdx}`} style={s.exerciseForm}>
           <View style={s.exerciseFormHeader}>
-            <Text style={s.exerciseFormIndex}>#{i + 1}</Text>
+            <Text style={s.exerciseFormIndex}>#{simpleIdx + 1}</Text>
             <View style={s.exerciseFormActions}>
-              {/* Botão de agrupar */}
+              {/* Agrupar — Bisset ou Triset */}
               <TouchableOpacity
                 style={s.groupBtn}
                 onPress={() => {
                   Alert.alert(
                     'Criar grupo',
-                    'Selecione o tipo de agrupamento:',
+                    'Selecione o tipo:',
                     [
-                      ...GROUP_LABELS.map(label => ({
-                        text: label,
-                        onPress: () => createGroup(i, label),
+                      ...GROUP_OPTIONS.map(opt => ({
+                        text:    opt.label,
+                        onPress: () => createGroup(simpleIdx, opt.label, opt.max),
                       })),
                       { text: 'Cancelar', style: 'cancel' as const },
                     ],
@@ -331,14 +327,21 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
               >
                 <Ionicons name="git-merge-outline" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
+              {/* Remover — simpleIdx capturado corretamente */}
               <TouchableOpacity
-                onPress={() => removeExercise(i)}
-                disabled={exercises.filter(e => e.type === 'exercise').length <= 1}
+                onPress={() => removeExercise(simpleIdx)}
+                disabled={
+                  exercises.filter(e => e.type === 'exercise' && !e.groupId).length <= 1
+                }
               >
                 <Ionicons
                   name="remove-circle-outline"
                   size={20}
-                  color={exercises.filter(e => e.type === 'exercise').length <= 1 ? colors.textDisabled : colors.error}
+                  color={
+                    exercises.filter(e => e.type === 'exercise' && !e.groupId).length <= 1
+                      ? colors.textDisabled
+                      : colors.error
+                  }
                 />
               </TouchableOpacity>
             </View>
@@ -346,18 +349,32 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
           <TextInput
             style={s.input}
             value={ex.name}
-            onChangeText={v => updateExercise(i, 'name', v)}
+            onChangeText={v => updateExercise(simpleIdx, 'name', v)}
             placeholder="Nome do exercício"
             placeholderTextColor={colors.textDisabled}
           />
           <View style={s.setsRepsRow}>
             <View style={s.setsRepsField}>
               <Text style={s.setsRepsLabel}>Séries</Text>
-              <TextInput style={s.inputSmall} value={ex.sets} onChangeText={v => updateExercise(i, 'sets', v)} placeholder="4" placeholderTextColor={colors.textDisabled} keyboardType="numeric" />
+              <TextInput
+                style={s.inputSmall}
+                value={ex.sets}
+                onChangeText={v => updateExercise(simpleIdx, 'sets', v)}
+                placeholder="4"
+                placeholderTextColor={colors.textDisabled}
+                keyboardType="numeric"
+              />
             </View>
             <View style={s.setsRepsField}>
               <Text style={s.setsRepsLabel}>Repetições</Text>
-              <TextInput style={s.inputSmall} value={ex.reps} onChangeText={v => updateExercise(i, 'reps', v)} placeholder="12" placeholderTextColor={colors.textDisabled} keyboardType="numeric" />
+              <TextInput
+                style={s.inputSmall}
+                value={ex.reps}
+                onChangeText={v => updateExercise(simpleIdx, 'reps', v)}
+                placeholder="12"
+                placeholderTextColor={colors.textDisabled}
+                keyboardType="numeric"
+              />
             </View>
           </View>
         </View>
@@ -365,25 +382,35 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
       i++
     }
 
-    return rendered
+    return nodes
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { onClose(); resetForm() }}>
-      <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { onClose(); resetForm() }} />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={onClose} />
       <View style={s.sheet}>
         <View style={s.sheetHeader}>
           <Text style={s.sheetTitle}>{title ?? (editingWorkout ? 'Editar treino' : 'Novo treino')}</Text>
-          <TouchableOpacity onPress={() => { onClose(); resetForm() }}>
+          <TouchableOpacity onPress={onClose}>
             <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={s.sheetBody} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={s.sheetBody}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"  
+        >
 
           {/* Nome */}
           <View style={s.inputGroup}>
             <Text style={s.inputLabel}>Nome do treino *</Text>
-            <TextInput style={s.input} value={wName} onChangeText={setWName} placeholder="Ex: Treino A — Peito" placeholderTextColor={colors.textDisabled} />
+            <TextInput
+              style={s.input}
+              value={wName}
+              onChangeText={setWName}
+              placeholder="Ex: Treino A — Peito"
+              placeholderTextColor={colors.textDisabled}
+            />
           </View>
 
           {/* Dias */}
@@ -391,8 +418,15 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
             <Text style={s.inputLabel}>Dias da semana *</Text>
             <View style={s.daysSelector}>
               {DAYS.map(d => (
-                <TouchableOpacity key={d.key} style={[s.daySelectorItem, wDays.includes(d.key) && s.daySelectorItemActive]} onPress={() => toggleDay(d.key)} activeOpacity={0.8}>
-                  <Text style={[s.daySelectorText, wDays.includes(d.key) && s.daySelectorTextActive]}>{d.label}</Text>
+                <TouchableOpacity
+                  key={d.key}
+                  style={[s.daySelectorItem, wDays.includes(d.key) && s.daySelectorItemActive]}
+                  onPress={() => toggleDay(d.key)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.daySelectorText, wDays.includes(d.key) && s.daySelectorTextActive]}>
+                    {d.label}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -402,8 +436,6 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
           <View style={s.inputGroup}>
             <Text style={s.inputLabel}>Exercícios *</Text>
             {renderExercises()}
-
-            {/* Botões de adicionar */}
             <View style={s.addButtonsRow}>
               <TouchableOpacity style={s.addExerciseBtn} onPress={addExercise} activeOpacity={0.8}>
                 <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
@@ -419,11 +451,27 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
           {/* Observações */}
           <View style={s.inputGroup}>
             <Text style={s.inputLabel}>Observações (opcional)</Text>
-            <TextInput style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} value={wNotes} onChangeText={setWNotes} placeholder="Ex: Descanso de 60s entre séries..." placeholderTextColor={colors.textDisabled} multiline maxLength={500} />
+            <TextInput
+              style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]}
+              value={wNotes}
+              onChangeText={setWNotes}
+              placeholder="Ex: Descanso de 60s entre séries..."
+              placeholderTextColor={colors.textDisabled}
+              multiline
+              maxLength={500}
+            />
           </View>
 
-          <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.8}>
-            {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>{editingWorkout ? 'Salvar alterações' : 'Criar treino'}</Text>}
+          <TouchableOpacity
+            style={[s.saveBtn, saving && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={saving}
+            activeOpacity={0.8}
+          >
+            {saving
+              ? <ActivityIndicator color={colors.white} />
+              : <Text style={s.saveBtnText}>{editingWorkout ? 'Salvar alterações' : 'Criar treino'}</Text>
+            }
           </TouchableOpacity>
 
         </ScrollView>
@@ -450,19 +498,17 @@ const s = StyleSheet.create({
   daySelectorText:       { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
   daySelectorTextActive: { color: colors.white },
 
-  // Exercício simples
-  exerciseForm:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'], gap: spacing['2'], marginBottom: spacing['2'] },
-  exerciseFormGrouped:{ marginBottom: spacing['1'], borderBottomWidth: 1, borderBottomColor: colors.border },
-  exerciseFormHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  exerciseFormIndex:  { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.primary },
-  exerciseFormActions:{ flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
-  groupBtn:           { width: 28, height: 28, borderRadius: radii.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  exerciseForm:        { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'], gap: spacing['2'], marginBottom: spacing['2'] },
+  exerciseFormGrouped: { marginBottom: spacing['1'], borderBottomWidth: 1, borderBottomColor: colors.border },
+  exerciseFormHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  exerciseFormIndex:   { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.primary },
+  exerciseFormActions: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  groupBtn:            { width: 28, height: 28, borderRadius: radii.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
 
   setsRepsRow:   { flexDirection: 'row', gap: spacing['3'] },
   setsRepsField: { flex: 1, gap: spacing['1'] },
   setsRepsLabel: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
 
-  // Grupo
   groupContainer:  { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, marginBottom: spacing['2'], overflow: 'hidden', borderWidth: 1.5, borderColor: `${colors.primary}30` },
   groupHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], backgroundColor: `${colors.primary}10`, borderBottomWidth: 1, borderBottomColor: `${colors.primary}20` },
   groupLabelBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -470,18 +516,16 @@ const s = StyleSheet.create({
   groupAddBtn:     { flexDirection: 'row', alignItems: 'center', gap: 3 },
   groupAddBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.primary },
 
-  // Cardio
-  cardioForm:      { backgroundColor: `${colors.info}10`, borderRadius: radii.lg, padding: spacing['3'], gap: spacing['2'], marginBottom: spacing['2'], borderWidth: 1.5, borderColor: `${colors.info}30` },
-  cardioLabel:     { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cardioLabelText: { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.info },
-  durationRow:     { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
-  durationField:   { flex: 1, gap: spacing['1'] },
-  durationSep:     { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textSecondary, marginTop: spacing['3'] },
+  cardioForm:       { backgroundColor: `${colors.info}10`, borderRadius: radii.lg, padding: spacing['3'], gap: spacing['2'], marginBottom: spacing['2'], borderWidth: 1.5, borderColor: `${colors.info}30` },
+  cardioLabel:      { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cardioLabelText:  { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.info },
+  durationRow:      { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  durationField:    { flex: 1, gap: spacing['1'] },
+  durationSep:      { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textSecondary, marginTop: spacing['3'] },
 
-  // Botões adicionar
-  addButtonsRow:    { flexDirection: 'row', gap: spacing['3'] },
-  addExerciseBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], paddingVertical: spacing['3'], borderWidth: 1.5, borderColor: colors.primary, borderRadius: radii.lg, borderStyle: 'dashed' },
-  addCardioBtnStyle:{ borderColor: colors.info },
+  addButtonsRow:     { flexDirection: 'row', gap: spacing['3'] },
+  addExerciseBtn:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], paddingVertical: spacing['3'], borderWidth: 1.5, borderColor: colors.primary, borderRadius: radii.lg, borderStyle: 'dashed' },
+  addCardioBtnStyle: { borderColor: colors.info },
   addExerciseBtnText:{ fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
 
   saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
