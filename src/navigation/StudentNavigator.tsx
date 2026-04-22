@@ -1,18 +1,19 @@
 import React from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
-
 import { StudentHomeScreen }     from '../screens/student/StudentHomeScreen'
 import { StudentWorkoutsScreen } from '../screens/student/StudentWorkoutsScreen'
 import { StudentPersonalsScreen } from '../screens/student/StudentPersonalsScreen'
+import { StudentFeedScreen }     from '../screens/student/StudentFeedScreen'
 import { StudentProfileScreen }  from '../screens/student/StudentProfileScreen'
 import { colors, typography }    from '../theme'
 
 export type StudentTabParamList = {
-  Home:     undefined
-  Workouts: undefined
+  Home:      undefined
+  Workouts:  undefined
+  Feed:      undefined
   Personals: undefined
-  Profile:  undefined
+  Profile:   undefined
 }
 
 const Tab = createBottomTabNavigator<StudentTabParamList>()
@@ -55,6 +56,16 @@ export function StudentNavigator() {
           tabBarLabel: 'Treinos',
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons name={focused ? 'barbell' : 'barbell-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Feed"
+        component={StudentFeedScreen}
+        options={{
+          tabBarLabel: 'Feed',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={size} color={color} />
           ),
         }}
       />
