@@ -60,6 +60,25 @@ function imcLabel(imc: string): { label: string; color: string } {
   return             { label: 'Obesidade',         color: colors.error }
 }
 
+// Tipo do personal vinculado
+interface LinkedPersonal {
+  id:     string
+  name:   string
+  avatar: string | null
+  city:   string | null
+  state:  string | null
+  personalProfile: {
+    cref:        string
+    classFormat: string
+  } | null
+}
+
+const FORMAT_LABEL: Record<string, string> = {
+  presential: 'Presencial',
+  online:     'Online',
+  hybrid:     'Híbrido',
+}
+
 export function StudentHomeScreen() {
   const { user, signOut } = useAuth()
   const firstName = user?.name?.split(' ')[0] ?? 'Aluno'
@@ -75,6 +94,9 @@ export function StudentHomeScreen() {
   const [weightInput,    setWeightInput]    = useState('')
   const [heightInput,    setHeightInput]    = useState('')
   const [savingMetrics,  setSavingMetrics]  = useState(false)
+
+  // ─── Personal vinculado ───────────────────
+  const [personal, setPersonal] = useState<LinkedPersonal | null>(null)
 
   // ─── Treinos de hoje ──────────────────────
   const [todayWorkouts,   setTodayWorkouts]   = useState<Workout[]>([])
@@ -99,10 +121,19 @@ export function StudentHomeScreen() {
   const loadData = useCallback(async () => {
     try {
       const [profileData, workoutsData] = await Promise.all([
-        apiRequest<{ studentProfile: StudentProfile }>('/auth/me/profile', { authenticated: true }),
+        apiRequest<{
+          studentProfile: StudentProfile
+          personalId?:    string
+          personal?:      LinkedPersonal
+        }>('/auth/me/profile', { authenticated: true }),
         workoutService.myWorkouts(),
       ])
+
       setProfile(profileData.studentProfile)
+
+      // Personal vinculado — vem no /auth/me/profile
+      setPersonal(profileData.personal ?? null)
+
       const todayList = workoutsData.filter(w => w.days.includes(TODAY_KEY) && w.active)
       setTodayWorkouts(todayList)
       setDoneExercises(new Set())
@@ -205,7 +236,6 @@ export function StudentHomeScreen() {
     }
   }
 
-  // ─── Logout ───────────────────────────────
   const handleLogout = () => {
     Alert.alert('Sair', 'Deseja realmente sair da sua conta?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -274,6 +304,58 @@ export function StudentHomeScreen() {
           </>
         )}
 
+        {/* Card do personal vinculado */}
+        {personal && (
+          <>
+            <View style={s.sectionHeader}>
+              <Text style={s.sectionTitle}>Meu Personal</Text>
+            </View>
+            <View style={s.personalCard}>
+              {/* Avatar */}
+              {personal.avatar
+                ? <Image source={{ uri: `${getBaseUrl()}${personal.avatar}` }} style={s.personalAvatar} />
+                : (
+                  <View style={s.personalAvatarPlaceholder}>
+                    <Text style={s.personalAvatarInitial}>
+                      {personal.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )
+              }
+              {/* Info */}
+              <View style={s.personalInfo}>
+                <Text style={s.personalName}>{personal.name}</Text>
+                {personal.personalProfile?.cref && (
+                  <Text style={s.personalCref}>CREF: {personal.personalProfile.cref}</Text>
+                )}
+                <View style={s.personalTags}>
+                  {personal.personalProfile?.classFormat && (
+                    <View style={s.personalTag}>
+                      <Ionicons name="location-outline" size={11} color={colors.primary} />
+                      <Text style={s.personalTagText}>
+                        {FORMAT_LABEL[personal.personalProfile.classFormat] ?? personal.personalProfile.classFormat}
+                      </Text>
+                    </View>
+                  )}
+                  {(personal.city || personal.state) && (
+                    <View style={s.personalTag}>
+                      <Ionicons name="map-outline" size={11} color={colors.textSecondary} />
+                      <Text style={s.personalTagText}>
+                        {[personal.city, personal.state].filter(Boolean).join(' - ')}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              {/* Badge vinculado */}
+              <View style={s.linkedBadge}>
+                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                <Text style={s.linkedBadgeText}>Vinculado</Text>
+              </View>
+            </View>
+          </>
+        )}
+
         {/* Treinos de hoje */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>Treinos de hoje</Text>
@@ -306,25 +388,19 @@ export function StudentHomeScreen() {
           </View>
         ) : (
           <>
-            {/* Barra de progresso geral */}
             <View style={s.progressBar}>
               <View style={[s.progressFill, { width: `${totalProgress * 100}%` as any }]} />
             </View>
             <Text style={s.progressText}>{doneCount}/{totalExercises} exercícios concluídos</Text>
 
-            {/* ✅ Cards dos treinos — expandir para ver exercícios */}
             {todayWorkouts.map(workout => {
               const isOpen     = expandedWorkout === workout.id
-              const wDoneCount = workout.exercises.filter(ex =>
-                doneExercises.has(ex.id ?? '')
-              ).length
-              const wTotal    = workout.exercises.length
-              const wProgress = wTotal > 0 ? wDoneCount / wTotal : 0
+              const wDoneCount = workout.exercises.filter(ex => doneExercises.has(ex.id ?? '')).length
+              const wTotal     = workout.exercises.length
+              const wProgress  = wTotal > 0 ? wDoneCount / wTotal : 0
 
               return (
                 <View key={workout.id} style={[s.workoutCard, isOpen && s.workoutCardOpen]}>
-
-                  {/* Header clicável */}
                   <TouchableOpacity style={s.workoutHeader} onPress={() => toggleWorkout(workout.id)} activeOpacity={0.8}>
                     <View style={s.workoutIconBox}>
                       <Ionicons name="barbell" size={20} color={colors.primary} />
@@ -340,23 +416,16 @@ export function StudentHomeScreen() {
                         <Text style={[s.workoutBy, { color: colors.primary }]}>Treino próprio</Text>
                       )}
                     </View>
-                    {/* Contador + chevron */}
                     <View style={s.workoutMeta}>
                       <Text style={s.workoutMetaText}>{wDoneCount}/{wTotal}</Text>
-                      <Ionicons
-                        name={isOpen ? 'chevron-up' : 'chevron-down'}
-                        size={18}
-                        color={colors.textSecondary}
-                      />
+                      <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
                     </View>
                   </TouchableOpacity>
 
-                  {/* Mini barra de progresso individual */}
                   <View style={s.progressBarSm}>
                     <View style={[s.progressFillSm, { width: `${wProgress * 100}%` as any }]} />
                   </View>
 
-                  {/* Exercícios expandidos */}
                   {isOpen && (
                     <View style={s.exerciseList}>
                       {workout.notes && (
@@ -444,12 +513,10 @@ export function StudentHomeScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={s.sheetBody} showsVerticalScrollIndicator={false}>
-
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Nome do treino *</Text>
               <TextInput style={s.input} value={wName} onChangeText={setWName} placeholder="Ex: Treino A — Peito" placeholderTextColor={colors.textDisabled} />
             </View>
-
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Dias da semana *</Text>
               <View style={s.daysSelector}>
@@ -460,7 +527,6 @@ export function StudentHomeScreen() {
                 ))}
               </View>
             </View>
-
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Exercícios *</Text>
               {exercises.map((ex, i) => (
@@ -489,16 +555,13 @@ export function StudentHomeScreen() {
                 <Text style={s.addExerciseBtnText}>Adicionar exercício</Text>
               </TouchableOpacity>
             </View>
-
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Observações (opcional)</Text>
               <TextInput style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} value={wNotes} onChangeText={setWNotes} placeholder="Ex: Descanso de 60s..." placeholderTextColor={colors.textDisabled} multiline maxLength={500} />
             </View>
-
             <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSaveWorkout} disabled={saving} activeOpacity={0.8}>
               {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>Criar treino</Text>}
             </TouchableOpacity>
-
           </ScrollView>
         </View>
       </Modal>
@@ -539,6 +602,20 @@ const s = StyleSheet.create({
 
   createBtn:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
   createBtnText: { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.white },
+
+  // Card do personal
+  personalCard:             { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], gap: spacing['3'], borderWidth: 1.5, borderColor: `${colors.success}30`, ...shadows.sm },
+  personalAvatar:           { width: 52, height: 52, borderRadius: radii.full, borderWidth: 2, borderColor: colors.success },
+  personalAvatarPlaceholder:{ width: 52, height: 52, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.success },
+  personalAvatarInitial:    { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.white },
+  personalInfo:             { flex: 1 },
+  personalName:             { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  personalCref:             { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
+  personalTags:             { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['1'], marginTop: spacing['2'] },
+  personalTag:              { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surfaceHigh, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
+  personalTagText:          { fontFamily: typography.family.regular, fontSize: 10, color: colors.textSecondary },
+  linkedBadge:              { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `${colors.success}20`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: spacing['1'] },
+  linkedBadgeText:          { fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.success },
 
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['3'], marginBottom: spacing['1'] },
   metricCard:  { width: '47%', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], alignItems: 'center', gap: spacing['2'], ...shadows.sm },
