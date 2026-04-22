@@ -14,7 +14,8 @@ import { userService }    from '../../services/user.service'
 import { workoutService } from '../../services/workout.service'
 import type { StudentProfile } from '../../services/user.service'
 import type { Workout } from '../../services/workout.service'
-import { WorkoutFormModal } from '../../components/ui/WorkoutFormModal'
+import { WorkoutFormModal }    from '../../components/ui/WorkoutFormModal'
+import { WorkoutSessionModal } from '../../components/ui/WorkoutSessionModal'
 import type { WorkoutPayload } from '../../components/ui/WorkoutFormModal'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
@@ -58,10 +59,7 @@ interface LinkedPersonal {
   avatar: string | null
   city:   string | null
   state:  string | null
-  personalProfile: {
-    cref:        string
-    classFormat: string
-  } | null
+  personalProfile: { cref: string; classFormat: string } | null
 }
 
 const FORMAT_LABEL: Record<string, string> = {
@@ -74,48 +72,37 @@ export function StudentHomeScreen() {
   const { user, signOut } = useAuth()
   const firstName = user?.name?.split(' ')[0] ?? 'Aluno'
   const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
-  const today = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  })
+  const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
-  // ─── Perfil e métricas ────────────────────
   const [profile,        setProfile]        = useState<StudentProfile | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [metricsModal,   setMetricsModal]   = useState(false)
   const [weightInput,    setWeightInput]    = useState('')
   const [heightInput,    setHeightInput]    = useState('')
   const [savingMetrics,  setSavingMetrics]  = useState(false)
+  const [personal,       setPersonal]       = useState<LinkedPersonal | null>(null)
+  const [todayWorkouts,  setTodayWorkouts]  = useState<Workout[]>([])
+  const [loadingWorkout, setLoadingWorkout] = useState(true)
+  const [doneExercises,  setDoneExercises]  = useState<Set<string>>(new Set())
+  const [expandedWorkout,setExpandedWorkout]= useState<string | null>(null)
+  const [menuVisible,    setMenuVisible]    = useState(false)
+  const [workoutModal,   setWorkoutModal]   = useState(false)
 
-  // ─── Personal vinculado ───────────────────
-  const [personal, setPersonal] = useState<LinkedPersonal | null>(null)
+  // Session modal
+  const [sessionModal,   setSessionModal]   = useState(false)
+  const [sessionWorkout, setSessionWorkout] = useState<{ id: string; name: string } | null>(null)
 
-  // ─── Treinos de hoje ──────────────────────
-  const [todayWorkouts,   setTodayWorkouts]   = useState<Workout[]>([])
-  const [loadingWorkout,  setLoadingWorkout]  = useState(true)
-  const [doneExercises,   setDoneExercises]   = useState<Set<string>>(new Set())
-  const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null)
-
-  // ─── Menu ─────────────────────────────────
-  const [menuVisible, setMenuVisible] = useState(false)
-
-  // ─── Modal criar treino ───────────────────
-  const [workoutModal, setWorkoutModal] = useState(false)
-
-  // ─── Load ─────────────────────────────────
   const loadData = useCallback(async () => {
     try {
       const [profileData, workoutsData] = await Promise.all([
-        apiRequest<{
-          studentProfile: StudentProfile
-          personalId?:    string
-          personal?:      LinkedPersonal
-        }>('/auth/me/profile', { authenticated: true }),
+        apiRequest<{ studentProfile: StudentProfile; personalId?: string; personal?: LinkedPersonal }>(
+          '/auth/me/profile', { authenticated: true }
+        ),
         workoutService.myWorkouts(),
       ])
       setProfile(profileData.studentProfile)
       setPersonal(profileData.personal ?? null)
-      const todayList = workoutsData.filter(w => w.days.includes(TODAY_KEY) && w.active)
-      setTodayWorkouts(todayList)
+      setTodayWorkouts(workoutsData.filter(w => w.days.includes(TODAY_KEY) && w.active))
       setDoneExercises(new Set())
       setExpandedWorkout(null)
     } catch {
@@ -128,7 +115,6 @@ export function StudentHomeScreen() {
 
   useFocusEffect(useCallback(() => { loadData() }, [loadData]))
 
-  // ─── Métricas ─────────────────────────────
   const imc     = profile ? calcIMC(profile.weight, profile.height) : '—'
   const imcData = imcLabel(imc)
   const liveImc = calcIMC(weightInput, heightInput)
@@ -153,23 +139,17 @@ export function StudentHomeScreen() {
     }
   }
 
-  // ─── Treinos de hoje ──────────────────────
   const totalExercises = todayWorkouts.reduce((acc, w) => acc + w.exercises.length, 0)
   const doneCount      = doneExercises.size
   const totalProgress  = totalExercises > 0 ? doneCount / totalExercises : 0
 
   const toggleExercise = (id: string) => {
-    setDoneExercises(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
+    setDoneExercises(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
   const toggleWorkout = (id: string) =>
     setExpandedWorkout(prev => prev === id ? null : id)
 
-  // ─── Salvar treino ────────────────────────
   const handleSaveWorkout = async (payload: WorkoutPayload) => {
     await workoutService.create({ studentId: user!.id, ...payload })
     Alert.alert('Sucesso', 'Treino criado!')
@@ -177,16 +157,14 @@ export function StudentHomeScreen() {
     loadData()
   }
 
-  // ─── Logout ───────────────────────────────
   const handleLogout = () => {
-    Alert.alert('Sair', 'Deseja realmente sair da sua conta?', [
+    Alert.alert('Sair', 'Deseja realmente sair?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Sair', style: 'destructive', onPress: () => signOut() },
     ])
     setMenuVisible(false)
   }
 
-  // ─── Render exercícios com grupos e cardio ─
   const renderExercises = (workout: Workout) => {
     const items    = workout.exercises
     const rendered: React.ReactNode[] = []
@@ -198,37 +176,22 @@ export function StudentHomeScreen() {
       if (ex.type === 'cardio') {
         const done = doneExercises.has(ex.id ?? String(i))
         rendered.push(
-          <TouchableOpacity
-            key={`cardio-${ex.id ?? i}`}
-            style={[s.exerciseRow, i < items.length - 1 && s.exerciseDivider]}
-            onPress={() => toggleExercise(ex.id ?? String(i))}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={done ? 'checkmark-circle' : 'ellipse-outline'}
-              size={22}
-              color={done ? colors.success : colors.border}
-            />
+          <TouchableOpacity key={`cardio-${ex.id ?? i}`} style={[s.exerciseRow, i < items.length - 1 && s.exerciseDivider]} onPress={() => toggleExercise(ex.id ?? String(i))} activeOpacity={0.7}>
+            <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={done ? colors.success : colors.border} />
             <View style={s.exerciseInfo}>
               <Text style={[s.exerciseName, done && s.exerciseDone]}>{ex.name}</Text>
-              <Text style={s.exerciseSets}>
-                <Ionicons name="bicycle" size={11} color={colors.info} /> {ex.duration ?? '—'}
-              </Text>
+              <Text style={s.exerciseSets}>{ex.duration ?? '—'}</Text>
             </View>
           </TouchableOpacity>
         )
-        i++
-        continue
+        i++; continue
       }
 
       if (ex.groupId) {
-        const groupId    = ex.groupId
+        const groupId = ex.groupId
         const groupLabel = ex.groupLabel ?? 'Grupo'
         const groupItems: typeof items = []
-        while (i < items.length && items[i].groupId === groupId) {
-          groupItems.push(items[i])
-          i++
-        }
+        while (i < items.length && items[i].groupId === groupId) { groupItems.push(items[i]); i++ }
         rendered.push(
           <View key={`group-${groupId}`} style={s.groupBlock}>
             <View style={s.groupBlockHeader}>
@@ -238,17 +201,8 @@ export function StudentHomeScreen() {
             {groupItems.map((gEx, gi) => {
               const done = doneExercises.has(gEx.id ?? String(gi))
               return (
-                <TouchableOpacity
-                  key={gEx.id ?? gi}
-                  style={[s.exerciseRow, { paddingHorizontal: spacing['3'] }, gi < groupItems.length - 1 && s.exerciseDivider]}
-                  onPress={() => toggleExercise(gEx.id ?? String(gi))}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={done ? 'checkmark-circle' : 'ellipse-outline'}
-                    size={22}
-                    color={done ? colors.success : colors.border}
-                  />
+                <TouchableOpacity key={gEx.id ?? gi} style={[s.exerciseRow, { paddingHorizontal: spacing['3'] }, gi < groupItems.length - 1 && s.exerciseDivider]} onPress={() => toggleExercise(gEx.id ?? String(gi))} activeOpacity={0.7}>
+                  <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={done ? colors.success : colors.border} />
                   <View style={s.exerciseInfo}>
                     <Text style={[s.exerciseName, done && s.exerciseDone]}>{gEx.name}</Text>
                     <Text style={s.exerciseSets}>{gEx.sets} séries × {gEx.reps} reps</Text>
@@ -263,17 +217,8 @@ export function StudentHomeScreen() {
 
       const done = doneExercises.has(ex.id ?? String(i))
       rendered.push(
-        <TouchableOpacity
-          key={ex.id ?? i}
-          style={[s.exerciseRow, i < items.length - 1 && s.exerciseDivider]}
-          onPress={() => toggleExercise(ex.id ?? String(i))}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={done ? 'checkmark-circle' : 'ellipse-outline'}
-            size={22}
-            color={done ? colors.success : colors.border}
-          />
+        <TouchableOpacity key={ex.id ?? i} style={[s.exerciseRow, i < items.length - 1 && s.exerciseDivider]} onPress={() => toggleExercise(ex.id ?? String(i))} activeOpacity={0.7}>
+          <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={done ? colors.success : colors.border} />
           <View style={s.exerciseInfo}>
             <Text style={[s.exerciseName, done && s.exerciseDone]}>{ex.name}</Text>
             <Text style={s.exerciseSets}>{ex.sets} séries × {ex.reps} reps</Text>
@@ -282,7 +227,6 @@ export function StudentHomeScreen() {
       )
       i++
     }
-
     return rendered
   }
 
@@ -302,11 +246,7 @@ export function StudentHomeScreen() {
           <View style={s.headerLeft}>
             {avatarUrl
               ? <Image source={{ uri: avatarUrl }} style={s.avatar} />
-              : (
-                <View style={s.avatarPlaceholder}>
-                  <Text style={s.avatarInitial}>{firstName.charAt(0).toUpperCase()}</Text>
-                </View>
-              )
+              : <View style={s.avatarPlaceholder}><Text style={s.avatarInitial}>{firstName.charAt(0).toUpperCase()}</Text></View>
             }
             <View>
               <Text style={s.greeting}>Olá, {firstName} 💪</Text>
@@ -340,13 +280,11 @@ export function StudentHomeScreen() {
                 </View>
               ))}
             </View>
-            {profile && (
-              <Text style={[s.imcLabel, { color: imcData.color }]}>{imcData.label}</Text>
-            )}
+            {profile && <Text style={[s.imcLabel, { color: imcData.color }]}>{imcData.label}</Text>}
           </>
         )}
 
-        {/* Card do personal vinculado */}
+        {/* Card personal */}
         {personal && (
           <>
             <View style={s.sectionHeader}>
@@ -355,32 +293,22 @@ export function StudentHomeScreen() {
             <View style={s.personalCard}>
               {personal.avatar
                 ? <Image source={{ uri: `${getBaseUrl()}${personal.avatar}` }} style={s.personalAvatar} />
-                : (
-                  <View style={s.personalAvatarPlaceholder}>
-                    <Text style={s.personalAvatarInitial}>{personal.name.charAt(0).toUpperCase()}</Text>
-                  </View>
-                )
+                : <View style={s.personalAvatarPlaceholder}><Text style={s.personalAvatarInitial}>{personal.name.charAt(0).toUpperCase()}</Text></View>
               }
               <View style={s.personalInfo}>
                 <Text style={s.personalName}>{personal.name}</Text>
-                {personal.personalProfile?.cref && (
-                  <Text style={s.personalCref}>CREF: {personal.personalProfile.cref}</Text>
-                )}
+                {personal.personalProfile?.cref && <Text style={s.personalCref}>CREF: {personal.personalProfile.cref}</Text>}
                 <View style={s.personalTags}>
                   {personal.personalProfile?.classFormat && (
                     <View style={s.personalTag}>
                       <Ionicons name="location-outline" size={11} color={colors.primary} />
-                      <Text style={s.personalTagText}>
-                        {FORMAT_LABEL[personal.personalProfile.classFormat] ?? personal.personalProfile.classFormat}
-                      </Text>
+                      <Text style={s.personalTagText}>{FORMAT_LABEL[personal.personalProfile.classFormat] ?? personal.personalProfile.classFormat}</Text>
                     </View>
                   )}
                   {(personal.city || personal.state) && (
                     <View style={s.personalTag}>
                       <Ionicons name="map-outline" size={11} color={colors.textSecondary} />
-                      <Text style={s.personalTagText}>
-                        {[personal.city, personal.state].filter(Boolean).join(' - ')}
-                      </Text>
+                      <Text style={s.personalTagText}>{[personal.city, personal.state].filter(Boolean).join(' - ')}</Text>
                     </View>
                   )}
                 </View>
@@ -402,11 +330,7 @@ export function StudentHomeScreen() {
                 <Text style={s.progressBadgeText}>{doneCount}/{totalExercises}</Text>
               </View>
             )}
-            <TouchableOpacity
-              style={s.createBtn}
-              onPress={() => setWorkoutModal(true)}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={s.createBtn} onPress={() => setWorkoutModal(true)} activeOpacity={0.8}>
               <Ionicons name="add" size={18} color={colors.white} />
               <Text style={s.createBtnText}>Novo Treino</Text>
             </TouchableOpacity>
@@ -419,9 +343,7 @@ export function StudentHomeScreen() {
           <View style={s.emptyWorkout}>
             <Ionicons name="barbell-outline" size={36} color={colors.textDisabled} />
             <Text style={s.emptyWorkoutText}>Nenhum treino para hoje</Text>
-            <Text style={s.emptyWorkoutSub}>
-              Crie um treino ou aguarde seu personal para {DAY_LABELS[TODAY_KEY] ?? 'hoje'}
-            </Text>
+            <Text style={s.emptyWorkoutSub}>Crie um treino ou aguarde seu personal para {DAY_LABELS[TODAY_KEY] ?? 'hoje'}</Text>
           </View>
         ) : (
           <>
@@ -438,26 +360,37 @@ export function StudentHomeScreen() {
 
               return (
                 <View key={workout.id} style={[s.workoutCard, isOpen && s.workoutCardOpen]}>
-                  <TouchableOpacity style={s.workoutHeader} onPress={() => toggleWorkout(workout.id)} activeOpacity={0.8}>
-                    <View style={s.workoutIconBox}>
-                      <Ionicons name="barbell" size={20} color={colors.primary} />
-                    </View>
-                    <View style={s.workoutInfo}>
-                      <Text style={s.workoutName}>{workout.name}</Text>
-                      {workout.personal ? (
-                        <Text style={s.workoutBy}>
-                          Por: {workout.personal.name}
-                          {workout.personal.personalProfile?.cref ? ` · ${workout.personal.personalProfile.cref}` : ''}
-                        </Text>
-                      ) : (
-                        <Text style={[s.workoutBy, { color: colors.primary }]}>Treino próprio</Text>
-                      )}
-                    </View>
-                    <View style={s.workoutMeta}>
-                      <Text style={s.workoutMetaText}>{wDoneCount}/{wTotal}</Text>
-                      <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
-                    </View>
-                  </TouchableOpacity>
+
+                  {/* Botão iniciar treino */}
+                  <View style={s.workoutCardTop}>
+                    <TouchableOpacity style={s.workoutHeader} onPress={() => toggleWorkout(workout.id)} activeOpacity={0.8}>
+                      <View style={s.workoutIconBox}>
+                        <Ionicons name="barbell" size={20} color={colors.primary} />
+                      </View>
+                      <View style={s.workoutInfo}>
+                        <Text style={s.workoutName}>{workout.name}</Text>
+                        {workout.personal ? (
+                          <Text style={s.workoutBy}>Por: {workout.personal.name}{workout.personal.personalProfile?.cref ? ` · ${workout.personal.personalProfile.cref}` : ''}</Text>
+                        ) : (
+                          <Text style={[s.workoutBy, { color: colors.primary }]}>Treino próprio</Text>
+                        )}
+                      </View>
+                      <View style={s.workoutMeta}>
+                        <Text style={s.workoutMetaText}>{wDoneCount}/{wTotal}</Text>
+                        <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Botão iniciar */}
+                    <TouchableOpacity
+                      style={s.checkinBtn}
+                      onPress={() => { setSessionWorkout({ id: workout.id, name: workout.name }); setSessionModal(true) }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="play-circle" size={15} color={colors.white} />
+                      <Text style={s.checkinBtnText}>Iniciar</Text>
+                    </TouchableOpacity>
+                  </View>
 
                   <View style={s.progressBarSm}>
                     <View style={[s.progressFillSm, { width: `${wProgress * 100}%` as any }]} />
@@ -482,7 +415,7 @@ export function StudentHomeScreen() {
 
       </ScrollView>
 
-      {/* ── Modal métricas ── */}
+      {/* Modal métricas */}
       <Modal visible={metricsModal} transparent animationType="slide" onRequestClose={() => setMetricsModal(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setMetricsModal(false)} />
         <View style={s.sheet}>
@@ -519,14 +452,20 @@ export function StudentHomeScreen() {
         </View>
       </Modal>
 
-      {/* WorkoutFormModal substituindo o modal antigo */}
-      <WorkoutFormModal
-        visible={workoutModal}
-        onClose={() => setWorkoutModal(false)}
-        onSave={handleSaveWorkout}
-      />
+      <WorkoutFormModal visible={workoutModal} onClose={() => setWorkoutModal(false)} onSave={handleSaveWorkout} />
 
-      {/* ── Menu dropdown ── */}
+      {/* Session modal */}
+      {sessionWorkout && (
+        <WorkoutSessionModal
+          visible={sessionModal}
+          workoutId={sessionWorkout.id}
+          workoutName={sessionWorkout.name}
+          onClose={() => setSessionModal(false)}
+          onFinished={() => { setSessionModal(false); loadData() }}
+        />
+      )}
+
+      {/* Menu */}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
         <TouchableOpacity style={s.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)} />
         <View style={s.menuBox}>
@@ -556,12 +495,10 @@ const s = StyleSheet.create({
   sectionHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing['5'], marginBottom: spacing['3'] },
   sectionTitle:   { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
   sectionActions: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
-
-  editBtn:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
-  editBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
-
-  createBtn:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
-  createBtnText: { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.white },
+  editBtn:        { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
+  editBtnText:    { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
+  createBtn:      { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
+  createBtnText:  { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.white },
 
   personalCard:              { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], gap: spacing['3'], borderWidth: 1.5, borderColor: `${colors.success}30`, ...shadows.sm },
   personalAvatar:            { width: 52, height: 52, borderRadius: radii.full, borderWidth: 2, borderColor: colors.success },
@@ -595,13 +532,18 @@ const s = StyleSheet.create({
 
   workoutCard:     { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], ...shadows.sm },
   workoutCardOpen: { borderWidth: 1.5, borderColor: `${colors.primary}40` },
-  workoutHeader:   { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
+  workoutCardTop:  { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  workoutHeader:   { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
   workoutIconBox:  { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
   workoutInfo:     { flex: 1 },
   workoutName:     { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
   workoutBy:       { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
   workoutMeta:     { alignItems: 'flex-end', gap: 4 },
   workoutMetaText: { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.primary },
+
+  // Botão iniciar
+  checkinBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.success, borderRadius: radii.lg, paddingHorizontal: spacing['2'], paddingVertical: spacing['1'] },
+  checkinBtnText: { fontFamily: typography.family.semiBold, fontSize: typography.size.xs, color: colors.white },
 
   progressBarSm:  { height: 4, backgroundColor: colors.surfaceHigh, borderRadius: radii.full, overflow: 'hidden', marginTop: spacing['2'] },
   progressFillSm: { height: '100%', backgroundColor: colors.primary, borderRadius: radii.full },
@@ -617,7 +559,6 @@ const s = StyleSheet.create({
   notesBox:  { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'], marginBottom: spacing['2'] },
   notesText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, flex: 1 },
 
-  // Grupos
   groupBlock:       { borderRadius: radii.lg, marginBottom: spacing['2'], overflow: 'hidden', borderWidth: 1, borderColor: `${colors.primary}20` },
   groupBlockHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing['3'], paddingVertical: spacing['1'], backgroundColor: `${colors.primary}10` },
   groupBlockLabel:  { fontFamily: typography.family.bold, fontSize: 10, color: colors.primary },
