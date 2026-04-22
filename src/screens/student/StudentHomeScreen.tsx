@@ -103,7 +103,7 @@ export function StudentHomeScreen() {
         workoutService.myWorkouts(),
       ])
       setProfile(profileData.studentProfile)
-      const todayList = workoutsData.filter(w => w.days.includes(TODAY_KEY))
+      const todayList = workoutsData.filter(w => w.days.includes(TODAY_KEY) && w.active)
       setTodayWorkouts(todayList)
       setDoneExercises(new Set())
       setExpandedWorkout(null)
