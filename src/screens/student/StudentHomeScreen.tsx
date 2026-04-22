@@ -77,9 +77,10 @@ export function StudentHomeScreen() {
   const [savingMetrics,  setSavingMetrics]  = useState(false)
 
   // ─── Treinos de hoje ──────────────────────
-  const [todayWorkouts,  setTodayWorkouts]  = useState<Workout[]>([])
-  const [loadingWorkout, setLoadingWorkout] = useState(true)
-  const [doneExercises,  setDoneExercises]  = useState<Set<string>>(new Set())
+  const [todayWorkouts,   setTodayWorkouts]   = useState<Workout[]>([])
+  const [loadingWorkout,  setLoadingWorkout]  = useState(true)
+  const [doneExercises,   setDoneExercises]   = useState<Set<string>>(new Set())
+  const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null)
 
   // ─── Menu ─────────────────────────────────
   const [menuVisible, setMenuVisible] = useState(false)
@@ -102,10 +103,10 @@ export function StudentHomeScreen() {
         workoutService.myWorkouts(),
       ])
       setProfile(profileData.studentProfile)
-      // ✅ filter para pegar TODOS os treinos do dia
       const todayList = workoutsData.filter(w => w.days.includes(TODAY_KEY))
       setTodayWorkouts(todayList)
       setDoneExercises(new Set())
+      setExpandedWorkout(null)
     } catch {
       // silencia
     } finally {
@@ -141,10 +142,10 @@ export function StudentHomeScreen() {
     }
   }
 
-  // ─── Progresso geral do dia ───────────────
-  const doneCount      = doneExercises.size
+  // ─── Treinos de hoje ──────────────────────
   const totalExercises = todayWorkouts.reduce((acc, w) => acc + w.exercises.length, 0)
-  const progress       = totalExercises > 0 ? doneCount / totalExercises : 0
+  const doneCount      = doneExercises.size
+  const totalProgress  = totalExercises > 0 ? doneCount / totalExercises : 0
 
   const toggleExercise = (id: string) => {
     setDoneExercises(prev => {
@@ -153,6 +154,9 @@ export function StudentHomeScreen() {
       return next
     })
   }
+
+  const toggleWorkout = (id: string) =>
+    setExpandedWorkout(prev => prev === id ? null : id)
 
   // ─── Modal criar treino ───────────────────
   const toggleDay = (day: string) =>
@@ -302,64 +306,91 @@ export function StudentHomeScreen() {
           </View>
         ) : (
           <>
-            {/* ✅ Barra de progresso geral */}
+            {/* Barra de progresso geral */}
             <View style={s.progressBar}>
-              <View style={[s.progressFill, { width: `${progress * 100}%` as any }]} />
+              <View style={[s.progressFill, { width: `${totalProgress * 100}%` as any }]} />
             </View>
             <Text style={s.progressText}>{doneCount}/{totalExercises} exercícios concluídos</Text>
 
-            {/* ✅ Todos os treinos do dia */}
-            {todayWorkouts.map(workout => (
-              <View key={workout.id} style={s.workoutCard}>
-                <View style={s.workoutHeader}>
-                  <View style={s.workoutIconBox}>
-                    <Ionicons name="barbell" size={20} color={colors.primary} />
-                  </View>
-                  <View style={s.workoutInfo}>
-                    <Text style={s.workoutName}>{workout.name}</Text>
-                    {workout.personal ? (
-                      <Text style={s.workoutBy}>
-                        Por: {workout.personal.name}
-                        {workout.personal.personalProfile?.cref ? ` · ${workout.personal.personalProfile.cref}` : ''}
-                      </Text>
-                    ) : (
-                      <Text style={[s.workoutBy, { color: colors.primary }]}>Treino próprio</Text>
-                    )}
-                  </View>
-                </View>
+            {/* ✅ Cards dos treinos — expandir para ver exercícios */}
+            {todayWorkouts.map(workout => {
+              const isOpen     = expandedWorkout === workout.id
+              const wDoneCount = workout.exercises.filter(ex =>
+                doneExercises.has(ex.id ?? '')
+              ).length
+              const wTotal    = workout.exercises.length
+              const wProgress = wTotal > 0 ? wDoneCount / wTotal : 0
 
-                {workout.notes && (
-                  <View style={s.notesBox}>
-                    <Ionicons name="document-text-outline" size={14} color={colors.textSecondary} />
-                    <Text style={s.notesText}>{workout.notes}</Text>
-                  </View>
-                )}
+              return (
+                <View key={workout.id} style={[s.workoutCard, isOpen && s.workoutCardOpen]}>
 
-                <View style={s.exerciseList}>
-                  {workout.exercises.map((ex, i) => {
-                    const done = doneExercises.has(ex.id ?? String(i))
-                    return (
-                      <TouchableOpacity
-                        key={ex.id ?? i}
-                        style={[s.exerciseRow, i < workout.exercises.length - 1 && s.exerciseDivider]}
-                        onPress={() => toggleExercise(ex.id ?? String(i))}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons
-                          name={done ? 'checkmark-circle' : 'ellipse-outline'}
-                          size={22}
-                          color={done ? colors.success : colors.border}
-                        />
-                        <View style={s.exerciseInfo}>
-                          <Text style={[s.exerciseName, done && s.exerciseDone]}>{ex.name}</Text>
-                          <Text style={s.exerciseSets}>{ex.sets} séries × {ex.reps} reps</Text>
+                  {/* Header clicável */}
+                  <TouchableOpacity style={s.workoutHeader} onPress={() => toggleWorkout(workout.id)} activeOpacity={0.8}>
+                    <View style={s.workoutIconBox}>
+                      <Ionicons name="barbell" size={20} color={colors.primary} />
+                    </View>
+                    <View style={s.workoutInfo}>
+                      <Text style={s.workoutName}>{workout.name}</Text>
+                      {workout.personal ? (
+                        <Text style={s.workoutBy}>
+                          Por: {workout.personal.name}
+                          {workout.personal.personalProfile?.cref ? ` · ${workout.personal.personalProfile.cref}` : ''}
+                        </Text>
+                      ) : (
+                        <Text style={[s.workoutBy, { color: colors.primary }]}>Treino próprio</Text>
+                      )}
+                    </View>
+                    {/* Contador + chevron */}
+                    <View style={s.workoutMeta}>
+                      <Text style={s.workoutMetaText}>{wDoneCount}/{wTotal}</Text>
+                      <Ionicons
+                        name={isOpen ? 'chevron-up' : 'chevron-down'}
+                        size={18}
+                        color={colors.textSecondary}
+                      />
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Mini barra de progresso individual */}
+                  <View style={s.progressBarSm}>
+                    <View style={[s.progressFillSm, { width: `${wProgress * 100}%` as any }]} />
+                  </View>
+
+                  {/* Exercícios expandidos */}
+                  {isOpen && (
+                    <View style={s.exerciseList}>
+                      {workout.notes && (
+                        <View style={s.notesBox}>
+                          <Ionicons name="document-text-outline" size={14} color={colors.textSecondary} />
+                          <Text style={s.notesText}>{workout.notes}</Text>
                         </View>
-                      </TouchableOpacity>
-                    )
-                  })}
+                      )}
+                      {workout.exercises.map((ex, i) => {
+                        const done = doneExercises.has(ex.id ?? String(i))
+                        return (
+                          <TouchableOpacity
+                            key={ex.id ?? i}
+                            style={[s.exerciseRow, i < workout.exercises.length - 1 && s.exerciseDivider]}
+                            onPress={() => toggleExercise(ex.id ?? String(i))}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name={done ? 'checkmark-circle' : 'ellipse-outline'}
+                              size={22}
+                              color={done ? colors.success : colors.border}
+                            />
+                            <View style={s.exerciseInfo}>
+                              <Text style={[s.exerciseName, done && s.exerciseDone]}>{ex.name}</Text>
+                              <Text style={s.exerciseSets}>{ex.sets} séries × {ex.reps} reps</Text>
+                            </View>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  )}
                 </View>
-              </View>
-            ))}
+              )
+            })}
           </>
         )}
 
@@ -526,23 +557,29 @@ const s = StyleSheet.create({
   progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: radii.full },
   progressText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, textAlign: 'right', marginBottom: spacing['3'] },
 
-  workoutCard:    { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], ...shadows.sm },
-  workoutHeader:  { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], marginBottom: spacing['2'] },
-  workoutIconBox: { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
-  workoutInfo:    { flex: 1 },
-  workoutName:    { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-  workoutBy:      { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
+  workoutCard:     { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], ...shadows.sm },
+  workoutCardOpen: { borderWidth: 1.5, borderColor: `${colors.primary}40` },
+  workoutHeader:   { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
+  workoutIconBox:  { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  workoutInfo:     { flex: 1 },
+  workoutName:     { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  workoutBy:       { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
+  workoutMeta:     { alignItems: 'flex-end', gap: 4 },
+  workoutMetaText: { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.primary },
 
-  notesBox:  { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'], marginBottom: spacing['2'] },
-  notesText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, flex: 1 },
+  progressBarSm:  { height: 4, backgroundColor: colors.surfaceHigh, borderRadius: radii.full, overflow: 'hidden', marginTop: spacing['2'] },
+  progressFillSm: { height: '100%', backgroundColor: colors.primary, borderRadius: radii.full },
 
-  exerciseList:    { gap: 0 },
+  exerciseList:    { marginTop: spacing['3'], gap: 0 },
   exerciseRow:     { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['3'] },
   exerciseDivider: { borderBottomWidth: 1, borderBottomColor: colors.divider },
   exerciseInfo:    { flex: 1 },
   exerciseName:    { fontFamily: typography.family.medium, fontSize: typography.size.md, color: colors.textPrimary },
   exerciseDone:    { textDecorationLine: 'line-through', color: colors.textDisabled },
   exerciseSets:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
+
+  notesBox:  { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'], marginBottom: spacing['2'] },
+  notesText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, flex: 1 },
 
   overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '90%' },

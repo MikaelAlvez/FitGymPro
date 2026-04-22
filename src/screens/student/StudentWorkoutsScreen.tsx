@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl, Modal, TextInput, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native'
 import { workoutService } from '../../services/workout.service'
 import type { Workout, Exercise } from '../../services/workout.service'
 import { useAuth } from '../../contexts/AuthContext'
@@ -32,7 +32,9 @@ const TODAY_KEY = (() => {
 })()
 
 export function StudentWorkoutsScreen() {
-  const { user } = useAuth()
+  const { user }   = useAuth()
+  const navigation = useNavigation<any>()
+  const route      = useRoute<any>()
 
   const [workouts,   setWorkouts]   = useState<Workout[]>([])
   const [loading,    setLoading]    = useState(true)
@@ -65,6 +67,14 @@ export function StudentWorkoutsScreen() {
   }, [])
 
   useFocusEffect(useCallback(() => { load() }, [load]))
+
+  // ✅ Abre modal quando vier o parâmetro openCreate da home
+  useEffect(() => {
+    if (route.params?.openCreate) {
+      openCreateModal()
+      navigation.setParams({ openCreate: false })
+    }
+  }, [route.params?.openCreate])
 
   const filtered = dayFilter === 'all'
     ? workouts
@@ -100,10 +110,7 @@ export function StudentWorkoutsScreen() {
     setEditingWorkout(null)
   }
 
-  const openCreateModal = () => {
-    resetForm()
-    setWorkoutModal(true)
-  }
+  const openCreateModal = () => { resetForm(); setWorkoutModal(true) }
 
   const openEditModal = (workout: Workout) => {
     setEditingWorkout(workout)
@@ -137,7 +144,6 @@ export function StudentWorkoutsScreen() {
         await workoutService.update(editingWorkout.id, payload)
         Alert.alert('Sucesso', 'Treino atualizado!')
       } else {
-        // Aluno cria para si mesmo — sem studentId
         await workoutService.create({ ...payload, studentId: user!.id })
         Alert.alert('Sucesso', 'Treino criado!')
       }
@@ -157,19 +163,40 @@ export function StudentWorkoutsScreen() {
       {
         text: 'Excluir', style: 'destructive',
         onPress: async () => {
-          try {
-            await workoutService.delete(id)
-            load(true)
-          } catch {
-            Alert.alert('Erro', 'Não foi possível excluir.')
-          }
+          try { await workoutService.delete(id); load(true) }
+          catch { Alert.alert('Erro', 'Não foi possível excluir.') }
         },
       },
     ])
   }
 
-  const hasToday   = workouts.some(w => w.days.includes(TODAY_KEY))
-  const myWorkouts = workouts.filter(w => !w.personal)
+  // ✅ Toggle ativar/inativar treino próprio
+  const handleToggleActive = (workout: Workout) => {
+    const action = workout.active ? 'inativar' : 'ativar'
+    Alert.alert(
+      `${workout.active ? 'Inativar' : 'Ativar'} treino`,
+      `Deseja ${action} "${workout.name}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text:  workout.active ? 'Inativar' : 'Ativar',
+          style: workout.active ? 'destructive' : 'default',
+          onPress: async () => {
+            try {
+              workout.active
+                ? await workoutService.deactivateWorkout(workout.id)
+                : await workoutService.activateWorkout(workout.id)
+              load(true)
+            } catch {
+              Alert.alert('Erro', 'Não foi possível realizar a ação.')
+            }
+          },
+        },
+      ],
+    )
+  }
+
+  const hasToday = workouts.some(w => w.days.includes(TODAY_KEY))
 
   return (
     <SafeAreaView style={s.safe}>
@@ -178,11 +205,8 @@ export function StudentWorkoutsScreen() {
       <View style={s.header}>
         <View>
           <Text style={s.headerTitle}>Meus Treinos</Text>
-          <Text style={s.headerSub}>
-            {workouts.length} treino{workouts.length !== 1 ? 's' : ''}
-          </Text>
+          <Text style={s.headerSub}>{workouts.length} treino{workouts.length !== 1 ? 's' : ''}</Text>
         </View>
-        {/* Botão criar */}
         <TouchableOpacity style={s.createBtn} onPress={openCreateModal} activeOpacity={0.8}>
           <Ionicons name="add" size={18} color={colors.white} />
           <Text style={s.createBtnText}>Novo Treino</Text>
@@ -191,39 +215,20 @@ export function StudentWorkoutsScreen() {
 
       {/* Filtros */}
       <View style={s.filtersRow}>
-        <TouchableOpacity
-          style={[s.filterChipAuto, dayFilter === 'all' && s.filterChipActive]}
-          onPress={() => setDayFilter('all')}
-          activeOpacity={0.8}
-        >
-          <Text style={[s.filterChipText, dayFilter === 'all' && s.filterChipTextActive]}>
-            Todos ({workouts.length})
-          </Text>
+        <TouchableOpacity style={[s.filterChipAuto, dayFilter === 'all' && s.filterChipActive]} onPress={() => setDayFilter('all')} activeOpacity={0.8}>
+          <Text style={[s.filterChipText, dayFilter === 'all' && s.filterChipTextActive]}>Todos ({workouts.length})</Text>
         </TouchableOpacity>
 
         {hasToday && (
-          <TouchableOpacity
-            style={[s.filterChipAuto, s.filterChipToday, dayFilter === TODAY_KEY && s.filterChipActive]}
-            onPress={() => setDayFilter(TODAY_KEY)}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={[s.filterChipAuto, s.filterChipToday, dayFilter === TODAY_KEY && s.filterChipActive]} onPress={() => setDayFilter(TODAY_KEY)} activeOpacity={0.8}>
             <Ionicons name="today-outline" size={12} color={dayFilter === TODAY_KEY ? colors.white : colors.primary} />
-            <Text style={[s.filterChipText, { color: dayFilter === TODAY_KEY ? colors.white : colors.primary }]}>
-              Hoje
-            </Text>
+            <Text style={[s.filterChipText, { color: dayFilter === TODAY_KEY ? colors.white : colors.primary }]}>Hoje</Text>
           </TouchableOpacity>
         )}
 
         {DAYS.map(d => (
-          <TouchableOpacity
-            key={d.key}
-            style={[s.filterChipDay, dayFilter === d.key && s.filterChipActive]}
-            onPress={() => setDayFilter(d.key)}
-            activeOpacity={0.8}
-          >
-            <Text style={[s.filterChipText, dayFilter === d.key && s.filterChipTextActive]}>
-              {d.label}
-            </Text>
+          <TouchableOpacity key={d.key} style={[s.filterChipDay, dayFilter === d.key && s.filterChipActive]} onPress={() => setDayFilter(d.key)} activeOpacity={0.8}>
+            <Text style={[s.filterChipText, dayFilter === d.key && s.filterChipTextActive]}>{d.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -234,9 +239,7 @@ export function StudentWorkoutsScreen() {
         <ScrollView
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true) }} tintColor={colors.primary} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true) }} tintColor={colors.primary} />}
         >
           {filtered.length === 0 ? (
             <View style={s.empty}>
@@ -252,53 +255,81 @@ export function StudentWorkoutsScreen() {
             </View>
           ) : (
             filtered.map(workout => {
-              const isExpanded  = expanded.has(workout.id)
-              const isToday     = workout.days.includes(TODAY_KEY)
-              const isOwn       = !workout.personal  // treino próprio do aluno
+              const isExpanded = expanded.has(workout.id)
+              const isToday    = workout.days.includes(TODAY_KEY)
+              const isOwn      = !workout.personal
 
               return (
-                <View key={workout.id} style={[s.workoutCard, isToday && s.workoutCardToday]}>
+                <View key={workout.id} style={[s.workoutCard, isToday && s.workoutCardToday, !workout.active && s.workoutCardInactive]}>
 
-                  {isToday && (
+                  {isToday && workout.active && (
                     <View style={s.todayBadge}>
                       <Text style={s.todayBadgeText}>Hoje</Text>
                     </View>
                   )}
 
                   <TouchableOpacity style={s.workoutHeader} onPress={() => toggleExpand(workout.id)} activeOpacity={0.8}>
-                    <View style={s.workoutIconBox}>
-                      <Ionicons name="barbell" size={20} color={colors.primary} />
+                    <View style={[s.workoutIconBox, !workout.active && { opacity: 0.5 }]}>
+                      <Ionicons name="barbell" size={20} color={workout.active ? colors.primary : colors.textDisabled} />
                     </View>
                     <View style={s.workoutInfo}>
-                      <Text style={s.workoutName}>{workout.name}</Text>
-                      {/* Feito por personal ou próprio */}
+                      {/* ✅ Nome + badge ativo/inativo */}
+                      <View style={s.nameRow}>
+                        <Text style={[s.workoutName, !workout.active && { color: colors.textSecondary }]} numberOfLines={1}>
+                          {workout.name}
+                        </Text>
+                        {isOwn && (
+                          <View style={[s.activeBadge, workout.active ? s.activeBadgeOn : s.activeBadgeOff]}>
+                            <Text style={[s.activeBadgeText, workout.active ? s.activeBadgeTextOn : s.activeBadgeTextOff]}>
+                              {workout.active ? 'Ativo' : 'Inativo'}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                       {workout.personal ? (
                         <Text style={s.workoutBy}>
                           Criado por: {workout.personal.name}{workout.personal.personalProfile?.cref ? ` · ${workout.personal.personalProfile.cref}` : ''}
                         </Text>
                       ) : (
-                        <Text style={[s.workoutBy, { color: colors.primary }]}>Treino próprio</Text>
+                        <Text style={[s.workoutBy, { color: workout.active ? colors.primary : colors.textDisabled }]}>Treino próprio</Text>
                       )}
                       <View style={s.daysRow}>
                         {workout.days.map(d => (
-                          <View key={d} style={[s.dayBadge, d === TODAY_KEY && s.dayBadgeToday]}>
-                            <Text style={[s.dayBadgeText, d === TODAY_KEY && s.dayBadgeTextToday]}>
+                          <View key={d} style={[s.dayBadge, d === TODAY_KEY && workout.active && s.dayBadgeToday]}>
+                            <Text style={[s.dayBadgeText, d === TODAY_KEY && workout.active && s.dayBadgeTextToday]}>
                               {DAY_SHORT[d] ?? d}
                             </Text>
                           </View>
                         ))}
                       </View>
                     </View>
-                    {/* Botões editar/excluir só em treinos próprios */}
+
+                    {/* ✅ Botões — treinos próprios têm toggle + editar + excluir */}
                     {isOwn ? (
                       <View style={s.workoutActions}>
+                        {/* Toggle ativar/inativar */}
                         <TouchableOpacity
                           style={s.workoutActionBtn}
-                          onPress={() => openEditModal(workout)}
+                          onPress={() => handleToggleActive(workout)}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Ionicons name="pencil-outline" size={16} color={colors.primary} />
+                          <Ionicons
+                            name={workout.active ? 'pause-circle-outline' : 'play-circle-outline'}
+                            size={16}
+                            color={workout.active ? colors.warning : colors.success}
+                          />
                         </TouchableOpacity>
+                        {/* Editar — só se ativo */}
+                        {workout.active && (
+                          <TouchableOpacity
+                            style={s.workoutActionBtn}
+                            onPress={() => openEditModal(workout)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name="pencil-outline" size={16} color={colors.primary} />
+                          </TouchableOpacity>
+                        )}
+                        {/* Excluir */}
                         <TouchableOpacity
                           style={s.workoutActionBtn}
                           onPress={() => handleDelete(workout.id, workout.name)}
@@ -372,15 +403,8 @@ export function StudentWorkoutsScreen() {
               <Text style={s.inputLabel}>Dias da semana *</Text>
               <View style={s.daysSelector}>
                 {DAYS.map(d => (
-                  <TouchableOpacity
-                    key={d.key}
-                    style={[s.daySelectorItem, wDays.includes(d.key) && s.daySelectorItemActive]}
-                    onPress={() => toggleDay(d.key)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[s.daySelectorText, wDays.includes(d.key) && s.daySelectorTextActive]}>
-                      {d.label}
-                    </Text>
+                  <TouchableOpacity key={d.key} style={[s.daySelectorItem, wDays.includes(d.key) && s.daySelectorItemActive]} onPress={() => toggleDay(d.key)} activeOpacity={0.8}>
+                    <Text style={[s.daySelectorText, wDays.includes(d.key) && s.daySelectorTextActive]}>{d.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -421,10 +445,7 @@ export function StudentWorkoutsScreen() {
             </View>
 
             <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.8}>
-              {saving
-                ? <ActivityIndicator color={colors.white} />
-                : <Text style={s.saveBtnText}>{editingWorkout ? 'Salvar alterações' : 'Criar treino'}</Text>
-              }
+              {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>{editingWorkout ? 'Salvar alterações' : 'Criar treino'}</Text>}
             </TouchableOpacity>
 
           </ScrollView>
@@ -454,13 +475,14 @@ const s = StyleSheet.create({
 
   list: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  empty:      { alignItems: 'center', marginTop: spacing['10'], gap: spacing['3'] },
-  emptyText:  { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled, textAlign: 'center' },
-  emptyBtn:   { paddingHorizontal: spacing['4'], paddingVertical: spacing['2'], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.primary },
+  empty:       { alignItems: 'center', marginTop: spacing['10'], gap: spacing['3'] },
+  emptyText:   { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled, textAlign: 'center' },
+  emptyBtn:    { paddingHorizontal: spacing['4'], paddingVertical: spacing['2'], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.primary },
   emptyBtnText:{ fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
 
-  workoutCard:      { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['2'], ...shadows.sm },
-  workoutCardToday: { borderWidth: 1.5, borderColor: `${colors.primary}40` },
+  workoutCard:         { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['2'], ...shadows.sm },
+  workoutCardToday:    { borderWidth: 1.5, borderColor: `${colors.primary}40` },
+  workoutCardInactive: { opacity: 0.6 },
 
   todayBadge:     { alignSelf: 'flex-start', backgroundColor: colors.primary, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2, marginBottom: spacing['1'] },
   todayBadgeText: { fontFamily: typography.family.bold, fontSize: 10, color: colors.white },
@@ -468,7 +490,17 @@ const s = StyleSheet.create({
   workoutHeader:    { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
   workoutIconBox:   { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
   workoutInfo:      { flex: 1 },
-  workoutName:      { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+
+  // ✅ Nome + badge na mesma linha
+  nameRow:            { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], flexWrap: 'wrap' },
+  workoutName:        { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  activeBadge:        { borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
+  activeBadgeOn:      { backgroundColor: `${colors.success}20` },
+  activeBadgeOff:     { backgroundColor: colors.surfaceHigh },
+  activeBadgeText:    { fontFamily: typography.family.medium, fontSize: 10 },
+  activeBadgeTextOn:  { color: colors.success },
+  activeBadgeTextOff: { color: colors.textDisabled },
+
   workoutBy:        { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
   workoutActions:   { flexDirection: 'row', gap: spacing['2'] },
   workoutActionBtn: { width: 30, height: 30, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },

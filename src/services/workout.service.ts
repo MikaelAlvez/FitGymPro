@@ -13,12 +13,12 @@ export interface Workout {
   name:       string
   days:       string[]
   notes:      string | null
-  personalId: string
+  personalId: string | null
   studentId:  string
+  active:     boolean 
   createdAt:  string
   updatedAt:  string
   exercises:  Exercise[]
-  // Personal que criou o treino
   personal?: {
     id:   string
     name: string
@@ -68,4 +68,14 @@ export const workoutService = {
 
   myWorkouts: () =>
     apiRequest<Workout[]>('/workouts/my', { authenticated: true }),
+
+  deactivateWorkout: (id: string) =>
+  apiRequest<{ message: string }>(`/workouts/${id}/deactivate`, {
+    method: 'PUT', authenticated: true, body: JSON.stringify({}),
+  }),
+
+  activateWorkout: (id: string) =>
+    apiRequest<{ message: string }>(`/workouts/${id}/activate`, {
+      method: 'PUT', authenticated: true, body: JSON.stringify({}),
+    }),
 }
