@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Image, ActivityIndicator, RefreshControl, Alert,
-  Modal, TextInput, ScrollView, Dimensions,
+  Modal, TextInput, ScrollView, Dimensions, StatusBar,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -20,10 +20,9 @@ const getBaseUrl = () => {
   return 'http://10.0.2.2:3333'
 }
 
-// ✅ Largura da foto = largura da tela menos padding do card e da lista
-const PHOTO_WIDTH = Dimensions.get('window').width
-  - spacing['5'] * 2  // padding horizontal da lista
-  - spacing['4'] * 2  // padding interno do card
+const SCREEN_WIDTH  = Dimensions.get('window').width
+const SCREEN_HEIGHT = Dimensions.get('window').height
+const PHOTO_WIDTH   = SCREEN_WIDTH - spacing['5'] * 2 - spacing['4'] * 2
 
 const formatDuration = (seconds: number) => {
   const h = Math.floor(seconds / 3600)
@@ -50,12 +49,19 @@ export function StudentFeedScreen() {
   const [sessions,    setSessions]    = useState<WorkoutSession[]>([])
   const [loading,     setLoading]     = useState(true)
   const [refreshing,  setRefreshing]  = useState(false)
-  const [editModal,   setEditModal]   = useState(false)
-  const [editing,     setEditing]     = useState<WorkoutSession | null>(null)
-  const [editCaption, setEditCaption] = useState('')
-  const [editNotes,   setEditNotes]   = useState('')
-  const [editLocation,setEditLocation]= useState('')
-  const [saving,      setSaving]      = useState(false)
+
+  // ─── Modal edição ─────────────────────────
+  const [editModal,    setEditModal]    = useState(false)
+  const [editing,      setEditing]      = useState<WorkoutSession | null>(null)
+  const [editCaption,  setEditCaption]  = useState('')
+  const [editNotes,    setEditNotes]    = useState('')
+  const [editLocation, setEditLocation] = useState('')
+  const [saving,       setSaving]       = useState(false)
+
+  // Modal visualização de foto em tela cheia
+  const [photoModal,    setPhotoModal]    = useState(false)
+  const [photoFullUrl,  setPhotoFullUrl]  = useState<string | null>(null)
+  const [photoFullLabel,setPhotoFullLabel]= useState('')
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -71,6 +77,12 @@ export function StudentFeedScreen() {
   }, [])
 
   useFocusEffect(useCallback(() => { load() }, [load]))
+
+  const openPhoto = (url: string, label: string) => {
+    setPhotoFullUrl(url)
+    setPhotoFullLabel(label)
+    setPhotoModal(true)
+  }
 
   const openEditModal = (session: WorkoutSession) => {
     setEditing(session)
@@ -152,7 +164,7 @@ export function StudentFeedScreen() {
           </View>
         </View>
 
-        {/* ✅ Fotos em carrossel horizontal */}
+        {/* Fotos em carrossel horizontal — clicável */}
         {hasPhotos && (
           <View style={s.photosContainer}>
             <ScrollView
@@ -164,26 +176,40 @@ export function StudentFeedScreen() {
               contentContainerStyle={s.photosScroll}
             >
               {photoStartUrl && (
-                <View style={s.photoBox}>
+                <TouchableOpacity
+                  style={s.photoBox}
+                  activeOpacity={0.92}
+                  onPress={() => openPhoto(photoStartUrl, 'Foto de Início')}
+                >
                   <Image source={{ uri: photoStartUrl }} style={s.photo} />
                   <View style={s.photoLabel}>
                     <Ionicons name="log-in-outline" size={12} color={colors.white} />
                     <Text style={s.photoLabelText}>Início</Text>
                   </View>
-                </View>
+                  {/* Ícone de lupa indica que é clicável */}
+                  <View style={s.photoZoomIcon}>
+                    <Ionicons name="expand-outline" size={16} color={colors.white} />
+                  </View>
+                </TouchableOpacity>
               )}
               {photoEndUrl && (
-                <View style={s.photoBox}>
+                <TouchableOpacity
+                  style={s.photoBox}
+                  activeOpacity={0.92}
+                  onPress={() => openPhoto(photoEndUrl, 'Foto de Fim')}
+                >
                   <Image source={{ uri: photoEndUrl }} style={s.photo} />
                   <View style={s.photoLabel}>
                     <Ionicons name="log-out-outline" size={12} color={colors.white} />
                     <Text style={s.photoLabelText}>Fim</Text>
                   </View>
-                </View>
+                  <View style={s.photoZoomIcon}>
+                    <Ionicons name="expand-outline" size={16} color={colors.white} />
+                  </View>
+                </TouchableOpacity>
               )}
             </ScrollView>
 
-            {/* ✅ Dots — só quando tem as duas fotos */}
             {hasBothPhotos && (
               <View style={s.dotsRow}>
                 <View style={[s.dot, s.dotActive]} />
@@ -272,7 +298,37 @@ export function StudentFeedScreen() {
         />
       )}
 
-      {/* ✅ Modal de edição */}
+      {/* Modal foto em tela cheia */}
+      <Modal
+        visible={photoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhotoModal(false)}
+        statusBarTranslucent
+      >
+        <View style={s.photoModalBg}>
+          <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
+
+          {/* Botão fechar */}
+          <TouchableOpacity style={s.photoModalClose} onPress={() => setPhotoModal(false)}>
+            <Ionicons name="close-circle" size={36} color={colors.white} />
+          </TouchableOpacity>
+
+          {/* Label */}
+          <Text style={s.photoModalLabel}>{photoFullLabel}</Text>
+
+          {/* Foto */}
+          {photoFullUrl && (
+            <Image
+              source={{ uri: photoFullUrl }}
+              style={s.photoModalImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* ─── Modal edição ─── */}
       <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setEditModal(false)} />
         <View style={s.sheet}>
@@ -318,26 +374,33 @@ const s = StyleSheet.create({
 
   card: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['4'], gap: spacing['3'], ...shadows.sm },
 
-  cardHeader:     { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
-  cardIconBox:    { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: `${colors.primary}15`, alignItems: 'center', justifyContent: 'center' },
-  cardHeaderInfo: { flex: 1 },
-  cardWorkoutName:{ fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-  cardDate:       { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
+  cardHeader:         { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  cardIconBox:        { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: `${colors.primary}15`, alignItems: 'center', justifyContent: 'center' },
+  cardHeaderInfo:     { flex: 1 },
+  cardWorkoutName:    { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  cardDate:           { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
   headerActions:      { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
   completedBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.success}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
   completedBadgeText: { fontFamily: typography.family.medium, fontSize: 10, color: colors.success },
   actionBtn:          { width: 30, height: 30, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
 
-  // ✅ Fotos em carrossel
+  // Fotos carrossel
   photosContainer: { gap: spacing['2'] },
   photosScroll:    { gap: spacing['2'] },
   photoBox:        { width: PHOTO_WIDTH, borderRadius: radii.lg, overflow: 'hidden', marginRight: spacing['2'] },
   photo:           { width: '100%', height: 200, resizeMode: 'cover' },
   photoLabel:      { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.5)', paddingVertical: spacing['2'], paddingHorizontal: spacing['3'], flexDirection: 'row', alignItems: 'center', gap: 4 },
   photoLabelText:  { fontFamily: typography.family.medium, fontSize: 12, color: colors.white },
+  photoZoomIcon:   { position: 'absolute', top: spacing['2'], right: spacing['2'], backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: radii.full, padding: 4 },
   dotsRow:         { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing['1'] },
   dot:             { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.border },
   dotActive:       { width: 18, height: 6, borderRadius: 3, backgroundColor: colors.primary },
+
+  // Modal foto tela cheia
+  photoModalBg:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
+  photoModalClose: { position: 'absolute', top: 48, right: spacing['4'], zIndex: 10 },
+  photoModalLabel: { position: 'absolute', top: 56, left: 0, right: 0, textAlign: 'center', fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.white, zIndex: 10 },
+  photoModalImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.75 },
 
   caption:   { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
   notesBox:  { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'] },
