@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, ActivityIndicator, RefreshControl, Alert, Modal, TextInput,
+  Image, ActivityIndicator, RefreshControl, Alert,
+  Modal, TextInput, ScrollView, Dimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -18,6 +19,11 @@ const getBaseUrl = () => {
   if (host) return `http://${host.split(':')[0]}:3333`
   return 'http://10.0.2.2:3333'
 }
+
+// ✅ Largura da foto = largura da tela menos padding do card e da lista
+const PHOTO_WIDTH = Dimensions.get('window').width
+  - spacing['5'] * 2  // padding horizontal da lista
+  - spacing['4'] * 2  // padding interno do card
 
 const formatDuration = (seconds: number) => {
   const h = Math.floor(seconds / 3600)
@@ -41,11 +47,9 @@ const formatTime = (iso: string) => {
 }
 
 export function StudentFeedScreen() {
-  const [sessions,   setSessions]   = useState<WorkoutSession[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-
-  // Modal de edição
+  const [sessions,    setSessions]    = useState<WorkoutSession[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [refreshing,  setRefreshing]  = useState(false)
   const [editModal,   setEditModal]   = useState(false)
   const [editing,     setEditing]     = useState<WorkoutSession | null>(null)
   const [editCaption, setEditCaption] = useState('')
@@ -68,7 +72,6 @@ export function StudentFeedScreen() {
 
   useFocusEffect(useCallback(() => { load() }, [load]))
 
-  // Abrir modal de edição
   const openEditModal = (session: WorkoutSession) => {
     setEditing(session)
     setEditCaption(session.caption)
@@ -77,7 +80,6 @@ export function StudentFeedScreen() {
     setEditModal(true)
   }
 
-  // Salvar edição
   const handleSave = async () => {
     if (!editing) return
     if (!editCaption.trim()) { Alert.alert('Atenção', 'A legenda é obrigatória.'); return }
@@ -97,7 +99,6 @@ export function StudentFeedScreen() {
     }
   }
 
-  // Excluir sessão
   const handleDelete = (session: WorkoutSession) => {
     Alert.alert(
       'Excluir registro',
@@ -122,6 +123,8 @@ export function StudentFeedScreen() {
   const renderSession = ({ item }: { item: WorkoutSession }) => {
     const photoStartUrl = item.photoStart ? `${getBaseUrl()}${item.photoStart}` : null
     const photoEndUrl   = item.photoEnd   ? `${getBaseUrl()}${item.photoEnd}`   : null
+    const hasPhotos     = !!(photoStartUrl || photoEndUrl)
+    const hasBothPhotos = !!(photoStartUrl && photoEndUrl)
 
     return (
       <View style={s.card}>
@@ -140,41 +143,51 @@ export function StudentFeedScreen() {
               <Ionicons name="checkmark-circle" size={13} color={colors.success} />
               <Text style={s.completedBadgeText}>Concluído</Text>
             </View>
-            {/* Botões editar e excluir */}
-            <TouchableOpacity
-              style={s.actionBtn}
-              onPress={() => openEditModal(item)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
+            <TouchableOpacity style={s.actionBtn} onPress={() => openEditModal(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="pencil-outline" size={16} color={colors.primary} />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={s.actionBtn}
-              onPress={() => handleDelete(item)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
+            <TouchableOpacity style={s.actionBtn} onPress={() => handleDelete(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="trash-outline" size={16} color={colors.error} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* ─── Fotos ─── */}
-        {(photoStartUrl || photoEndUrl) && (
-          <View style={s.photosRow}>
-            {photoStartUrl && (
-              <View style={s.photoBox}>
-                <Image source={{ uri: photoStartUrl }} style={s.photo} />
-                <View style={s.photoLabel}>
-                  <Text style={s.photoLabelText}>Início</Text>
+        {/* ✅ Fotos em carrossel horizontal */}
+        {hasPhotos && (
+          <View style={s.photosContainer}>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={PHOTO_WIDTH + spacing['2']}
+              contentContainerStyle={s.photosScroll}
+            >
+              {photoStartUrl && (
+                <View style={s.photoBox}>
+                  <Image source={{ uri: photoStartUrl }} style={s.photo} />
+                  <View style={s.photoLabel}>
+                    <Ionicons name="log-in-outline" size={12} color={colors.white} />
+                    <Text style={s.photoLabelText}>Início</Text>
+                  </View>
                 </View>
-              </View>
-            )}
-            {photoEndUrl && (
-              <View style={s.photoBox}>
-                <Image source={{ uri: photoEndUrl }} style={s.photo} />
-                <View style={s.photoLabel}>
-                  <Text style={s.photoLabelText}>Fim</Text>
+              )}
+              {photoEndUrl && (
+                <View style={s.photoBox}>
+                  <Image source={{ uri: photoEndUrl }} style={s.photo} />
+                  <View style={s.photoLabel}>
+                    <Ionicons name="log-out-outline" size={12} color={colors.white} />
+                    <Text style={s.photoLabelText}>Fim</Text>
+                  </View>
                 </View>
+              )}
+            </ScrollView>
+
+            {/* ✅ Dots — só quando tem as duas fotos */}
+            {hasBothPhotos && (
+              <View style={s.dotsRow}>
+                <View style={[s.dot, s.dotActive]} />
+                <View style={s.dot} />
               </View>
             )}
           </View>
@@ -259,7 +272,7 @@ export function StudentFeedScreen() {
         />
       )}
 
-      {/* Modal de edição */}
+      {/* ✅ Modal de edição */}
       <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setEditModal(false)} />
         <View style={s.sheet}>
@@ -270,54 +283,21 @@ export function StudentFeedScreen() {
             </TouchableOpacity>
           </View>
           <View style={s.sheetBody}>
-
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Legenda *</Text>
-              <TextInput
-                style={s.input}
-                value={editCaption}
-                onChangeText={setEditCaption}
-                placeholder="Ex: Treino incrível hoje! 💪"
-                placeholderTextColor={colors.textDisabled}
-                maxLength={150}
-              />
+              <TextInput style={s.input} value={editCaption} onChangeText={setEditCaption} placeholder="Ex: Treino incrível hoje! 💪" placeholderTextColor={colors.textDisabled} maxLength={150} />
               <Text style={s.charCount}>{editCaption.length}/150</Text>
             </View>
-
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Observação (opcional)</Text>
-              <TextInput
-                style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
-                value={editNotes}
-                onChangeText={setEditNotes}
-                placeholder="Ex: Aumentei a carga no supino..."
-                placeholderTextColor={colors.textDisabled}
-                multiline
-                maxLength={300}
-              />
+              <TextInput style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]} value={editNotes} onChangeText={setEditNotes} placeholder="Ex: Aumentei a carga no supino..." placeholderTextColor={colors.textDisabled} multiline maxLength={300} />
             </View>
-
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Localização (opcional)</Text>
-              <TextInput
-                style={s.input}
-                value={editLocation}
-                onChangeText={setEditLocation}
-                placeholder="Ex: Academia FitGym..."
-                placeholderTextColor={colors.textDisabled}
-              />
+              <TextInput style={s.input} value={editLocation} onChangeText={setEditLocation} placeholder="Ex: Academia FitGym..." placeholderTextColor={colors.textDisabled} />
             </View>
-
-            <TouchableOpacity
-              style={[s.saveBtn, saving && { opacity: 0.6 }]}
-              onPress={handleSave}
-              disabled={saving}
-              activeOpacity={0.8}
-            >
-              {saving
-                ? <ActivityIndicator color={colors.white} />
-                : <Text style={s.saveBtnText}>Salvar alterações</Text>
-              }
+            <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.8}>
+              {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>Salvar alterações</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -343,20 +323,23 @@ const s = StyleSheet.create({
   cardHeaderInfo: { flex: 1 },
   cardWorkoutName:{ fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
   cardDate:       { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
-
   headerActions:      { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
   completedBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.success}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
   completedBadgeText: { fontFamily: typography.family.medium, fontSize: 10, color: colors.success },
   actionBtn:          { width: 30, height: 30, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
 
-  photosRow: { flexDirection: 'row', gap: spacing['2'] },
-  photoBox:  { flex: 1, borderRadius: radii.lg, overflow: 'hidden' },
-  photo:     { width: '100%', height: 140, resizeMode: 'cover' },
-  photoLabel:{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)', paddingVertical: 4, alignItems: 'center' },
-  photoLabelText: { fontFamily: typography.family.medium, fontSize: 11, color: colors.white },
+  // ✅ Fotos em carrossel
+  photosContainer: { gap: spacing['2'] },
+  photosScroll:    { gap: spacing['2'] },
+  photoBox:        { width: PHOTO_WIDTH, borderRadius: radii.lg, overflow: 'hidden', marginRight: spacing['2'] },
+  photo:           { width: '100%', height: 200, resizeMode: 'cover' },
+  photoLabel:      { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.5)', paddingVertical: spacing['2'], paddingHorizontal: spacing['3'], flexDirection: 'row', alignItems: 'center', gap: 4 },
+  photoLabelText:  { fontFamily: typography.family.medium, fontSize: 12, color: colors.white },
+  dotsRow:         { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing['1'] },
+  dot:             { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.border },
+  dotActive:       { width: 18, height: 6, borderRadius: 3, backgroundColor: colors.primary },
 
-  caption:  { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-
+  caption:   { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
   notesBox:  { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'] },
   notesText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, flex: 1 },
 
@@ -378,12 +361,10 @@ const s = StyleSheet.create({
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
   sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
   sheetBody:   { padding: spacing['6'], gap: spacing['4'] },
-
-  inputGroup: { gap: spacing['1'] },
-  inputLabel: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
-  input:      { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
-  charCount:  { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textDisabled, textAlign: 'right' },
-
+  inputGroup:  { gap: spacing['1'] },
+  inputLabel:  { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
+  input:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  charCount:   { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textDisabled, textAlign: 'right' },
   saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
 })
