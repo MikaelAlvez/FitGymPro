@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, ActivityIndicator, RefreshControl,
+  Image, ActivityIndicator, RefreshControl, Alert, Modal, TextInput,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -45,6 +45,14 @@ export function StudentFeedScreen() {
   const [loading,    setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
+  // Modal de edição
+  const [editModal,   setEditModal]   = useState(false)
+  const [editing,     setEditing]     = useState<WorkoutSession | null>(null)
+  const [editCaption, setEditCaption] = useState('')
+  const [editNotes,   setEditNotes]   = useState('')
+  const [editLocation,setEditLocation]= useState('')
+  const [saving,      setSaving]      = useState(false)
+
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
@@ -59,6 +67,57 @@ export function StudentFeedScreen() {
   }, [])
 
   useFocusEffect(useCallback(() => { load() }, [load]))
+
+  // Abrir modal de edição
+  const openEditModal = (session: WorkoutSession) => {
+    setEditing(session)
+    setEditCaption(session.caption)
+    setEditNotes(session.notes ?? '')
+    setEditLocation(session.location ?? '')
+    setEditModal(true)
+  }
+
+  // Salvar edição
+  const handleSave = async () => {
+    if (!editing) return
+    if (!editCaption.trim()) { Alert.alert('Atenção', 'A legenda é obrigatória.'); return }
+    try {
+      setSaving(true)
+      await sessionService.update(editing.id, {
+        caption:  editCaption.trim(),
+        notes:    editNotes.trim() || null,
+        location: editLocation.trim() || null,
+      })
+      setEditModal(false)
+      load(true)
+    } catch {
+      Alert.alert('Erro', 'Não foi possível salvar as alterações.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Excluir sessão
+  const handleDelete = (session: WorkoutSession) => {
+    Alert.alert(
+      'Excluir registro',
+      `Deseja excluir o registro de "${session.workout?.name ?? 'Treino'}"? Esta ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir', style: 'destructive',
+          onPress: async () => {
+            try {
+              await sessionService.remove(session.id)
+              load(true)
+            } catch {
+              Alert.alert('Erro', 'Não foi possível excluir o registro.')
+            }
+          },
+        },
+      ],
+    )
+  }
 
   const renderSession = ({ item }: { item: WorkoutSession }) => {
     const photoStartUrl = item.photoStart ? `${getBaseUrl()}${item.photoStart}` : null
@@ -76,9 +135,26 @@ export function StudentFeedScreen() {
             <Text style={s.cardWorkoutName}>{item.workout?.name ?? 'Treino'}</Text>
             <Text style={s.cardDate}>{formatDate(item.startedAt)}</Text>
           </View>
-          <View style={s.completedBadge}>
-            <Ionicons name="checkmark-circle" size={13} color={colors.success} />
-            <Text style={s.completedBadgeText}>Concluído</Text>
+          <View style={s.headerActions}>
+            <View style={s.completedBadge}>
+              <Ionicons name="checkmark-circle" size={13} color={colors.success} />
+              <Text style={s.completedBadgeText}>Concluído</Text>
+            </View>
+            {/* Botões editar e excluir */}
+            <TouchableOpacity
+              style={s.actionBtn}
+              onPress={() => openEditModal(item)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="pencil-outline" size={16} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.actionBtn}
+              onPress={() => handleDelete(item)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="trash-outline" size={16} color={colors.error} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -182,6 +258,71 @@ export function StudentFeedScreen() {
           }
         />
       )}
+
+      {/* Modal de edição */}
+      <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setEditModal(false)} />
+        <View style={s.sheet}>
+          <View style={s.sheetHeader}>
+            <Text style={s.sheetTitle}>Editar registro</Text>
+            <TouchableOpacity onPress={() => setEditModal(false)}>
+              <Ionicons name="close" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <View style={s.sheetBody}>
+
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Legenda *</Text>
+              <TextInput
+                style={s.input}
+                value={editCaption}
+                onChangeText={setEditCaption}
+                placeholder="Ex: Treino incrível hoje! 💪"
+                placeholderTextColor={colors.textDisabled}
+                maxLength={150}
+              />
+              <Text style={s.charCount}>{editCaption.length}/150</Text>
+            </View>
+
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Observação (opcional)</Text>
+              <TextInput
+                style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
+                value={editNotes}
+                onChangeText={setEditNotes}
+                placeholder="Ex: Aumentei a carga no supino..."
+                placeholderTextColor={colors.textDisabled}
+                multiline
+                maxLength={300}
+              />
+            </View>
+
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Localização (opcional)</Text>
+              <TextInput
+                style={s.input}
+                value={editLocation}
+                onChangeText={setEditLocation}
+                placeholder="Ex: Academia FitGym..."
+                placeholderTextColor={colors.textDisabled}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[s.saveBtn, saving && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={saving}
+              activeOpacity={0.8}
+            >
+              {saving
+                ? <ActivityIndicator color={colors.white} />
+                : <Text style={s.saveBtnText}>Salvar alterações</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   )
 }
@@ -195,15 +336,18 @@ const s = StyleSheet.create({
 
   list: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  card:       { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['4'], gap: spacing['3'], ...shadows.sm },
+  card: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['4'], gap: spacing['3'], ...shadows.sm },
 
-  cardHeader:     { flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
+  cardHeader:     { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
   cardIconBox:    { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: `${colors.primary}15`, alignItems: 'center', justifyContent: 'center' },
   cardHeaderInfo: { flex: 1 },
   cardWorkoutName:{ fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
   cardDate:       { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
-  completedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.success}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
+
+  headerActions:      { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
+  completedBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.success}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
   completedBadgeText: { fontFamily: typography.family.medium, fontSize: 10, color: colors.success },
+  actionBtn:          { width: 30, height: 30, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
 
   photosRow: { flexDirection: 'row', gap: spacing['2'] },
   photoBox:  { flex: 1, borderRadius: radii.lg, overflow: 'hidden' },
@@ -211,7 +355,7 @@ const s = StyleSheet.create({
   photoLabel:{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)', paddingVertical: 4, alignItems: 'center' },
   photoLabelText: { fontFamily: typography.family.medium, fontSize: 11, color: colors.white },
 
-  caption: { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  caption:  { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
 
   notesBox:  { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['2'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'] },
   notesText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, flex: 1 },
@@ -228,4 +372,18 @@ const s = StyleSheet.create({
   empty:      { alignItems: 'center', marginTop: spacing['12'], gap: spacing['3'], paddingHorizontal: spacing['8'] },
   emptyTitle: { fontFamily: typography.family.semiBold, fontSize: typography.size.lg, color: colors.textSecondary },
   emptyText:  { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled, textAlign: 'center' },
+
+  overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '80%' },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
+  sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
+  sheetBody:   { padding: spacing['6'], gap: spacing['4'] },
+
+  inputGroup: { gap: spacing['1'] },
+  inputLabel: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
+  input:      { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  charCount:  { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textDisabled, textAlign: 'right' },
+
+  saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
 })

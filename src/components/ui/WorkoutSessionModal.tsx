@@ -3,24 +3,17 @@ import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
   TextInput, ScrollView, Alert, ActivityIndicator, Image,
 } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import { Ionicons }       from '@expo/vector-icons'
 import * as ImagePicker   from 'expo-image-picker'
 import * as Location      from 'expo-location'
-import * as Notifications from 'expo-notifications'
+import Constants          from 'expo-constants'
 import { sessionService }     from '../../services/session.service'
 import { uploadSessionPhoto } from '../../services/upload.service'
 import type { WorkoutSession } from '../../services/session.service'
 import { colors, typography, spacing, radii } from '../../theme'
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert:  true,
-    shouldPlaySound:  false,
-    shouldSetBadge:   false,
-    shouldShowBanner: true,
-    shouldShowList:   true,
-  }),
-})
+// ✅ Detecta Expo Go — se true, notificações são desabilitadas completamente
+const isExpoGo = Constants.appOwnership === 'expo'
 
 interface Props {
   visible:     boolean
@@ -87,7 +80,8 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
     timerRef.current = setInterval(() => {
       setElapsed(prev => {
         const next = prev + 1
-        updateNotification(next)
+        // ✅ só atualiza notificação se não for Expo Go
+        if (!isExpoGo) updateNotification(next)
         return next
       })
     }, 1000)
@@ -98,9 +92,11 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
     cancelNotification()
   }
 
-  // Notificações com try/catch — silencia no Expo Go
+  // ✅ Import dinâmico — só carrega expo-notifications em builds nativos
   const scheduleNotification = async () => {
+    if (isExpoGo) return
     try {
+      const Notifications = await import('expo-notifications')
       const { status } = await Notifications.requestPermissionsAsync()
       if (status !== 'granted') return
       const id = await Notifications.scheduleNotificationAsync({
@@ -113,13 +109,14 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
       })
       notifIdRef.current = id
     } catch {
-      // silencia no Expo Go
+      // silencia
     }
   }
 
   const updateNotification = async (seconds: number) => {
-    if (!notifIdRef.current) return
+    if (isExpoGo || !notifIdRef.current) return
     try {
+      const Notifications = await import('expo-notifications')
       await Notifications.scheduleNotificationAsync({
         identifier: notifIdRef.current,
         content: {
@@ -130,17 +127,18 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
         trigger: null,
       })
     } catch {
-      // silencia no Expo Go
+      // silencia
     }
   }
 
   const cancelNotification = async () => {
-    if (!notifIdRef.current) return
+    if (isExpoGo || !notifIdRef.current) return
     try {
+      const Notifications = await import('expo-notifications')
       await Notifications.dismissNotificationAsync(notifIdRef.current)
       notifIdRef.current = null
     } catch {
-      // silencia no Expo Go
+      // silencia
     }
   }
 
@@ -278,7 +276,11 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 <Text style={s.timerText}>{formatTime(elapsed)}</Text>
                 <Text style={s.timerLabel}>{workoutName}</Text>
               </View>
-              <TouchableOpacity style={s.checkoutBtn} onPress={() => { setPhase('checkout'); resetForm() }} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={s.checkoutBtn}
+                onPress={() => { setPhase('checkout'); resetForm() }}
+                activeOpacity={0.8}
+              >
                 <Ionicons name="checkmark-done-circle" size={20} color={colors.white} />
                 <Text style={s.checkoutBtnText}>Finalizar Treino</Text>
               </TouchableOpacity>
@@ -309,19 +311,40 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
 
               <View style={s.inputGroup}>
                 <Text style={s.inputLabel}>Legenda *</Text>
-                <TextInput style={s.input} value={caption} onChangeText={setCaption} placeholder={phase === 'checkin' ? 'Ex: Dia de peito e tríceps 💪' : 'Ex: Treino concluído! 🔥'} placeholderTextColor={colors.textDisabled} maxLength={150} />
+                <TextInput
+                  style={s.input}
+                  value={caption}
+                  onChangeText={setCaption}
+                  placeholder={phase === 'checkin' ? 'Ex: Dia de peito e tríceps 💪' : 'Ex: Treino concluído! 🔥'}
+                  placeholderTextColor={colors.textDisabled}
+                  maxLength={150}
+                />
                 <Text style={s.charCount}>{caption.length}/150</Text>
               </View>
 
               <View style={s.inputGroup}>
                 <Text style={s.inputLabel}>Observação (opcional)</Text>
-                <TextInput style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]} value={notes} onChangeText={setNotes} placeholder="Ex: Aumentei a carga no supino..." placeholderTextColor={colors.textDisabled} multiline maxLength={300} />
+                <TextInput
+                  style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Ex: Aumentei a carga no supino..."
+                  placeholderTextColor={colors.textDisabled}
+                  multiline
+                  maxLength={300}
+                />
               </View>
 
               <View style={s.inputGroup}>
                 <Text style={s.inputLabel}>Localização (opcional)</Text>
                 <View style={s.locationRow}>
-                  <TextInput style={[s.input, { flex: 1 }]} value={location} onChangeText={setLocation} placeholder="Ex: Academia FitGym..." placeholderTextColor={colors.textDisabled} />
+                  <TextInput
+                    style={[s.input, { flex: 1 }]}
+                    value={location}
+                    onChangeText={setLocation}
+                    placeholder="Ex: Academia FitGym..."
+                    placeholderTextColor={colors.textDisabled}
+                  />
                   <TouchableOpacity style={s.locationBtn} onPress={handleGetLocation} disabled={loadingLoc}>
                     {loadingLoc
                       ? <ActivityIndicator size="small" color={colors.primary} />
@@ -341,8 +364,14 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                   <ActivityIndicator color={colors.white} />
                 ) : (
                   <>
-                    <Ionicons name={phase === 'checkin' ? 'play-circle' : 'checkmark-done-circle'} size={20} color={colors.white} />
-                    <Text style={s.actionBtnText}>{phase === 'checkin' ? 'Iniciar Treino' : 'Concluir Treino'}</Text>
+                    <Ionicons
+                      name={phase === 'checkin' ? 'play-circle' : 'checkmark-done-circle'}
+                      size={20}
+                      color={colors.white}
+                    />
+                    <Text style={s.actionBtnText}>
+                      {phase === 'checkin' ? 'Iniciar Treino' : 'Concluir Treino'}
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>

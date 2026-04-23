@@ -16,10 +16,10 @@ export interface WorkoutSession {
 }
 
 export interface CheckinPayload {
-  workoutId:  string
-  caption:    string
-  notes?:     string
-  location?:  string
+  workoutId:   string
+  caption:     string
+  notes?:      string
+  location?:   string
   photoStart?: string
 }
 
@@ -28,6 +28,12 @@ export interface CheckoutPayload {
   notes?:    string
   location?: string
   photoEnd?: string
+}
+
+export interface UpdateSessionPayload {
+  caption?:  string
+  notes?:    string | null
+  location?: string | null
 }
 
 export const sessionService = {
@@ -50,4 +56,19 @@ export const sessionService = {
 
   getHistory: () =>
     apiRequest<WorkoutSession[]>('/sessions/history', { authenticated: true }),
+
+  // Editar sessão (caption, notes, location)
+  update: (sessionId: string, payload: UpdateSessionPayload) =>
+    apiRequest<WorkoutSession>(`/sessions/${sessionId}`, {
+      method:        'PUT',
+      authenticated: true,
+      body:          JSON.stringify(payload),
+    }),
+
+  // Excluir sessão
+  remove: (sessionId: string) =>
+    apiRequest<void>(`/sessions/${sessionId}`, {
+      method:        'DELETE',
+      authenticated: true,
+    }),
 }

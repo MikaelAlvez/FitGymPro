@@ -4,8 +4,7 @@ import Constants from 'expo-constants'
 const getBaseUrl = () => {
   const debuggerHost = Constants.expoConfig?.hostUri
     ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
-    ?? Constants.manifest?.debuggerHost
-
+    ?? (Constants.manifest as any)?.debuggerHost
   if (debuggerHost) {
     const host = debuggerHost.split(':')[0]
     return `http://${host}:3333`
@@ -20,7 +19,6 @@ const STORAGE_KEYS = {
   REFRESH_TOKEN: '@fitgym:refresh_token',
 } as const
 
-// ─── Types ───────────────────────────────────
 interface RequestOptions extends RequestInit {
   authenticated?: boolean
 }
@@ -30,83 +28,74 @@ interface ApiError {
   errors?:  Record<string, string[]>
 }
 
-// ─── Helper: pega o token salvo ──────────────
 async function getAccessToken(): Promise<string | null> {
   return AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN)
 }
 
-// ─── Helper: renova o token ──────────────────
 async function refreshAccessToken(): Promise<string | null> {
   try {
     const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
     if (!refreshToken) return null
-
     const res = await fetch(`${BASE_URL}/auth/refresh`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ refreshToken }),
     })
-
     if (!res.ok) return null
-
     const data = await res.json()
     await AsyncStorage.multiSet([
       [STORAGE_KEYS.ACCESS_TOKEN,  data.accessToken],
       [STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken],
     ])
-
     return data.accessToken
   } catch {
     return null
   }
 }
 
-// ─── Client principal ────────────────────────
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { authenticated = false, headers = {}, ...rest } = options
+  const { authenticated = false, headers = {}, body, method = 'GET', ...rest } = options
 
   const requestHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(headers as Record<string, string>),
   }
 
-  // Adiciona token se rota autenticada
+  if (body) {
+    requestHeaders['Content-Type'] = 'application/json'
+  }
+
   if (authenticated) {
     let token = await getAccessToken()
-
-    if (!token) {
-      token = await refreshAccessToken()
-    }
-
-    if (token) {
-      requestHeaders['Authorization'] = `Bearer ${token}`
-    }
+    if (!token) token = await refreshAccessToken()
+    if (token) requestHeaders['Authorization'] = `Bearer ${token}`
   }
 
   const response = await fetch(`${BASE_URL}${path}`, {
+    method,
     headers: requestHeaders,
+    body,
     ...rest,
   })
 
   // Token expirado — tenta renovar e repetir
   if (response.status === 401 && authenticated) {
     const newToken = await refreshAccessToken()
-
     if (newToken) {
       requestHeaders['Authorization'] = `Bearer ${newToken}`
       const retry = await fetch(`${BASE_URL}${path}`, {
+        method,
         headers: requestHeaders,
+        body,
         ...rest,
       })
-
       if (!retry.ok) {
         const err: ApiError = await retry.json()
         throw err
       }
-
+      if (retry.status === 204) return null as T
       return retry.json() as Promise<T>
     }
   }
