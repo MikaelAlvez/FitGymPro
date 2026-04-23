@@ -46,8 +46,6 @@ export function StudentWorkoutsScreen() {
   const [expanded,       setExpanded]       = useState<Set<string>>(new Set())
   const [workoutModal,   setWorkoutModal]   = useState(false)
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null)
-
-  // Session modal
   const [sessionModal,   setSessionModal]   = useState(false)
   const [sessionWorkout, setSessionWorkout] = useState<{ id: string; name: string } | null>(null)
 
@@ -117,7 +115,7 @@ export function StudentWorkoutsScreen() {
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: workout.active ? 'Inativar' : 'Ativar',
+          text:  workout.active ? 'Inativar' : 'Ativar',
           style: workout.active ? 'destructive' : 'default',
           onPress: async () => {
             try {
@@ -158,7 +156,7 @@ export function StudentWorkoutsScreen() {
       }
 
       if (ex.groupId) {
-        const groupId = ex.groupId
+        const groupId    = ex.groupId
         const groupLabel = ex.groupLabel ?? 'Grupo'
         const groupItems: typeof items = []
         while (i < items.length && items[i].groupId === groupId) { groupItems.push(items[i]); i++ }
@@ -287,9 +285,7 @@ export function StudentWorkoutsScreen() {
                       <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
 
-                    {/* Ações */}
                     <View style={s.workoutSideActions}>
-                      {/* Botão iniciar treino */}
                       {workout.active && (
                         <TouchableOpacity
                           style={s.checkinBtn}
@@ -344,9 +340,13 @@ export function StudentWorkoutsScreen() {
         </ScrollView>
       )}
 
-      <WorkoutFormModal visible={workoutModal} onClose={() => setWorkoutModal(false)} onSave={handleSave} editingWorkout={editingWorkout} />
+      <WorkoutFormModal
+        visible={workoutModal}
+        onClose={() => setWorkoutModal(false)}
+        onSave={handleSave}
+        editingWorkout={editingWorkout}
+      />
 
-      {/* Session modal */}
       {sessionWorkout && (
         <WorkoutSessionModal
           visible={sessionModal}
@@ -363,10 +363,10 @@ export function StudentWorkoutsScreen() {
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
 
-  header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['2'] },
-  headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
-  headerSub:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
-  createBtn:   { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
+  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['2'] },
+  headerTitle:  { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
+  headerSub:    { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
+  createBtn:    { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
   createBtnText:{ fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.white },
 
   filtersRow:           { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: spacing['5'], paddingVertical: spacing['3'], gap: spacing['2'] },
@@ -393,23 +393,21 @@ const s = StyleSheet.create({
   todayBadge:     { alignSelf: 'flex-start', backgroundColor: colors.primary, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2, marginBottom: spacing['1'] },
   todayBadgeText: { fontFamily: typography.family.bold, fontSize: 10, color: colors.white },
 
-  workoutIconBox:  { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
-  workoutInfo:     { flex: 1 },
-  nameRow:         { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], flexWrap: 'wrap' },
-  workoutName:     { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-  activeBadge:     { borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
-  activeBadgeOn:   { backgroundColor: `${colors.success}20` },
-  activeBadgeOff:  { backgroundColor: colors.surfaceHigh },
-  activeBadgeText: { fontFamily: typography.family.medium, fontSize: 10 },
+  workoutIconBox:    { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  workoutInfo:       { flex: 1 },
+  nameRow:           { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], flexWrap: 'wrap' },
+  workoutName:       { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  activeBadge:       { borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
+  activeBadgeOn:     { backgroundColor: `${colors.success}20` },
+  activeBadgeOff:    { backgroundColor: colors.surfaceHigh },
+  activeBadgeText:   { fontFamily: typography.family.medium, fontSize: 10 },
   activeBadgeTextOn: { color: colors.success },
   activeBadgeTextOff:{ color: colors.textDisabled },
-  workoutBy:       { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
+  workoutBy:         { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: 2 },
 
-  // Ações laterais
-  workoutSideActions:{ flexDirection: 'column', alignItems: 'center', gap: spacing['1'] },
-  checkinBtn:        { width: 34, height: 34, borderRadius: radii.full, backgroundColor: `${colors.success}15`, alignItems: 'center', justifyContent: 'center' },
-  workoutActions:    { flexDirection: 'row', gap: spacing['2'] },
-  workoutActionBtn:  { width: 30, height: 30, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  workoutSideActions: { flexDirection: 'column', alignItems: 'center', gap: spacing['1'] },
+  checkinBtn:         { width: 34, height: 34, borderRadius: radii.full, backgroundColor: `${colors.success}15`, alignItems: 'center', justifyContent: 'center' },
+  workoutActionBtn:   { width: 30, height: 30, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
 
   daysRow:           { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['1'], marginTop: spacing['1'] },
   dayBadge:          { backgroundColor: colors.surfaceHigh, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
