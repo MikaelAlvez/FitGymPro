@@ -9,7 +9,9 @@ export interface Exercise {
   type?:      'exercise' | 'cardio'
   groupId?:   string
   groupLabel?:string
-  duration?:  string // "HH:MM"
+  duration?:  string 
+  load?:      string  
+  restTime?:  string  
 }
 
 export interface Workout {
@@ -19,7 +21,7 @@ export interface Workout {
   notes:      string | null
   personalId: string | null
   studentId:  string
-  active:     boolean 
+  active:     boolean
   createdAt:  string
   updatedAt:  string
   exercises:  Exercise[]
@@ -32,10 +34,10 @@ export interface Workout {
 
 export interface CreateWorkoutPayload {
   studentId?: string
-  name:      string
-  days:      string[]
-  notes?:    string
-  exercises: Exercise[]
+  name:       string
+  days:       string[]
+  notes?:     string
+  exercises:  Exercise[]
 }
 
 export const workoutService = {
@@ -60,23 +62,15 @@ export const workoutService = {
     apiRequest<void>(`/workouts/${id}`, {
       method:        'DELETE',
       authenticated: true,
-      body:          JSON.stringify({}),
     }),
-
-  deactivateStudent: (studentId: string) =>
-    apiRequest<{ message: string }>(`/user/student/${studentId}/deactivate`, {
-      method:        'PUT',
-      authenticated: true,
-      body:          JSON.stringify({}),
-  }),
 
   myWorkouts: () =>
     apiRequest<Workout[]>('/workouts/my', { authenticated: true }),
 
   deactivateWorkout: (id: string) =>
-  apiRequest<{ message: string }>(`/workouts/${id}/deactivate`, {
-    method: 'PUT', authenticated: true, body: JSON.stringify({}),
-  }),
+    apiRequest<{ message: string }>(`/workouts/${id}/deactivate`, {
+      method: 'PUT', authenticated: true, body: JSON.stringify({}),
+    }),
 
   activateWorkout: (id: string) =>
     apiRequest<{ message: string }>(`/workouts/${id}/activate`, {
