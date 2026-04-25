@@ -1,17 +1,19 @@
 import React from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
-import { StudentHomeScreen }     from '../screens/student/StudentHomeScreen'
-import { StudentWorkoutsScreen } from '../screens/student/StudentWorkoutsScreen'
+import { StudentHomeScreen }      from '../screens/student/StudentHomeScreen'
+import { StudentWorkoutsScreen }  from '../screens/student/StudentWorkoutsScreen'
+import { StudentFeedScreen }      from '../screens/student/StudentFeedScreen'
+import { StudentDashboardScreen } from '../screens/student/StudentDashboardScreen'
 import { StudentPersonalsScreen } from '../screens/student/StudentPersonalsScreen'
-import { StudentFeedScreen }     from '../screens/student/StudentFeedScreen'
-import { StudentProfileScreen }  from '../screens/student/StudentProfileScreen'
-import { colors, typography }    from '../theme'
+import { StudentProfileScreen }   from '../screens/student/StudentProfileScreen'
+import { colors, typography }     from '../theme'
 
 export type StudentTabParamList = {
   Home:      undefined
   Workouts:  undefined
   Feed:      undefined
+  Dashboard: undefined
   Personals: undefined
   Profile:   undefined
 }
@@ -66,6 +68,16 @@ export function StudentNavigator() {
           tabBarLabel: 'Feed',
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Dashboard"
+        component={StudentDashboardScreen}
+        options={{
+          tabBarLabel: 'Relatórios',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={size} color={color} />
           ),
         }}
       />
