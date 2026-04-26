@@ -278,22 +278,22 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
               </View>
 
               {/* Observação de início */}
-              <View style={s.inputGroup}>
-                <Text style={s.inputLabel}>
-                  {phase === 'checkin' ? 'Observação (opcional)' : 'Observação de início (opcional)'}
-                </Text>
-                <TextInput
-                  style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
-                  value={notes}
-                  onChangeText={setNotes}
-                  placeholder="Ex: Aumentei a carga no supino..."
-                  placeholderTextColor={colors.textDisabled}
-                  multiline
-                  maxLength={300}
-                />
-              </View>
+              {phase === 'checkin' && (
+                <View style={s.inputGroup}>
+                  <Text style={s.inputLabel}>Observação (opcional)</Text>
+                  <TextInput
+                    style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
+                    value={notes}
+                    onChangeText={setNotes}
+                    placeholder="Ex: Aumentei a carga no supino..."
+                    placeholderTextColor={colors.textDisabled}
+                    multiline
+                    maxLength={300}
+                  />
+                </View>
+              )}
 
-              {/* ✅ Observação de fim — apenas no checkout */}
+              {/* Observação de fim — apenas no checkout */}
               {phase === 'checkout' && (
                 <View style={s.inputGroup}>
                   <Text style={s.inputLabel}>Observação final (opcional)</Text>
