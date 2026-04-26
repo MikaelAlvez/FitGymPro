@@ -82,4 +82,10 @@ export const sessionService = {
       method:        'POST',
       authenticated: true,
     }),
+
+    // Busca exercícios concluídos do treino hoje (sessão ativa ou finalizada)
+  getTodayDone: (workoutId: string) =>
+    apiRequest<string[]>(`/sessions/today-done/${workoutId}`, {
+      authenticated: true,
+    }),
 }

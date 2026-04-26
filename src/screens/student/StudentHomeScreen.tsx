@@ -208,12 +208,18 @@ export function StudentHomeScreen() {
       setExpandedWorkout(null)
 
       // Carrega exercícios concluídos da sessão ativa
-      if (activeSession?.id) {
-        const done = await sessionService.getExercisesDone(activeSession.id)
-        setDoneExercises(new Set(done))
-      } else {
-        setDoneExercises(new Set())
-      }
+     const todayList = workoutsData.filter(w => w.days.includes(TODAY_KEY) && w.active)
+
+    if (todayList.length > 0) {
+      const allDone = await Promise.all(
+        todayList.map(w => sessionService.getTodayDone(w.id).catch(() => []))
+      )
+      const merged = new Set(allDone.flat())
+      setDoneExercises(merged)
+    } else {
+      setDoneExercises(new Set())
+    }
+    
     } catch {
       // silencia
     } finally {
@@ -254,17 +260,18 @@ export function StudentHomeScreen() {
 
   // Toggle com persistência no backend se sessão ativa
   const toggleExercise = async (id: string) => {
-    // Atualiza UI imediatamente (optimistic)
+    // Atualiza UI imediatamente
     setDoneExercises(prev => {
       const n = new Set(prev)
       n.has(id) ? n.delete(id) : n.add(id)
       return n
     })
 
-    // Persiste no backend se há sessão ativa
-    if (activeSessionId) {
+    // Usa sessão ativa OU busca a última sessão do dia
+    const sessionId = activeSessionId
+    if (sessionId) {
       try {
-        await sessionService.toggleExerciseDone(activeSessionId, id)
+        await sessionService.toggleExerciseDone(sessionId, id)
       } catch {
         // Reverte se falhar
         setDoneExercises(prev => {
@@ -274,6 +281,7 @@ export function StudentHomeScreen() {
         })
       }
     }
+    // Se não há sessão ativa, é apenas local (sem sessão não há como persistir)
   }
 
   const toggleWorkout = (id: string) =>
@@ -634,8 +642,7 @@ export function StudentHomeScreen() {
             setSessionModal(false)
             setActiveSessionWorkoutId(null)
             setActiveSessionId(null)
-            setDoneExercises(new Set())
-            loadData()
+            loadData() // loadData já vai buscar os exercícios do dia
           }}
         />
       )}
