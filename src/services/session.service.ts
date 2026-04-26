@@ -57,7 +57,6 @@ export const sessionService = {
   getHistory: () =>
     apiRequest<WorkoutSession[]>('/sessions/history', { authenticated: true }),
 
-  // Editar sessão (caption, notes, location)
   update: (sessionId: string, payload: UpdateSessionPayload) =>
     apiRequest<WorkoutSession>(`/sessions/${sessionId}`, {
       method:        'PUT',
@@ -65,10 +64,22 @@ export const sessionService = {
       body:          JSON.stringify(payload),
     }),
 
-  // Excluir sessão
   remove: (sessionId: string) =>
     apiRequest<void>(`/sessions/${sessionId}`, {
       method:        'DELETE',
+      authenticated: true,
+    }),
+
+  // Busca exercícios concluídos de uma sessão
+  getExercisesDone: (sessionId: string) =>
+    apiRequest<string[]>(`/sessions/${sessionId}/exercises-done`, {
+      authenticated: true,
+    }),
+
+  // Toggle exercício concluído/não concluído
+  toggleExerciseDone: (sessionId: string, exerciseId: string) =>
+    apiRequest<{ done: boolean }>(`/sessions/${sessionId}/exercises-done/${exerciseId}`, {
+      method:        'POST',
       authenticated: true,
     }),
 }

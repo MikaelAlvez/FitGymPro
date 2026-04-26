@@ -53,7 +53,6 @@ const formatCountdown = (secs: number): string => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-// ✅ "20" → "20kg", "20kg" → "20kg", "50%" → "50%"
 const formatLoad = (load: string): string => {
   if (!load.trim()) return ''
   return /^\d+(\.\d+)?$/.test(load.trim()) ? `${load.trim()}kg` : load.trim()
@@ -90,14 +89,8 @@ const FORMAT_LABEL: Record<string, string> = {
   hybrid:     'Híbrido',
 }
 
-// ✅ Componente cronômetro de descanso com som
-function RestButton({
-  restTime,
-  enabled,
-}: {
-  restTime: string | undefined
-  enabled:  boolean
-}) {
+// Cronômetro de descanso com beep
+function RestButton({ restTime, enabled }: { restTime: string | undefined; enabled: boolean }) {
   const totalSecs = restTimeToSeconds(restTime)
   const [countdown, setCountdown] = useState(0)
   const [running,   setRunning]   = useState(false)
@@ -105,7 +98,6 @@ function RestButton({
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current) }, [])
 
-  // ✅ Toca beep ao concluir o descanso
   const playBeep = async () => {
     try {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true })
@@ -114,12 +106,10 @@ function RestButton({
         { shouldPlay: true, volume: 1.0 },
       )
       sound.setOnPlaybackStatusUpdate(status => {
-        if ('didJustFinish' in status && status.didJustFinish) {
-          sound.unloadAsync()
-        }
+        if ('didJustFinish' in status && status.didJustFinish) sound.unloadAsync()
       })
     } catch {
-      // silencia se não conseguir tocar
+      // silencia
     }
   }
 
@@ -129,8 +119,6 @@ function RestButton({
       return
     }
     if (totalSecs === 0) return
-
-    // Se já está rodando — cancela
     if (running) {
       if (timerRef.current) clearInterval(timerRef.current)
       timerRef.current = null
@@ -138,8 +126,6 @@ function RestButton({
       setCountdown(0)
       return
     }
-
-    // Inicia
     setCountdown(totalSecs)
     setRunning(true)
     timerRef.current = setInterval(() => {
@@ -148,7 +134,7 @@ function RestButton({
           clearInterval(timerRef.current!)
           timerRef.current = null
           setRunning(false)
-          playBeep() // ✅ beep ao zerar
+          playBeep()
           return 0
         }
         return prev - 1
@@ -160,11 +146,7 @@ function RestButton({
 
   return (
     <TouchableOpacity
-      style={[
-        s.restBtn,
-        running  && s.restBtnRunning,
-        !enabled && s.restBtnDisabled,
-      ]}
+      style={[s.restBtn, running && s.restBtnRunning, !enabled && s.restBtnDisabled]}
       onPress={start}
       activeOpacity={0.8}
     >
@@ -173,11 +155,7 @@ function RestButton({
         size={13}
         color={!enabled ? colors.textDisabled : running ? colors.white : colors.primary}
       />
-      <Text style={[
-        s.restBtnText,
-        running  && s.restBtnTextRunning,
-        !enabled && s.restBtnTextDisabled,
-      ]}>
+      <Text style={[s.restBtnText, running && s.restBtnTextRunning, !enabled && s.restBtnTextDisabled]}>
         {running ? formatCountdown(countdown) : formatCountdown(totalSecs)}
       </Text>
     </TouchableOpacity>
@@ -203,10 +181,15 @@ export function StudentHomeScreen() {
   const [expandedWorkout,setExpandedWorkout]= useState<string | null>(null)
   const [menuVisible,    setMenuVisible]    = useState(false)
   const [workoutModal,   setWorkoutModal]   = useState(false)
+
+  // ID da sessão ativa e do workout ativo
+  const [activeSessionId,        setActiveSessionId]        = useState<string | null>(null)
   const [activeSessionWorkoutId, setActiveSessionWorkoutId] = useState<string | null>(null)
+
   const [sessionModal,   setSessionModal]   = useState(false)
   const [sessionWorkout, setSessionWorkout] = useState<{ id: string; name: string } | null>(null)
 
+  // Carrega dados incluindo exercícios já marcados na sessão ativa
   const loadData = useCallback(async () => {
     try {
       const [profileData, workoutsData, activeSession] = await Promise.all([
@@ -216,12 +199,21 @@ export function StudentHomeScreen() {
         workoutService.myWorkouts(),
         sessionService.getActive().catch(() => null),
       ])
+
       setProfile(profileData.studentProfile)
       setPersonal(profileData.personal ?? null)
       setTodayWorkouts(workoutsData.filter(w => w.days.includes(TODAY_KEY) && w.active))
       setActiveSessionWorkoutId(activeSession?.workoutId ?? null)
-      setDoneExercises(new Set())
+      setActiveSessionId(activeSession?.id ?? null)
       setExpandedWorkout(null)
+
+      // Carrega exercícios concluídos da sessão ativa
+      if (activeSession?.id) {
+        const done = await sessionService.getExercisesDone(activeSession.id)
+        setDoneExercises(new Set(done))
+      } else {
+        setDoneExercises(new Set())
+      }
     } catch {
       // silencia
     } finally {
@@ -260,8 +252,28 @@ export function StudentHomeScreen() {
   const doneCount      = doneExercises.size
   const totalProgress  = totalExercises > 0 ? doneCount / totalExercises : 0
 
-  const toggleExercise = (id: string) => {
-    setDoneExercises(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  // Toggle com persistência no backend se sessão ativa
+  const toggleExercise = async (id: string) => {
+    // Atualiza UI imediatamente (optimistic)
+    setDoneExercises(prev => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+
+    // Persiste no backend se há sessão ativa
+    if (activeSessionId) {
+      try {
+        await sessionService.toggleExerciseDone(activeSessionId, id)
+      } catch {
+        // Reverte se falhar
+        setDoneExercises(prev => {
+          const n = new Set(prev)
+          n.has(id) ? n.delete(id) : n.add(id)
+          return n
+        })
+      }
+    }
   }
 
   const toggleWorkout = (id: string) =>
@@ -282,7 +294,6 @@ export function StudentHomeScreen() {
     setMenuVisible(false)
   }
 
-  // ✅ Render de um exercício com carga e botão de descanso
   const renderExerciseItem = (
     ex: Exercise,
     key: string | number,
@@ -297,7 +308,6 @@ export function StudentHomeScreen() {
 
     return (
       <View key={key} style={[s.exerciseRow, !isLast && s.exerciseDivider]}>
-        {/* Checkbox */}
         <TouchableOpacity onPress={() => toggleExercise(ex.id ?? String(index))} activeOpacity={0.7}>
           <Ionicons
             name={done ? 'checkmark-circle' : 'ellipse-outline'}
@@ -306,24 +316,20 @@ export function StudentHomeScreen() {
           />
         </TouchableOpacity>
 
-        {/* Info */}
         <View style={s.exerciseInfo}>
           <Text style={[s.exerciseName, done && s.exerciseDone]}>
             {labelPrefix ? `${labelPrefix}  ` : ''}{ex.name}
           </Text>
           <View style={s.exerciseMeta}>
-            {/* Séries × Reps */}
             {ex.type !== 'cardio' && (
               <Text style={s.exerciseMetaText}>{ex.sets} × {ex.reps}</Text>
             )}
-            {/* Cardio */}
             {ex.type === 'cardio' && ex.duration && (
               <View style={s.metaChip}>
                 <Ionicons name="bicycle" size={10} color={colors.info} />
                 <Text style={[s.exerciseMetaText, { color: colors.info }]}>{ex.duration}</Text>
               </View>
             )}
-            {/* ✅ Carga com "kg" */}
             {ex.load ? (
               <View style={s.metaChip}>
                 <Ionicons name="barbell-outline" size={10} color={colors.textSecondary} />
@@ -333,7 +339,6 @@ export function StudentHomeScreen() {
           </View>
         </View>
 
-        {/* ✅ Cronômetro de descanso */}
         {ex.type !== 'cardio' && (
           <RestButton restTime={ex.restTime} enabled={enabled} />
         )}
@@ -367,14 +372,7 @@ export function StudentHomeScreen() {
               <Text style={s.groupBlockLabel}>{groupLabel}</Text>
             </View>
             {groupItems.map((gEx, gi) =>
-              renderExerciseItem(
-                gEx,
-                gEx.id ?? gi,
-                gi,
-                groupItems.length,
-                workout.id,
-                String.fromCharCode(65 + gi),
-              )
+              renderExerciseItem(gEx, gEx.id ?? gi, gi, groupItems.length, workout.id, String.fromCharCode(65 + gi))
             )}
           </View>
         )
@@ -635,6 +633,8 @@ export function StudentHomeScreen() {
           onFinished={() => {
             setSessionModal(false)
             setActiveSessionWorkoutId(null)
+            setActiveSessionId(null)
+            setDoneExercises(new Set())
             loadData()
           }}
         />
@@ -733,12 +733,10 @@ const s = StyleSheet.create({
   exerciseInfo:    { flex: 1 },
   exerciseName:    { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textPrimary },
   exerciseDone:    { textDecorationLine: 'line-through', color: colors.textDisabled },
-
   exerciseMeta:    { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing['1'], marginTop: 2 },
   exerciseMetaText:{ fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
   metaChip:        { flexDirection: 'row', alignItems: 'center', gap: 2 },
 
-  // ✅ Botão descanso
   restBtn:             { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 4, minWidth: 60 },
   restBtnRunning:      { backgroundColor: colors.primary },
   restBtnDisabled:     { backgroundColor: colors.surfaceHigh },
