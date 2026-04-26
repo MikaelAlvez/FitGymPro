@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
 import { useFocusEffect } from '@react-navigation/native'
+import { Audio } from 'expo-av'
 import { useAuth }        from '../../contexts/AuthContext'
 import { apiRequest }     from '../../services/api'
 import { userService }    from '../../services/user.service'
@@ -38,7 +39,6 @@ const DAY_LABELS: Record<string, string> = {
   thursday: 'Qui', friday: 'Sex', saturday: 'Sáb', sunday: 'Dom',
 }
 
-// ✅ Converte "M:SS" para total de segundos
 const restTimeToSeconds = (restTime: string | undefined): number => {
   if (!restTime) return 0
   const parts = restTime.split(':')
@@ -47,11 +47,16 @@ const restTimeToSeconds = (restTime: string | undefined): number => {
   return mins * 60 + secs
 }
 
-// ✅ Formata segundos para MM:SS
 const formatCountdown = (secs: number): string => {
   const m = Math.floor(secs / 60)
   const s = secs % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+// ✅ "20" → "20kg", "20kg" → "20kg", "50%" → "50%"
+const formatLoad = (load: string): string => {
+  if (!load.trim()) return ''
+  return /^\d+(\.\d+)?$/.test(load.trim()) ? `${load.trim()}kg` : load.trim()
 }
 
 function calcIMC(weight: string, height: string): string {
@@ -85,7 +90,7 @@ const FORMAT_LABEL: Record<string, string> = {
   hybrid:     'Híbrido',
 }
 
-// ✅ Componente de botão de descanso com countdown
+// ✅ Componente cronômetro de descanso com som
 function RestButton({
   restTime,
   enabled,
@@ -94,12 +99,29 @@ function RestButton({
   enabled:  boolean
 }) {
   const totalSecs = restTimeToSeconds(restTime)
-  const [countdown,   setCountdown]   = useState(0)
-  const [running,     setRunning]     = useState(false)
+  const [countdown, setCountdown] = useState(0)
+  const [running,   setRunning]   = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Limpa ao desmontar
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current) }, [])
+
+  // ✅ Toca beep ao concluir o descanso
+  const playBeep = async () => {
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true })
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
+        { shouldPlay: true, volume: 1.0 },
+      )
+      sound.setOnPlaybackStatusUpdate(status => {
+        if ('didJustFinish' in status && status.didJustFinish) {
+          sound.unloadAsync()
+        }
+      })
+    } catch {
+      // silencia se não conseguir tocar
+    }
+  }
 
   const start = () => {
     if (!enabled) {
@@ -107,14 +129,17 @@ function RestButton({
       return
     }
     if (totalSecs === 0) return
+
+    // Se já está rodando — cancela
     if (running) {
-      // Cancela
       if (timerRef.current) clearInterval(timerRef.current)
       timerRef.current = null
       setRunning(false)
       setCountdown(0)
       return
     }
+
+    // Inicia
     setCountdown(totalSecs)
     setRunning(true)
     timerRef.current = setInterval(() => {
@@ -123,6 +148,7 @@ function RestButton({
           clearInterval(timerRef.current!)
           timerRef.current = null
           setRunning(false)
+          playBeep() // ✅ beep ao zerar
           return 0
         }
         return prev - 1
@@ -136,8 +162,8 @@ function RestButton({
     <TouchableOpacity
       style={[
         s.restBtn,
-        running    && s.restBtnRunning,
-        !enabled   && s.restBtnDisabled,
+        running  && s.restBtnRunning,
+        !enabled && s.restBtnDisabled,
       ]}
       onPress={start}
       activeOpacity={0.8}
@@ -177,10 +203,7 @@ export function StudentHomeScreen() {
   const [expandedWorkout,setExpandedWorkout]= useState<string | null>(null)
   const [menuVisible,    setMenuVisible]    = useState(false)
   const [workoutModal,   setWorkoutModal]   = useState(false)
-
-  // ✅ Controla se há sessão ativa (para habilitar botão de descanso)
   const [activeSessionWorkoutId, setActiveSessionWorkoutId] = useState<string | null>(null)
-
   const [sessionModal,   setSessionModal]   = useState(false)
   const [sessionWorkout, setSessionWorkout] = useState<{ id: string; name: string } | null>(null)
 
@@ -259,7 +282,7 @@ export function StudentHomeScreen() {
     setMenuVisible(false)
   }
 
-  // ✅ Render de exercício com carga, descanso e botão countdown
+  // ✅ Render de um exercício com carga e botão de descanso
   const renderExerciseItem = (
     ex: Exercise,
     key: string | number,
@@ -286,34 +309,31 @@ export function StudentHomeScreen() {
         {/* Info */}
         <View style={s.exerciseInfo}>
           <Text style={[s.exerciseName, done && s.exerciseDone]}>
-            {labelPrefix ? `${labelPrefix} ` : ''}{ex.name}
+            {labelPrefix ? `${labelPrefix}  ` : ''}{ex.name}
           </Text>
-
           <View style={s.exerciseMeta}>
             {/* Séries × Reps */}
             {ex.type !== 'cardio' && (
-              <Text style={s.exerciseMetaText}>
-                {ex.sets} × {ex.reps}
-              </Text>
+              <Text style={s.exerciseMetaText}>{ex.sets} × {ex.reps}</Text>
             )}
-            {/* Cardio duration */}
+            {/* Cardio */}
             {ex.type === 'cardio' && ex.duration && (
               <View style={s.metaChip}>
                 <Ionicons name="bicycle" size={10} color={colors.info} />
                 <Text style={[s.exerciseMetaText, { color: colors.info }]}>{ex.duration}</Text>
               </View>
             )}
-            {/* ✅ Carga */}
-            {ex.load && (
+            {/* ✅ Carga com "kg" */}
+            {ex.load ? (
               <View style={s.metaChip}>
                 <Ionicons name="barbell-outline" size={10} color={colors.textSecondary} />
-                <Text style={s.exerciseMetaText}>{ex.load}</Text>
+                <Text style={s.exerciseMetaText}>{formatLoad(ex.load)}</Text>
               </View>
-            )}
+            ) : null}
           </View>
         </View>
 
-        {/* ✅ Botão de descanso */}
+        {/* ✅ Cronômetro de descanso */}
         {ex.type !== 'cardio' && (
           <RestButton restTime={ex.restTime} enabled={enabled} />
         )}
@@ -499,7 +519,6 @@ export function StudentHomeScreen() {
               return (
                 <View key={workout.id} style={[s.workoutCard, isOpen && s.workoutCardOpen, isActive && s.workoutCardActive]}>
 
-                  {/* ✅ Badge de treino ativo */}
                   {isActive && (
                     <View style={s.activeBadge}>
                       <View style={s.activeDot} />
@@ -537,7 +556,10 @@ export function StudentHomeScreen() {
                   </View>
 
                   <View style={s.progressBarSm}>
-                    <View style={[s.progressFillSm, { width: `${wProgress * 100}%` as any, backgroundColor: isActive ? colors.success : colors.primary }]} />
+                    <View style={[
+                      s.progressFillSm,
+                      { width: `${wProgress * 100}%` as any, backgroundColor: isActive ? colors.success : colors.primary },
+                    ]} />
                   </View>
 
                   {isOpen && (
@@ -548,7 +570,6 @@ export function StudentHomeScreen() {
                           <Text style={s.notesText}>{workout.notes}</Text>
                         </View>
                       )}
-                      {/* ✅ Legenda descanso */}
                       {!isActive && workout.exercises.some(e => e.restTime) && (
                         <View style={s.restHint}>
                           <Ionicons name="information-circle-outline" size={13} color={colors.textDisabled} />
@@ -695,7 +716,6 @@ const s = StyleSheet.create({
   workoutMeta:       { alignItems: 'flex-end', gap: 4 },
   workoutMetaText:   { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.primary },
 
-  // ✅ Badge em andamento
   activeBadge:     { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: `${colors.success}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2, marginBottom: spacing['1'] },
   activeDot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success },
   activeBadgeText: { fontFamily: typography.family.medium, fontSize: 10, color: colors.success },
@@ -714,20 +734,18 @@ const s = StyleSheet.create({
   exerciseName:    { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textPrimary },
   exerciseDone:    { textDecorationLine: 'line-through', color: colors.textDisabled },
 
-  // ✅ Meta chips (séries, carga)
   exerciseMeta:    { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing['1'], marginTop: 2 },
   exerciseMetaText:{ fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
   metaChip:        { flexDirection: 'row', alignItems: 'center', gap: 2 },
 
-  // ✅ Botão de descanso
-  restBtn:             { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 4, minWidth: 56 },
+  // ✅ Botão descanso
+  restBtn:             { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 4, minWidth: 60 },
   restBtnRunning:      { backgroundColor: colors.primary },
   restBtnDisabled:     { backgroundColor: colors.surfaceHigh },
   restBtnText:         { fontFamily: typography.family.bold, fontSize: 10, color: colors.primary },
   restBtnTextRunning:  { color: colors.white },
   restBtnTextDisabled: { color: colors.textDisabled },
 
-  // ✅ Hint descanso desabilitado
   restHint:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['2'], marginBottom: spacing['2'] },
   restHintText: { fontFamily: typography.family.regular, fontSize: 10, color: colors.textDisabled, flex: 1 },
 
