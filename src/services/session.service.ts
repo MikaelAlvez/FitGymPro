@@ -8,7 +8,9 @@ export interface WorkoutSession {
   finishedAt: string | null
   duration:   number | null
   caption:    string
+  captionEnd: string | null  
   notes:      string | null
+  notesEnd:   string | null  
   location:   string | null
   photoStart: string | null
   photoEnd:   string | null
@@ -26,14 +28,17 @@ export interface CheckinPayload {
 export interface CheckoutPayload {
   caption:   string
   notes?:    string
+  notesEnd?: string  
   location?: string
   photoEnd?: string
 }
 
 export interface UpdateSessionPayload {
-  caption?:  string
-  notes?:    string | null
-  location?: string | null
+  caption?:    string
+  captionEnd?: string | null
+  notes?:      string | null
+  notesEnd?:   string | null  
+  location?:   string | null
 }
 
 export const sessionService = {
@@ -70,20 +75,17 @@ export const sessionService = {
       authenticated: true,
     }),
 
-  // Busca exercícios concluídos de uma sessão
   getExercisesDone: (sessionId: string) =>
     apiRequest<string[]>(`/sessions/${sessionId}/exercises-done`, {
       authenticated: true,
     }),
 
-  // Toggle exercício concluído/não concluído
   toggleExerciseDone: (sessionId: string, exerciseId: string) =>
     apiRequest<{ done: boolean }>(`/sessions/${sessionId}/exercises-done/${exerciseId}`, {
       method:        'POST',
       authenticated: true,
     }),
 
-    // Busca exercícios concluídos do treino hoje (sessão ativa ou finalizada)
   getTodayDone: (workoutId: string) =>
     apiRequest<string[]>(`/sessions/today-done/${workoutId}`, {
       authenticated: true,

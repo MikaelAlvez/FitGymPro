@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Image, ActivityIndicator, RefreshControl, Alert,
   Modal, TextInput, ScrollView, Dimensions, StatusBar,
+  NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -45,12 +46,162 @@ const formatTime = (iso: string) => {
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
+interface SessionCardProps {
+  item:        WorkoutSession
+  onEdit:      (s: WorkoutSession) => void
+  onDelete:    (s: WorkoutSession) => void
+  onOpenPhoto: (url: string, label: string) => void
+}
+
+function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) {
+  const [photoIndex, setPhotoIndex] = useState(0)
+
+  const photoStartUrl = item.photoStart ? `${getBaseUrl()}${item.photoStart}` : null
+  const photoEndUrl   = item.photoEnd   ? `${getBaseUrl()}${item.photoEnd}`   : null
+  const hasPhotos     = !!(photoStartUrl || photoEndUrl)
+  const hasBothPhotos = !!(photoStartUrl && photoEndUrl)
+
+  // Fotos com legenda e observação correspondentes
+  const photos: { url: string; caption: string; notes: string | null; icon: string }[] = []
+  if (photoStartUrl) photos.push({
+    url:     photoStartUrl,
+    caption: item.caption,
+    notes:   item.notes,
+    icon:    'log-in-outline',
+  })
+  if (photoEndUrl) photos.push({
+    url:     photoEndUrl,
+    caption: item.captionEnd ?? item.caption,
+    notes:   item.notesEnd ?? null,
+    icon:    'log-out-outline',
+  })
+
+  // Legenda e observação da foto atual
+  const currentPhoto   = photos[photoIndex]
+  const currentCaption = currentPhoto?.caption ?? item.caption
+  const currentNotes   = currentPhoto?.notes   ?? null
+
+  // onMomentumScrollEnd — dispara após snap completar
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x     = e.nativeEvent.contentOffset.x
+    const index = Math.round(x / PHOTO_WIDTH)
+    setPhotoIndex(Math.min(Math.max(index, 0), photos.length - 1))
+  }
+
+  return (
+    <View style={s.card}>
+
+      {/* ─── Header ─── */}
+      <View style={s.cardHeader}>
+        <View style={s.cardIconBox}>
+          <Ionicons name="barbell" size={18} color={colors.primary} />
+        </View>
+        <View style={s.cardHeaderInfo}>
+          <Text style={s.cardWorkoutName}>{item.workout?.name ?? 'Treino'}</Text>
+          <Text style={s.cardDate}>{formatDate(item.startedAt)}</Text>
+        </View>
+        <View style={s.headerActions}>
+          <View style={s.completedBadge}>
+            <Ionicons name="checkmark-circle" size={13} color={colors.success} />
+            <Text style={s.completedBadgeText}>Concluído</Text>
+          </View>
+          <TouchableOpacity style={s.actionBtn} onPress={() => onEdit(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="pencil-outline" size={16} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.actionBtn} onPress={() => onDelete(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="trash-outline" size={16} color={colors.error} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Fotos em carrossel */}
+      {hasPhotos && (
+        <View style={s.photosContainer}>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+            snapToInterval={PHOTO_WIDTH + spacing['2']}
+            contentContainerStyle={s.photosScroll}
+            onMomentumScrollEnd={handleScroll}
+          >
+            {photos.map((p, i) => (
+              <TouchableOpacity
+                key={i}
+                style={s.photoBox}
+                activeOpacity={0.92}
+                onPress={() => onOpenPhoto(p.url, p.caption)}
+              >
+                <Image source={{ uri: p.url }} style={s.photo} />
+                {/* Label = legenda da foto */}
+                <View style={s.photoLabel}>
+                  <Ionicons name={p.icon as any} size={12} color={colors.white} />
+                  <Text style={s.photoLabelText} numberOfLines={1}>{p.caption}</Text>
+                </View>
+                <View style={s.photoZoomIcon}>
+                  <Ionicons name="expand-outline" size={16} color={colors.white} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Dots — indica foto atual */}
+          {hasBothPhotos && (
+            <View style={s.dotsRow}>
+              {photos.map((_, i) => (
+                <View key={i} style={[s.dot, i === photoIndex && s.dotActive]} />
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Observação muda conforme foto visível */}
+      {currentNotes && (
+        <View style={s.notesBox}>
+          <Ionicons name="chatbubble-outline" size={13} color={colors.textSecondary} />
+          <Text style={s.notesText}>{currentNotes}</Text>
+        </View>
+      )}
+
+      {/* ─── Stats ─── */}
+      <View style={s.statsRow}>
+        <View style={s.statItem}>
+          <Ionicons name="time-outline" size={14} color={colors.primary} />
+          <Text style={s.statValue}>{item.duration ? formatDuration(item.duration) : '—'}</Text>
+          <Text style={s.statLabel}>Duração</Text>
+        </View>
+        <View style={s.statDivider} />
+        <View style={s.statItem}>
+          <Ionicons name="log-in-outline" size={14} color={colors.success} />
+          <Text style={s.statValue}>{formatTime(item.startedAt)}</Text>
+          <Text style={s.statLabel}>Check-in</Text>
+        </View>
+        <View style={s.statDivider} />
+        <View style={s.statItem}>
+          <Ionicons name="log-out-outline" size={14} color={colors.error} />
+          <Text style={s.statValue}>{item.finishedAt ? formatTime(item.finishedAt) : '—'}</Text>
+          <Text style={s.statLabel}>Check-out</Text>
+        </View>
+      </View>
+
+      {/* ─── Localização ─── */}
+      {item.location && (
+        <View style={s.locationRow}>
+          <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
+          <Text style={s.locationText} numberOfLines={1}>{item.location}</Text>
+        </View>
+      )}
+    </View>
+  )
+}
+
 export function StudentFeedScreen() {
   const [sessions,    setSessions]    = useState<WorkoutSession[]>([])
   const [loading,     setLoading]     = useState(true)
   const [refreshing,  setRefreshing]  = useState(false)
 
-  // ─── Modal edição ─────────────────────────
   const [editModal,    setEditModal]    = useState(false)
   const [editing,      setEditing]      = useState<WorkoutSession | null>(null)
   const [editCaption,  setEditCaption]  = useState('')
@@ -58,7 +209,6 @@ export function StudentFeedScreen() {
   const [editLocation, setEditLocation] = useState('')
   const [saving,       setSaving]       = useState(false)
 
-  // Modal visualização de foto em tela cheia
   const [photoModal,    setPhotoModal]    = useState(false)
   const [photoFullUrl,  setPhotoFullUrl]  = useState<string | null>(null)
   const [photoFullLabel,setPhotoFullLabel]= useState('')
@@ -132,136 +282,6 @@ export function StudentFeedScreen() {
     )
   }
 
-  const renderSession = ({ item }: { item: WorkoutSession }) => {
-    const photoStartUrl = item.photoStart ? `${getBaseUrl()}${item.photoStart}` : null
-    const photoEndUrl   = item.photoEnd   ? `${getBaseUrl()}${item.photoEnd}`   : null
-    const hasPhotos     = !!(photoStartUrl || photoEndUrl)
-    const hasBothPhotos = !!(photoStartUrl && photoEndUrl)
-
-    return (
-      <View style={s.card}>
-
-        {/* ─── Header ─── */}
-        <View style={s.cardHeader}>
-          <View style={s.cardIconBox}>
-            <Ionicons name="barbell" size={18} color={colors.primary} />
-          </View>
-          <View style={s.cardHeaderInfo}>
-            <Text style={s.cardWorkoutName}>{item.workout?.name ?? 'Treino'}</Text>
-            <Text style={s.cardDate}>{formatDate(item.startedAt)}</Text>
-          </View>
-          <View style={s.headerActions}>
-            <View style={s.completedBadge}>
-              <Ionicons name="checkmark-circle" size={13} color={colors.success} />
-              <Text style={s.completedBadgeText}>Concluído</Text>
-            </View>
-            <TouchableOpacity style={s.actionBtn} onPress={() => openEditModal(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="pencil-outline" size={16} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={s.actionBtn} onPress={() => handleDelete(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="trash-outline" size={16} color={colors.error} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Fotos em carrossel horizontal — clicável */}
-        {hasPhotos && (
-          <View style={s.photosContainer}>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              decelerationRate="fast"
-              snapToInterval={PHOTO_WIDTH + spacing['2']}
-              contentContainerStyle={s.photosScroll}
-            >
-              {photoStartUrl && (
-                <TouchableOpacity
-                  style={s.photoBox}
-                  activeOpacity={0.92}
-                  onPress={() => openPhoto(photoStartUrl, 'Foto de Início')}
-                >
-                  <Image source={{ uri: photoStartUrl }} style={s.photo} />
-                  <View style={s.photoLabel}>
-                    <Ionicons name="log-in-outline" size={12} color={colors.white} />
-                    <Text style={s.photoLabelText}>Início</Text>
-                  </View>
-                  {/* Ícone de lupa indica que é clicável */}
-                  <View style={s.photoZoomIcon}>
-                    <Ionicons name="expand-outline" size={16} color={colors.white} />
-                  </View>
-                </TouchableOpacity>
-              )}
-              {photoEndUrl && (
-                <TouchableOpacity
-                  style={s.photoBox}
-                  activeOpacity={0.92}
-                  onPress={() => openPhoto(photoEndUrl, 'Foto de Fim')}
-                >
-                  <Image source={{ uri: photoEndUrl }} style={s.photo} />
-                  <View style={s.photoLabel}>
-                    <Ionicons name="log-out-outline" size={12} color={colors.white} />
-                    <Text style={s.photoLabelText}>Fim</Text>
-                  </View>
-                  <View style={s.photoZoomIcon}>
-                    <Ionicons name="expand-outline" size={16} color={colors.white} />
-                  </View>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
-
-            {hasBothPhotos && (
-              <View style={s.dotsRow}>
-                <View style={[s.dot, s.dotActive]} />
-                <View style={s.dot} />
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ─── Legenda ─── */}
-        <Text style={s.caption}>{item.caption}</Text>
-
-        {/* ─── Observação ─── */}
-        {item.notes && (
-          <View style={s.notesBox}>
-            <Ionicons name="chatbubble-outline" size={13} color={colors.textSecondary} />
-            <Text style={s.notesText}>{item.notes}</Text>
-          </View>
-        )}
-
-        {/* ─── Stats ─── */}
-        <View style={s.statsRow}>
-          <View style={s.statItem}>
-            <Ionicons name="time-outline" size={14} color={colors.primary} />
-            <Text style={s.statValue}>{item.duration ? formatDuration(item.duration) : '—'}</Text>
-            <Text style={s.statLabel}>Duração</Text>
-          </View>
-          <View style={s.statDivider} />
-          <View style={s.statItem}>
-            <Ionicons name="log-in-outline" size={14} color={colors.success} />
-            <Text style={s.statValue}>{formatTime(item.startedAt)}</Text>
-            <Text style={s.statLabel}>Check-in</Text>
-          </View>
-          <View style={s.statDivider} />
-          <View style={s.statItem}>
-            <Ionicons name="log-out-outline" size={14} color={colors.error} />
-            <Text style={s.statValue}>{item.finishedAt ? formatTime(item.finishedAt) : '—'}</Text>
-            <Text style={s.statLabel}>Check-out</Text>
-          </View>
-        </View>
-
-        {/* ─── Localização ─── */}
-        {item.location && (
-          <View style={s.locationRow}>
-            <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
-            <Text style={s.locationText} numberOfLines={1}>{item.location}</Text>
-          </View>
-        )}
-      </View>
-    )
-  }
-
   return (
     <SafeAreaView style={s.safe}>
 
@@ -278,7 +298,14 @@ export function StudentFeedScreen() {
         <FlatList
           data={sessions}
           keyExtractor={i => i.id}
-          renderItem={renderSession}
+          renderItem={({ item }) => (
+            <SessionCard
+              item={item}
+              onEdit={openEditModal}
+              onDelete={handleDelete}
+              onOpenPhoto={openPhoto}
+            />
+          )}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -308,27 +335,17 @@ export function StudentFeedScreen() {
       >
         <View style={s.photoModalBg}>
           <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
-
-          {/* Botão fechar */}
           <TouchableOpacity style={s.photoModalClose} onPress={() => setPhotoModal(false)}>
             <Ionicons name="close-circle" size={36} color={colors.white} />
           </TouchableOpacity>
-
-          {/* Label */}
           <Text style={s.photoModalLabel}>{photoFullLabel}</Text>
-
-          {/* Foto */}
           {photoFullUrl && (
-            <Image
-              source={{ uri: photoFullUrl }}
-              style={s.photoModalImage}
-              resizeMode="contain"
-            />
+            <Image source={{ uri: photoFullUrl }} style={s.photoModalImage} resizeMode="contain" />
           )}
         </View>
       </Modal>
 
-      {/* ─── Modal edição ─── */}
+      {/* Modal edição */}
       <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setEditModal(false)} />
         <View style={s.sheet}>
@@ -384,22 +401,20 @@ const s = StyleSheet.create({
   completedBadgeText: { fontFamily: typography.family.medium, fontSize: 10, color: colors.success },
   actionBtn:          { width: 30, height: 30, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
 
-  // Fotos carrossel
   photosContainer: { gap: spacing['2'] },
   photosScroll:    { gap: spacing['2'] },
   photoBox:        { width: PHOTO_WIDTH, borderRadius: radii.lg, overflow: 'hidden', marginRight: spacing['2'] },
   photo:           { width: '100%', height: 200, resizeMode: 'cover' },
-  photoLabel:      { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.5)', paddingVertical: spacing['2'], paddingHorizontal: spacing['3'], flexDirection: 'row', alignItems: 'center', gap: 4 },
-  photoLabelText:  { fontFamily: typography.family.medium, fontSize: 12, color: colors.white },
+  photoLabel:      { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.55)', paddingVertical: spacing['2'], paddingHorizontal: spacing['3'], flexDirection: 'row', alignItems: 'center', gap: 4 },
+  photoLabelText:  { fontFamily: typography.family.medium, fontSize: 12, color: colors.white, flex: 1 },
   photoZoomIcon:   { position: 'absolute', top: spacing['2'], right: spacing['2'], backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: radii.full, padding: 4 },
   dotsRow:         { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing['1'] },
   dot:             { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.border },
   dotActive:       { width: 18, height: 6, borderRadius: 3, backgroundColor: colors.primary },
 
-  // Modal foto tela cheia
   photoModalBg:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
   photoModalClose: { position: 'absolute', top: 48, right: spacing['4'], zIndex: 10 },
-  photoModalLabel: { position: 'absolute', top: 56, left: 0, right: 0, textAlign: 'center', fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.white, zIndex: 10 },
+  photoModalLabel: { position: 'absolute', top: 56, left: 0, right: 0, textAlign: 'center', fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.white, zIndex: 10, paddingHorizontal: spacing['10'] },
   photoModalImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.75 },
 
   caption:   { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },

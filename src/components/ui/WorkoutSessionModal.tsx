@@ -12,7 +12,6 @@ import { uploadSessionPhoto } from '../../services/upload.service'
 import type { WorkoutSession } from '../../services/session.service'
 import { colors, typography, spacing, radii } from '../../theme'
 
-// ✅ Detecta Expo Go — se true, notificações são desabilitadas completamente
 const isExpoGo = Constants.appOwnership === 'expo'
 
 interface Props {
@@ -41,6 +40,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
   const [uploading,  setUploading]  = useState(false)
   const [caption,    setCaption]    = useState('')
   const [notes,      setNotes]      = useState('')
+  const [notesEnd,   setNotesEnd]   = useState('')  
   const [location,   setLocation]   = useState('')
   const [photoUri,   setPhotoUri]   = useState<string | null>(null)
   const [loadingLoc, setLoadingLoc] = useState(false)
@@ -80,7 +80,6 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
     timerRef.current = setInterval(() => {
       setElapsed(prev => {
         const next = prev + 1
-        // ✅ só atualiza notificação se não for Expo Go
         if (!isExpoGo) updateNotification(next)
         return next
       })
@@ -92,7 +91,6 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
     cancelNotification()
   }
 
-  // ✅ Import dinâmico — só carrega expo-notifications em builds nativos
   const scheduleNotification = async () => {
     if (isExpoGo) return
     try {
@@ -100,17 +98,11 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
       const { status } = await Notifications.requestPermissionsAsync()
       if (status !== 'granted') return
       const id = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: `🏋️ ${workoutName}`,
-          body:  'Treino em andamento — 00:00',
-          data:  { type: 'workout_session' },
-        },
+        content: { title: `🏋️ ${workoutName}`, body: 'Treino em andamento — 00:00', data: { type: 'workout_session' } },
         trigger: null,
       })
       notifIdRef.current = id
-    } catch {
-      // silencia
-    }
+    } catch { /* silencia */ }
   }
 
   const updateNotification = async (seconds: number) => {
@@ -119,16 +111,10 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
       const Notifications = await import('expo-notifications')
       await Notifications.scheduleNotificationAsync({
         identifier: notifIdRef.current,
-        content: {
-          title: `🏋️ ${workoutName}`,
-          body:  `Treino em andamento — ${formatTime(seconds)}`,
-          data:  { type: 'workout_session' },
-        },
+        content: { title: `🏋️ ${workoutName}`, body: `Treino em andamento — ${formatTime(seconds)}`, data: { type: 'workout_session' } },
         trigger: null,
       })
-    } catch {
-      // silencia
-    }
+    } catch { /* silencia */ }
   }
 
   const cancelNotification = async () => {
@@ -137,46 +123,30 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
       const Notifications = await import('expo-notifications')
       await Notifications.dismissNotificationAsync(notifIdRef.current)
       notifIdRef.current = null
-    } catch {
-      // silencia
-    }
+    } catch { /* silencia */ }
   }
 
   const resetForm = () => {
-    setCaption(''); setNotes(''); setLocation(''); setPhotoUri(null)
+    setCaption(''); setNotes(''); setNotesEnd(''); setLocation(''); setPhotoUri(null)
   }
 
   const handlePickPhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
-    if (status !== 'granted') {
-      Alert.alert('Permissão negada', 'Habilite a câmera nas configurações.')
-      return
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality:    0.7,
-    })
-    if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri)
-    }
+    if (status !== 'granted') { Alert.alert('Permissão negada', 'Habilite a câmera nas configurações.'); return }
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 })
+    if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri)
   }
 
   const handleGetLocation = async () => {
     try {
       setLoadingLoc(true)
       const { status } = await Location.requestForegroundPermissionsAsync()
-      if (status !== 'granted') {
-        Alert.alert('Permissão negada', 'Habilite a localização nas configurações.')
-        return
-      }
+      if (status !== 'granted') { Alert.alert('Permissão negada', 'Habilite a localização nas configurações.'); return }
       const loc    = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
       const [addr] = await Location.reverseGeocodeAsync(loc.coords)
       setLocation([addr.street, addr.district, addr.city, addr.region].filter(Boolean).join(', '))
-    } catch {
-      Alert.alert('Erro', 'Não foi possível obter a localização.')
-    } finally {
-      setLoadingLoc(false)
-    }
+    } catch { Alert.alert('Erro', 'Não foi possível obter a localização.') }
+    finally { setLoadingLoc(false) }
   }
 
   const handleCheckin = async () => {
@@ -184,11 +154,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
     try {
       setLoading(true)
       let photoUrl: string | undefined
-      if (photoUri) {
-        setUploading(true)
-        photoUrl = await uploadSessionPhoto(photoUri)
-        setUploading(false)
-      }
+      if (photoUri) { setUploading(true); photoUrl = await uploadSessionPhoto(photoUri); setUploading(false) }
       const s = await sessionService.checkin({
         workoutId,
         caption:    caption.trim(),
@@ -204,9 +170,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
     } catch (err: any) {
       setUploading(false)
       Alert.alert('Erro', err?.message ?? 'Não foi possível iniciar o treino.')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   const handleCheckout = async () => {
@@ -215,14 +179,11 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
     try {
       setLoading(true)
       let photoUrl: string | undefined
-      if (photoUri) {
-        setUploading(true)
-        photoUrl = await uploadSessionPhoto(photoUri)
-        setUploading(false)
-      }
+      if (photoUri) { setUploading(true); photoUrl = await uploadSessionPhoto(photoUri); setUploading(false) }
       await sessionService.checkout(session.id, {
         caption:  caption.trim(),
         notes:    notes.trim() || undefined,
+        notesEnd: notesEnd.trim() || undefined, 
         location: location || undefined,
         photoEnd: photoUrl,
       })
@@ -232,21 +193,15 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
     } catch (err: any) {
       setUploading(false)
       Alert.alert('Erro', err?.message ?? 'Não foi possível finalizar o treino.')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   const handleClose = () => {
     if (phase === 'running') {
-      Alert.alert(
-        'Treino em andamento',
-        'Deseja sair? O cronômetro continuará rodando.',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Sair', onPress: onClose },
-        ],
-      )
+      Alert.alert('Treino em andamento', 'Deseja sair? O cronômetro continuará rodando.', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair', onPress: onClose },
+      ])
       return
     }
     onClose()
@@ -269,6 +224,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
 
         <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
+          {/* ─── Fase running ─── */}
           {phase === 'running' && (
             <View style={s.timerSection}>
               <View style={s.timerCard}>
@@ -276,19 +232,17 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 <Text style={s.timerText}>{formatTime(elapsed)}</Text>
                 <Text style={s.timerLabel}>{workoutName}</Text>
               </View>
-              <TouchableOpacity
-                style={s.checkoutBtn}
-                onPress={() => { setPhase('checkout'); resetForm() }}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={s.checkoutBtn} onPress={() => { setPhase('checkout'); resetForm() }} activeOpacity={0.8}>
                 <Ionicons name="checkmark-done-circle" size={20} color={colors.white} />
                 <Text style={s.checkoutBtnText}>Finalizar Treino</Text>
               </TouchableOpacity>
             </View>
           )}
 
+          {/* ─── Fases checkin / checkout ─── */}
           {phase !== 'running' && (
             <>
+              {/* Foto */}
               <TouchableOpacity style={s.photoBtn} onPress={handlePickPhoto} activeOpacity={0.8}>
                 {photoUri ? (
                   <Image source={{ uri: photoUri }} style={s.photoPreview} />
@@ -309,6 +263,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 </View>
               )}
 
+              {/* Legenda */}
               <View style={s.inputGroup}>
                 <Text style={s.inputLabel}>Legenda *</Text>
                 <TextInput
@@ -322,8 +277,11 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 <Text style={s.charCount}>{caption.length}/150</Text>
               </View>
 
+              {/* Observação de início */}
               <View style={s.inputGroup}>
-                <Text style={s.inputLabel}>Observação (opcional)</Text>
+                <Text style={s.inputLabel}>
+                  {phase === 'checkin' ? 'Observação (opcional)' : 'Observação de início (opcional)'}
+                </Text>
                 <TextInput
                   style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
                   value={notes}
@@ -335,6 +293,23 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 />
               </View>
 
+              {/* ✅ Observação de fim — apenas no checkout */}
+              {phase === 'checkout' && (
+                <View style={s.inputGroup}>
+                  <Text style={s.inputLabel}>Observação final (opcional)</Text>
+                  <TextInput
+                    style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
+                    value={notesEnd}
+                    onChangeText={setNotesEnd}
+                    placeholder="Ex: Senti bem os músculos, ótimo treino!"
+                    placeholderTextColor={colors.textDisabled}
+                    multiline
+                    maxLength={300}
+                  />
+                </View>
+              )}
+
+              {/* Localização */}
               <View style={s.inputGroup}>
                 <Text style={s.inputLabel}>Localização (opcional)</Text>
                 <View style={s.locationRow}>
@@ -354,6 +329,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 </View>
               </View>
 
+              {/* Botão ação */}
               <TouchableOpacity
                 style={[phase === 'checkin' ? s.startBtn : s.finishBtn, isProcessing && { opacity: 0.6 }]}
                 onPress={phase === 'checkin' ? handleCheckin : handleCheckout}
@@ -364,14 +340,8 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                   <ActivityIndicator color={colors.white} />
                 ) : (
                   <>
-                    <Ionicons
-                      name={phase === 'checkin' ? 'play-circle' : 'checkmark-done-circle'}
-                      size={20}
-                      color={colors.white}
-                    />
-                    <Text style={s.actionBtnText}>
-                      {phase === 'checkin' ? 'Iniciar Treino' : 'Concluir Treino'}
-                    </Text>
+                    <Ionicons name={phase === 'checkin' ? 'play-circle' : 'checkmark-done-circle'} size={20} color={colors.white} />
+                    <Text style={s.actionBtnText}>{phase === 'checkin' ? 'Iniciar Treino' : 'Concluir Treino'}</Text>
                   </>
                 )}
               </TouchableOpacity>
