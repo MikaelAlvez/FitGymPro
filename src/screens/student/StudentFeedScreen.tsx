@@ -61,7 +61,6 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
   const hasPhotos     = !!(photoStartUrl || photoEndUrl)
   const hasBothPhotos = !!(photoStartUrl && photoEndUrl)
 
-  // Fotos com legenda e observação correspondentes
   const photos: { url: string; caption: string; notes: string | null; icon: string }[] = []
   if (photoStartUrl) photos.push({
     url:     photoStartUrl,
@@ -76,12 +75,10 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
     icon:    'log-out-outline',
   })
 
-  // Legenda e observação da foto atual
   const currentPhoto   = photos[photoIndex]
   const currentCaption = currentPhoto?.caption ?? item.caption
   const currentNotes   = currentPhoto?.notes   ?? null
 
-  // onMomentumScrollEnd — dispara após snap completar
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x     = e.nativeEvent.contentOffset.x
     const index = Math.round(x / PHOTO_WIDTH)
@@ -114,7 +111,7 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
         </View>
       </View>
 
-      {/* Fotos em carrossel */}
+      {/* ─── Fotos carrossel ─── */}
       {hasPhotos && (
         <View style={s.photosContainer}>
           <ScrollView
@@ -134,7 +131,6 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
                 onPress={() => onOpenPhoto(p.url, p.caption)}
               >
                 <Image source={{ uri: p.url }} style={s.photo} />
-                {/* Label = legenda da foto */}
                 <View style={s.photoLabel}>
                   <Ionicons name={p.icon as any} size={12} color={colors.white} />
                   <Text style={s.photoLabelText} numberOfLines={1}>{p.caption}</Text>
@@ -146,7 +142,6 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
             ))}
           </ScrollView>
 
-          {/* Dots — indica foto atual */}
           {hasBothPhotos && (
             <View style={s.dotsRow}>
               {photos.map((_, i) => (
@@ -157,7 +152,10 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
         </View>
       )}
 
-      {/* Observação muda conforme foto visível */}
+      {/* Legenda dinâmica */}
+      <Text style={s.caption}>{currentCaption}</Text>
+
+      {/* Observação dinâmica */}
       {currentNotes && (
         <View style={s.notesBox}>
           <Ionicons name="chatbubble-outline" size={13} color={colors.textSecondary} />
@@ -202,12 +200,14 @@ export function StudentFeedScreen() {
   const [loading,     setLoading]     = useState(true)
   const [refreshing,  setRefreshing]  = useState(false)
 
-  const [editModal,    setEditModal]    = useState(false)
-  const [editing,      setEditing]      = useState<WorkoutSession | null>(null)
-  const [editCaption,  setEditCaption]  = useState('')
-  const [editNotes,    setEditNotes]    = useState('')
-  const [editLocation, setEditLocation] = useState('')
-  const [saving,       setSaving]       = useState(false)
+  const [editModal,     setEditModal]     = useState(false)
+  const [editing,       setEditing]       = useState<WorkoutSession | null>(null)
+  const [editCaption,   setEditCaption]   = useState('')
+  const [editNotes,     setEditNotes]     = useState('')
+  const [editCaptionEnd,setEditCaptionEnd]= useState('')
+  const [editNotesEnd,  setEditNotesEnd]  = useState('')
+  const [editLocation,  setEditLocation]  = useState('')
+  const [saving,        setSaving]        = useState(false)
 
   const [photoModal,    setPhotoModal]    = useState(false)
   const [photoFullUrl,  setPhotoFullUrl]  = useState<string | null>(null)
@@ -238,19 +238,23 @@ export function StudentFeedScreen() {
     setEditing(session)
     setEditCaption(session.caption)
     setEditNotes(session.notes ?? '')
+    setEditCaptionEnd(session.captionEnd ?? '')
+    setEditNotesEnd(session.notesEnd ?? '')
     setEditLocation(session.location ?? '')
     setEditModal(true)
   }
 
   const handleSave = async () => {
     if (!editing) return
-    if (!editCaption.trim()) { Alert.alert('Atenção', 'A legenda é obrigatória.'); return }
+    if (!editCaption.trim()) { Alert.alert('Atenção', 'A legenda de início é obrigatória.'); return }
     try {
       setSaving(true)
       await sessionService.update(editing.id, {
-        caption:  editCaption.trim(),
-        notes:    editNotes.trim() || null,
-        location: editLocation.trim() || null,
+        caption:    editCaption.trim(),
+        captionEnd: editCaptionEnd.trim() || null,
+        notes:      editNotes.trim() || null,
+        notesEnd:   editNotesEnd.trim() || null,
+        location:   editLocation.trim() || null,
       })
       setEditModal(false)
       load(true)
@@ -325,7 +329,7 @@ export function StudentFeedScreen() {
         />
       )}
 
-      {/* Modal foto em tela cheia */}
+      {/* ─── Modal foto tela cheia ─── */}
       <Modal
         visible={photoModal}
         transparent
@@ -345,7 +349,7 @@ export function StudentFeedScreen() {
         </View>
       </Modal>
 
-      {/* Modal edição */}
+      {/* ─── Modal edição ─── */}
       <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setEditModal(false)} />
         <View style={s.sheet}>
@@ -355,24 +359,102 @@ export function StudentFeedScreen() {
               <Ionicons name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          <View style={s.sheetBody}>
+
+          <ScrollView contentContainerStyle={s.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+            {/* Seção Check-in */}
+            <View style={s.editSectionHeader}>
+              <Ionicons name="log-in-outline" size={15} color={colors.success} />
+              <Text style={s.editSectionTitle}>Check-in</Text>
+            </View>
+
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Legenda *</Text>
-              <TextInput style={s.input} value={editCaption} onChangeText={setEditCaption} placeholder="Ex: Treino incrível hoje! 💪" placeholderTextColor={colors.textDisabled} maxLength={150} />
+              <TextInput
+                style={s.input}
+                value={editCaption}
+                onChangeText={setEditCaption}
+                placeholder="Ex: Dia de peito e tríceps 💪"
+                placeholderTextColor={colors.textDisabled}
+                maxLength={150}
+              />
               <Text style={s.charCount}>{editCaption.length}/150</Text>
             </View>
+
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Observação (opcional)</Text>
-              <TextInput style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]} value={editNotes} onChangeText={setEditNotes} placeholder="Ex: Aumentei a carga no supino..." placeholderTextColor={colors.textDisabled} multiline maxLength={300} />
+              <TextInput
+                style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
+                value={editNotes}
+                onChangeText={setEditNotes}
+                placeholder="Ex: Aumentei a carga no supino..."
+                placeholderTextColor={colors.textDisabled}
+                multiline
+                maxLength={300}
+              />
             </View>
+
+            {/* Seção Check-out — só se sessão finalizada */}
+            {editing?.finishedAt && (
+              <>
+                <View style={s.editSectionHeader}>
+                  <Ionicons name="log-out-outline" size={15} color={colors.error} />
+                  <Text style={s.editSectionTitle}>Check-out</Text>
+                </View>
+
+                <View style={s.inputGroup}>
+                  <Text style={s.inputLabel}>Legenda</Text>
+                  <TextInput
+                    style={s.input}
+                    value={editCaptionEnd}
+                    onChangeText={setEditCaptionEnd}
+                    placeholder="Ex: Treino concluído! 🔥"
+                    placeholderTextColor={colors.textDisabled}
+                    maxLength={150}
+                  />
+                  <Text style={s.charCount}>{editCaptionEnd.length}/150</Text>
+                </View>
+
+                <View style={s.inputGroup}>
+                  <Text style={s.inputLabel}>Observação (opcional)</Text>
+                  <TextInput
+                    style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
+                    value={editNotesEnd}
+                    onChangeText={setEditNotesEnd}
+                    placeholder="Ex: Senti bem os músculos, ótimo treino!"
+                    placeholderTextColor={colors.textDisabled}
+                    multiline
+                    maxLength={300}
+                  />
+                </View>
+              </>
+            )}
+
+            {/* Localização */}
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Localização (opcional)</Text>
-              <TextInput style={s.input} value={editLocation} onChangeText={setEditLocation} placeholder="Ex: Academia FitGym..." placeholderTextColor={colors.textDisabled} />
+              <TextInput
+                style={s.input}
+                value={editLocation}
+                onChangeText={setEditLocation}
+                placeholder="Ex: Academia FitGym..."
+                placeholderTextColor={colors.textDisabled}
+              />
             </View>
-            <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.8}>
-              {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>Salvar alterações</Text>}
+
+            <TouchableOpacity
+              style={[s.saveBtn, saving && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={saving}
+              activeOpacity={0.8}
+            >
+              {saving
+                ? <ActivityIndicator color={colors.white} />
+                : <Text style={s.saveBtnText}>Salvar alterações</Text>
+              }
             </TouchableOpacity>
-          </View>
+
+          </ScrollView>
         </View>
       </Modal>
 
@@ -435,10 +517,14 @@ const s = StyleSheet.create({
   emptyText:  { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled, textAlign: 'center' },
 
   overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '80%' },
+  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '85%' },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
   sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
-  sheetBody:   { padding: spacing['6'], gap: spacing['4'] },
+  sheetBody:   { padding: spacing['6'], gap: spacing['4'], paddingBottom: spacing['10'] },
+
+  editSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], paddingBottom: spacing['1'], borderBottomWidth: 1, borderBottomColor: colors.border },
+  editSectionTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.textPrimary },
+
   inputGroup:  { gap: spacing['1'] },
   inputLabel:  { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
   input:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
