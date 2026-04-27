@@ -1,13 +1,14 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, TextInput, ActivityIndicator, RefreshControl,
+  Image, TextInput, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import Constants from 'expo-constants'
 import { apiRequest } from '../../services/api'
+import { userService } from '../../services/user.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
 const getBaseUrl = () => {
@@ -19,12 +20,13 @@ const getBaseUrl = () => {
 }
 
 interface Student {
-  id:     string
-  name:   string
-  avatar: string | null
-  active: boolean
-  city:   string | null
-  state:  string | null
+  id:       string
+  name:     string
+  avatar:   string | null
+  active:   boolean
+  userCode?: string
+  city:     string | null
+  state:    string | null
   studentProfile: {
     goal:       string
     experience: string
@@ -45,15 +47,23 @@ const STATUS_FILTERS = [
   { key: 'inactive', label: 'Inativos' },
 ]
 
+// Detecta padrão de código
+const isUserCode = (text: string) => /^[A-Z]{2,3}-[A-Z0-9]{4,6}$/i.test(text.trim())
+
 export function StudentsScreen() {
   const navigation = useNavigation<any>()
 
-  const [students,      setStudents]      = useState<Student[]>([])
-  const [filtered,      setFiltered]      = useState<Student[]>([])
-  const [loading,       setLoading]       = useState(true)
-  const [refreshing,    setRefreshing]    = useState(false)
-  const [search,        setSearch]        = useState('')
-  const [statusFilter,  setStatusFilter]  = useState('all')
+  const [students,     setStudents]     = useState<Student[]>([])
+  const [filtered,     setFiltered]     = useState<Student[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [refreshing,   setRefreshing]   = useState(false)
+  const [search,       setSearch]       = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  // Estados para busca por código
+  const [codeResult,    setCodeResult]    = useState<Student | null>(null)
+  const [searchingCode, setSearchingCode] = useState(false)
+  const [isCodeSearch,  setIsCodeSearch]  = useState(false)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -68,21 +78,12 @@ export function StudentsScreen() {
     }
   }, [])
 
-  useFocusEffect(
-    useCallback(() => { load() }, [load]),
-  )
+  useFocusEffect(useCallback(() => { load() }, [load]))
 
-  // Filtro combinado: busca + status
-  const applyFilters = useCallback((
-    list: Student[],
-    q: string,
-    status: string,
-  ) => {
+  const applyFilters = useCallback((list: Student[], q: string, status: string) => {
     let result = list
-
     if (status === 'active')   result = result.filter(s => s.active)
     if (status === 'inactive') result = result.filter(s => !s.active)
-
     if (q.trim()) {
       const lower = q.toLowerCase()
       result = result.filter(s =>
@@ -92,27 +93,73 @@ export function StudentsScreen() {
         s.studentProfile?.goal?.toLowerCase().includes(lower)
       )
     }
-
     setFiltered(result)
   }, [])
 
-  const handleSearch = (v: string) => {
+  useEffect(() => {
+    if (!isCodeSearch) applyFilters(students, search, statusFilter)
+  }, [students, isCodeSearch])
+
+  // Busca combinada — local ou por código
+  const handleSearch = async (v: string) => {
     setSearch(v)
-    applyFilters(students, v, statusFilter)
+    setCodeResult(null)
+
+    if (isUserCode(v)) {
+      setIsCodeSearch(true)
+      setSearchingCode(true)
+      try {
+        const result = await userService.searchByCode(v.trim().toUpperCase())
+        if (result.role !== 'STUDENT') {
+          Alert.alert('Atenção', 'Esse código pertence a um personal, não a um aluno.')
+          setIsCodeSearch(false)
+          return
+        }
+        // Verifica se já é aluno vinculado
+        const alreadyLinked = students.find(s => s.id === result.id)
+        if (alreadyLinked) {
+          setCodeResult(alreadyLinked)
+        } else {
+          setCodeResult({
+            id:             result.id,
+            name:           result.name,
+            avatar:         result.avatar,
+            active:         true,
+            userCode:       result.userCode,
+            city:           result.city,
+            state:          result.state,
+            studentProfile: result.studentProfile
+              ? { goal: result.studentProfile.goal, experience: result.studentProfile.experience, weight: '', height: '' }
+              : null,
+          })
+        }
+      } catch {
+        Alert.alert('Não encontrado', 'Nenhum aluno com esse código.')
+        setIsCodeSearch(false)
+      } finally {
+        setSearchingCode(false)
+      }
+    } else {
+      setIsCodeSearch(false)
+      applyFilters(students, v, statusFilter)
+    }
   }
 
   const handleStatusFilter = (key: string) => {
     setStatusFilter(key)
-    applyFilters(students, search, key)
+    if (!isCodeSearch) applyFilters(students, search, key)
   }
 
-  // Atualiza filtered quando students muda (após load)
-  React.useEffect(() => {
-    applyFilters(students, search, statusFilter)
-  }, [students])
+  const clearSearch = () => {
+    setSearch('')
+    setCodeResult(null)
+    setIsCodeSearch(false)
+    applyFilters(students, '', statusFilter)
+  }
 
   const activeCount   = students.filter(s => s.active).length
   const inactiveCount = students.filter(s => !s.active).length
+  const displayList   = isCodeSearch ? (codeResult ? [codeResult] : []) : filtered
 
   const renderStudent = ({ item }: { item: Student }) => {
     const avatarUrl  = item.avatar ? `${getBaseUrl()}${item.avatar}` : null
@@ -120,14 +167,17 @@ export function StudentsScreen() {
     const experience = item.studentProfile?.experience
       ? EXPERIENCE_LABEL[item.studentProfile.experience] ?? item.studentProfile.experience
       : null
+    const isLinked = students.some(s => s.id === item.id)
 
     return (
       <TouchableOpacity
         style={[s.card, !item.active && s.cardInactive]}
-        onPress={() => navigation.navigate('StudentDetail', { student: item })}
+        onPress={() => isLinked
+          ? navigation.navigate('StudentDetail', { student: item })
+          : Alert.alert('Aluno não vinculado', `${item.name} não está vinculado a você.`)
+        }
         activeOpacity={0.8}
       >
-        {/* Avatar */}
         {avatarUrl
           ? <Image source={{ uri: avatarUrl }} style={[s.avatar, !item.active && s.avatarInactive]} />
           : (
@@ -137,20 +187,31 @@ export function StudentsScreen() {
           )
         }
 
-        {/* Info */}
         <View style={s.info}>
           <View style={s.nameRow}>
             <Text style={[s.name, !item.active && s.nameInactive]} numberOfLines={1}>
               {item.name}
             </Text>
-            {/* Badge de status */}
-            <View style={[s.statusBadge, item.active ? s.statusActive : s.statusInactive]}>
-              <View style={[s.statusDot, item.active ? s.statusDotActive : s.statusDotInactive]} />
-              <Text style={[s.statusText, item.active ? s.statusTextActive : s.statusTextInactive]}>
-                {item.active ? 'Ativo' : 'Inativo'}
-              </Text>
-            </View>
+            {isLinked && (
+              <View style={[s.statusBadge, item.active ? s.statusActive : s.statusInactive]}>
+                <View style={[s.statusDot, item.active ? s.statusDotActive : s.statusDotInactive]} />
+                <Text style={[s.statusText, item.active ? s.statusTextActive : s.statusTextInactive]}>
+                  {item.active ? 'Ativo' : 'Inativo'}
+                </Text>
+              </View>
+            )}
+            {/* Badge "não vinculado" quando vem de busca por código */}
+            {!isLinked && isCodeSearch && (
+              <View style={s.notLinkedBadge}>
+                <Text style={s.notLinkedText}>Não vinculado</Text>
+              </View>
+            )}
           </View>
+
+          {/* Mostrar código */}
+          {item.userCode && (
+            <Text style={s.userCode}>{item.userCode}</Text>
+          )}
 
           <View style={s.tags}>
             {item.studentProfile?.goal && (
@@ -164,9 +225,7 @@ export function StudentsScreen() {
             {experience && (
               <View style={s.tag}>
                 <Ionicons name="bar-chart-outline" size={11} color={colors.textDisabled} />
-                <Text style={[s.tagText, !item.active && { color: colors.textDisabled }]}>
-                  {experience}
-                </Text>
+                <Text style={[s.tagText, !item.active && { color: colors.textDisabled }]}>{experience}</Text>
               </View>
             )}
             {(item.city || item.state) && (
@@ -180,14 +239,17 @@ export function StudentsScreen() {
           </View>
         </View>
 
-        <Ionicons name="chevron-forward" size={20} color={item.active ? colors.textSecondary : colors.textDisabled} />
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={item.active ? colors.textSecondary : colors.textDisabled}
+        />
       </TouchableOpacity>
     )
   }
 
   return (
     <SafeAreaView style={s.safe}>
-      {/* Header */}
       <View style={s.header}>
         <Text style={s.headerTitle}>Meus Alunos</Text>
         <Text style={s.headerSub}>
@@ -195,50 +257,67 @@ export function StudentsScreen() {
         </Text>
       </View>
 
-      {/* Busca + filtro */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
-          <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+          <Ionicons
+            name={isCodeSearch ? 'qr-code-outline' : 'search-outline'}
+            size={18}
+            color={isCodeSearch ? colors.primary : colors.textSecondary}
+          />
           <TextInput
             style={s.searchInput}
             value={search}
             onChangeText={handleSearch}
-            placeholder="Buscar por nome, cidade, objetivo..."
+            placeholder="Nome, cidade, objetivo ou código STU-XXXXXX"
             placeholderTextColor={colors.textDisabled}
-            autoCapitalize="none"
+            autoCapitalize="characters"
+            autoCorrect={false}
           />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearch('')}>
+          {searchingCode && <ActivityIndicator size="small" color={colors.primary} />}
+          {search.length > 0 && !searchingCode && (
+            <TouchableOpacity onPress={clearSearch}>
               <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* Filtros de status */}
-      <View style={s.filtersRow}>
-        {STATUS_FILTERS.map(f => (
-          <TouchableOpacity
-            key={f.key}
-            style={[s.filterChip, statusFilter === f.key && s.filterChipActive]}
-            onPress={() => handleStatusFilter(f.key)}
-            activeOpacity={0.8}
-          >
-            <Text style={[s.filterChipText, statusFilter === f.key && s.filterChipTextActive]}>
-              {f.label}
-              {f.key === 'active'   && ` (${activeCount})`}
-              {f.key === 'inactive' && ` (${inactiveCount})`}
-              {f.key === 'all'      && ` (${students.length})`}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Badge de busca por código */}
+      {isCodeSearch && (
+        <View style={s.codeBadgeRow}>
+          <View style={s.codeBadge}>
+            <Ionicons name="qr-code-outline" size={13} color={colors.primary} />
+            <Text style={s.codeBadgeText}>Buscando por código</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Filtros — ocultos durante busca por código */}
+      {!isCodeSearch && (
+        <View style={s.filtersRow}>
+          {STATUS_FILTERS.map(f => (
+            <TouchableOpacity
+              key={f.key}
+              style={[s.filterChip, statusFilter === f.key && s.filterChipActive]}
+              onPress={() => handleStatusFilter(f.key)}
+              activeOpacity={0.8}
+            >
+              <Text style={[s.filterChipText, statusFilter === f.key && s.filterChipTextActive]}>
+                {f.label}
+                {f.key === 'active'   && ` (${activeCount})`}
+                {f.key === 'inactive' && ` (${inactiveCount})`}
+                {f.key === 'all'      && ` (${students.length})`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['10'] }} />
       ) : (
         <FlatList
-          data={filtered}
+          data={displayList}
           keyExtractor={i => i.id}
           renderItem={renderStudent}
           contentContainerStyle={s.list}
@@ -254,9 +333,11 @@ export function StudentsScreen() {
             <View style={s.empty}>
               <Ionicons name="people-outline" size={48} color={colors.textDisabled} />
               <Text style={s.emptyText}>
-                {search || statusFilter !== 'all'
-                  ? 'Nenhum aluno encontrado'
-                  : 'Nenhum aluno vinculado ainda'}
+                {isCodeSearch && !searchingCode
+                  ? 'Nenhum aluno encontrado com esse código'
+                  : search || statusFilter !== 'all'
+                    ? 'Nenhum aluno encontrado'
+                    : 'Nenhum aluno vinculado ainda'}
               </Text>
             </View>
           }
@@ -277,7 +358,11 @@ const s = StyleSheet.create({
   searchBox:   { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 48, paddingHorizontal: spacing['4'], gap: spacing['2'] },
   searchInput: { flex: 1, fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
 
-  // Filtros de status
+  // Badge de busca por código
+  codeBadgeRow: { paddingHorizontal: spacing['5'], paddingBottom: spacing['2'] },
+  codeBadge:    { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['3'], paddingVertical: spacing['1'] },
+  codeBadgeText:{ fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.primary },
+
   filtersRow:           { flexDirection: 'row', paddingHorizontal: spacing['5'], paddingVertical: spacing['2'], gap: spacing['2'] },
   filterChip:           { paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], borderRadius: radii.full, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
   filterChipActive:     { backgroundColor: colors.primary, borderColor: colors.primary },
@@ -286,28 +371,32 @@ const s = StyleSheet.create({
 
   list: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  card:           { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
-  cardInactive:   { opacity: 0.65 },
-  avatar:         { width: 52, height: 52, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
-  avatarInactive: { borderColor: colors.border },
+  card:              { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
+  cardInactive:      { opacity: 0.65 },
+  avatar:            { width: 52, height: 52, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
+  avatarInactive:    { borderColor: colors.border },
   avatarPlaceholder: { width: 52, height: 52, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.primary },
-  avatarInitial:  { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.white },
+  avatarInitial:     { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.white },
 
   info:         { flex: 1 },
   nameRow:      { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], flexWrap: 'wrap' },
   name:         { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
   nameInactive: { color: colors.textSecondary },
+  userCode:     { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.primary, letterSpacing: 1, marginTop: 1 },
 
-  // Badge de status
-  statusBadge:         { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
-  statusActive:        { backgroundColor: `${colors.success}20` },
-  statusInactive:      { backgroundColor: colors.surfaceHigh },
-  statusDot:           { width: 6, height: 6, borderRadius: 3 },
-  statusDotActive:     { backgroundColor: colors.success },
-  statusDotInactive:   { backgroundColor: colors.textDisabled },
-  statusText:          { fontFamily: typography.family.medium, fontSize: 10 },
-  statusTextActive:    { color: colors.success },
-  statusTextInactive:  { color: colors.textDisabled },
+  statusBadge:        { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
+  statusActive:       { backgroundColor: `${colors.success}20` },
+  statusInactive:     { backgroundColor: colors.surfaceHigh },
+  statusDot:          { width: 6, height: 6, borderRadius: 3 },
+  statusDotActive:    { backgroundColor: colors.success },
+  statusDotInactive:  { backgroundColor: colors.textDisabled },
+  statusText:         { fontFamily: typography.family.medium, fontSize: 10 },
+  statusTextActive:   { color: colors.success },
+  statusTextInactive: { color: colors.textDisabled },
+
+  // Badge não vinculado
+  notLinkedBadge: { backgroundColor: `${colors.error}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
+  notLinkedText:  { fontFamily: typography.family.medium, fontSize: 10, color: colors.error },
 
   tags:    { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['1'], marginTop: spacing['2'] },
   tag:     { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surfaceHigh, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },

@@ -6,6 +6,7 @@ export interface PersonalItem {
   avatar:        string | null
   city:          string | null
   state:         string | null
+  userCode?:     string       
   requestStatus: 'PENDING' | 'ACCEPTED' | 'REJECTED' | null
   personalProfile: {
     cref:        string
