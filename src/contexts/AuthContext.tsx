@@ -20,12 +20,13 @@ export interface User {
   id:            string
   name:          string
   email:         string
-  cpf?:          string  
+  cpf?:          string
   role:          UserRole
   avatar?:       string
   phone?:        string
   sex?:          string
   birthDate?:    string
+  userCode?:     string 
   cep?:          string
   street?:       string
   number?:       string
@@ -68,7 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: false,
   })
 
-  // Restaura sessão ao abrir o app
   useEffect(() => {
     (async () => {
       try {
@@ -83,12 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        // Valida o token contra a API — garante que o usuário ainda existe no banco
         const user = await authService.me()
-
         setState({ user, token, isLoading: false, isAuthenticated: true })
       } catch {
-        // Token inválido, expirado ou usuário não existe mais — limpa a sessão
         await AsyncStorage.multiRemove([
           STORAGE_KEYS.USER,
           STORAGE_KEYS.TOKEN,
@@ -99,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })()
   }, [])
 
-  // ─── Persiste sessão ─────────────────────────
   const persistSession = useCallback(async (user: User, token: string, refreshToken: string) => {
     await AsyncStorage.multiSet([
       [STORAGE_KEYS.USER,          JSON.stringify(user)],
@@ -109,7 +105,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user, token, isLoading: false, isAuthenticated: true })
   }, [])
 
-  // ─── Atualiza user no estado e storage ───────
   const updateUser = useCallback(async (updated: Partial<User>) => {
     setState(prev => {
       if (!prev.user) return prev
@@ -118,13 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ...prev, user: newUser }
     })
   }, [])
-  // ─── Sign In ─────────────────────────────────
+
   const signIn = useCallback(async (email: string, password: string) => {
     const { user, accessToken, refreshToken } = await authService.login({ email, password })
     await persistSession(user, accessToken, refreshToken)
   }, [persistSession])
 
-  // ─── Sign Out ─────────────────────────────────
   const signOut = useCallback(async () => {
     try {
       const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
@@ -141,20 +135,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // ─── Register Student ─────────────────────────
   const registerStudent = useCallback(async (payload: RegisterStudentPayload) => {
     const { user, accessToken, refreshToken } = await authService.registerStudent(payload)
-    // Salva tokens mas NÃO autentica ainda — deixa a tela de sucesso exibir primeiro
     await AsyncStorage.multiSet([
       [STORAGE_KEYS.USER,          JSON.stringify(user)],
       [STORAGE_KEYS.TOKEN,         accessToken],
       [STORAGE_KEYS.REFRESH_TOKEN, refreshToken],
     ])
-    // Retorna os dados sem alterar o estado de autenticação
     return user
   }, [])
 
-  // ─── Register Personal ────────────────────────
   const registerPersonal = useCallback(async (payload: RegisterPersonalPayload) => {
     const { user, accessToken, refreshToken } = await authService.registerPersonal(payload)
     await AsyncStorage.multiSet([
@@ -165,7 +155,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user
   }, [])
 
-  // ─── Ativa autenticação (chamado após tela de sucesso) ───
   const activateSession = useCallback(async () => {
     try {
       const [storedUser, storedToken] = await AsyncStorage.multiGet([

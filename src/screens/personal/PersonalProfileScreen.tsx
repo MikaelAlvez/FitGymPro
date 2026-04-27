@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, Alert, Modal, FlatList,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Clipboard, Share,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -34,7 +34,7 @@ function maskPhone(raw: string): string {
 }
 
 export function PersonalProfileScreen() {
-  const { user, updateUser, signOut } = useAuth()
+  const { user, updateUser } = useAuth()
   const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
 
   const [saving,   setSaving]   = useState(false)
@@ -105,6 +105,21 @@ export function PersonalProfileScreen() {
     }
   }
 
+  // Copiar código
+  const handleCopyCode = () => {
+    if (!user?.userCode) return
+    Clipboard.setString(user.userCode)
+    Alert.alert('Copiado!', 'Código copiado para a área de transferência.')
+  }
+
+  // Compartilhar código
+  const handleShareCode = () => {
+    if (!user?.userCode) return
+    Share.share({
+      message: `Meu código FitGym: ${user.userCode}\nBusque por mim no app para nos conectarmos!`,
+    })
+  }
+
   return (
     <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -128,6 +143,30 @@ export function PersonalProfileScreen() {
             <Text style={s.avatarName}>{user?.name}</Text>
             <Text style={s.avatarRole}>Personal Trainer</Text>
           </View>
+
+          {/* Card de código de usuário */}
+          {user?.userCode && (
+            <View style={s.codeCard}>
+              <View style={s.codeCardLeft}>
+                <View style={s.codeIconBox}>
+                  <Ionicons name="qr-code-outline" size={22} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={s.codeLabel}>Código de usuário</Text>
+                  <Text style={s.codeValue}>{user.userCode}</Text>
+                  <Text style={s.codeHint}>Compartilhe para ser encontrado</Text>
+                </View>
+              </View>
+              <View style={s.codeActions}>
+                <TouchableOpacity style={s.codeBtn} onPress={handleCopyCode}>
+                  <Ionicons name="copy-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={s.codeBtn} onPress={handleShareCode}>
+                  <Ionicons name="share-social-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Dados pessoais */}
           <Text style={s.sectionTitle}>Dados pessoais</Text>
@@ -225,28 +264,38 @@ const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
   flex:   { flex: 1 },
   scroll: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
-  avatarSection: { alignItems: 'center', paddingVertical: spacing['6'] },
-  avatar: { width: 90, height: 90, borderRadius: radii.full, borderWidth: 3, borderColor: colors.primary },
+
+  avatarSection:     { alignItems: 'center', paddingVertical: spacing['6'] },
+  avatar:            { width: 90, height: 90, borderRadius: radii.full, borderWidth: 3, borderColor: colors.primary },
   avatarPlaceholder: { width: 90, height: 90, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.primary },
-  avatarInitial: { fontFamily: typography.family.bold, fontSize: typography.size['2xl'], color: colors.white },
-  avatarBadge:   { position: 'absolute', bottom: 2, right: 2, width: 26, height: 26, borderRadius: radii.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  avatarName:    { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary, marginTop: spacing['2'] },
-  avatarRole:    { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: 2 },
-  sectionTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary, marginBottom: spacing['3'], marginTop: spacing['4'] },
-  card:          { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], gap: spacing['4'], ...shadows.sm },
+  avatarInitial:     { fontFamily: typography.family.bold, fontSize: typography.size['2xl'], color: colors.white },
+  avatarBadge:       { position: 'absolute', bottom: 2, right: 2, width: 26, height: 26, borderRadius: radii.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  avatarName:        { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary, marginTop: spacing['2'] },
+  avatarRole:        { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: 2 },
+
+  // Card de código
+  codeCard:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['2'], borderWidth: 1.5, borderColor: `${colors.primary}30`, ...shadows.sm },
+  codeCardLeft:{ flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
+  codeIconBox: { width: 44, height: 44, borderRadius: radii.lg, backgroundColor: `${colors.primary}15`, alignItems: 'center', justifyContent: 'center' },
+  codeLabel:   { fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.textSecondary },
+  codeValue:   { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.primary, letterSpacing: 2 },
+  codeHint:    { fontFamily: typography.family.regular, fontSize: 10, color: colors.textDisabled, marginTop: 1 },
+  codeActions: { flexDirection: 'row', gap: spacing['2'] },
+  codeBtn:     { width: 38, height: 38, borderRadius: radii.lg, backgroundColor: `${colors.primary}15`, alignItems: 'center', justifyContent: 'center' },
+
+  sectionTitle:        { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary, marginBottom: spacing['3'], marginTop: spacing['4'] },
+  card:                { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], gap: spacing['4'], ...shadows.sm },
   fieldLabel:          { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary, marginBottom: spacing['1'] },
   selector:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'] },
   selectorValue:       { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
   selectorPlaceholder: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled },
   row:       { flexDirection: 'row', gap: spacing['3'] },
   btn:       { marginTop: spacing['6'] },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], paddingVertical: spacing['5'], marginTop: spacing['2'] },
-  logoutText:{ fontFamily: typography.family.medium, fontSize: typography.size.base, color: colors.error },
   overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet:     { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], paddingBottom: spacing['8'], maxHeight: '50%' },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
   sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
-  option:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing['4'], paddingHorizontal: spacing['6'], borderBottomWidth: 1, borderBottomColor: colors.divider },
+  option:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing['4'], paddingHorizontal: spacing['6'], borderBottomWidth: 1, borderBottomColor: colors.divider },
   optionActive:     { backgroundColor: colors.surfaceHigh },
   optionText:       { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
   optionTextActive: { fontFamily: typography.family.semiBold, color: colors.primary },

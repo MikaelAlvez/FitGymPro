@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, Alert, Modal, FlatList,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Clipboard, Share,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -16,7 +16,6 @@ import { uploadAvatar, pickImage, takePhoto } from '../../services/upload.servic
 import { isValidDate }     from '../../utils/date'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
-// ─── Config ──────────────────────────────────
 const getBaseUrl = () => {
   const host = Constants.expoConfig?.hostUri
     ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
@@ -25,40 +24,25 @@ const getBaseUrl = () => {
   return 'http://10.0.2.2:3333'
 }
 
-// ─── Dados ───────────────────────────────────
 const SEX_OPTIONS = ['Masculino', 'Feminino', 'Prefiro não informar']
 
 const STATES = [
-  { uf: 'AC', name: 'Acre' },
-  { uf: 'AL', name: 'Alagoas' },
-  { uf: 'AP', name: 'Amapá' },
-  { uf: 'AM', name: 'Amazonas' },
-  { uf: 'BA', name: 'Bahia' },
-  { uf: 'CE', name: 'Ceará' },
-  { uf: 'DF', name: 'Distrito Federal' },
-  { uf: 'ES', name: 'Espírito Santo' },
-  { uf: 'GO', name: 'Goiás' },
-  { uf: 'MA', name: 'Maranhão' },
-  { uf: 'MT', name: 'Mato Grosso' },
-  { uf: 'MS', name: 'Mato Grosso do Sul' },
-  { uf: 'MG', name: 'Minas Gerais' },
-  { uf: 'PA', name: 'Pará' },
-  { uf: 'PB', name: 'Paraíba' },
-  { uf: 'PR', name: 'Paraná' },
-  { uf: 'PE', name: 'Pernambuco' },
-  { uf: 'PI', name: 'Piauí' },
-  { uf: 'RJ', name: 'Rio de Janeiro' },
-  { uf: 'RN', name: 'Rio Grande do Norte' },
-  { uf: 'RS', name: 'Rio Grande do Sul' },
-  { uf: 'RO', name: 'Rondônia' },
-  { uf: 'RR', name: 'Roraima' },
-  { uf: 'SC', name: 'Santa Catarina' },
-  { uf: 'SP', name: 'São Paulo' },
-  { uf: 'SE', name: 'Sergipe' },
+  { uf: 'AC', name: 'Acre' }, { uf: 'AL', name: 'Alagoas' },
+  { uf: 'AP', name: 'Amapá' }, { uf: 'AM', name: 'Amazonas' },
+  { uf: 'BA', name: 'Bahia' }, { uf: 'CE', name: 'Ceará' },
+  { uf: 'DF', name: 'Distrito Federal' }, { uf: 'ES', name: 'Espírito Santo' },
+  { uf: 'GO', name: 'Goiás' }, { uf: 'MA', name: 'Maranhão' },
+  { uf: 'MT', name: 'Mato Grosso' }, { uf: 'MS', name: 'Mato Grosso do Sul' },
+  { uf: 'MG', name: 'Minas Gerais' }, { uf: 'PA', name: 'Pará' },
+  { uf: 'PB', name: 'Paraíba' }, { uf: 'PR', name: 'Paraná' },
+  { uf: 'PE', name: 'Pernambuco' }, { uf: 'PI', name: 'Piauí' },
+  { uf: 'RJ', name: 'Rio de Janeiro' }, { uf: 'RN', name: 'Rio Grande do Norte' },
+  { uf: 'RS', name: 'Rio Grande do Sul' }, { uf: 'RO', name: 'Rondônia' },
+  { uf: 'RR', name: 'Roraima' }, { uf: 'SC', name: 'Santa Catarina' },
+  { uf: 'SP', name: 'São Paulo' }, { uf: 'SE', name: 'Sergipe' },
   { uf: 'TO', name: 'Tocantins' },
 ]
 
-// ─── Máscaras ─────────────────────────────────
 function maskPhone(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(0, 11)
   if (d.length <= 2)  return `(${d}`
@@ -87,7 +71,6 @@ function maskCpf(raw: string): string {
   return raw
 }
 
-// ─── Component ────────────────────────────────
 export function StudentProfileScreen() {
   const { user, updateUser } = useAuth()
   const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
@@ -115,7 +98,6 @@ export function StudentProfileScreen() {
     setErrors(p => ({ ...p, [field]: '' }))
   }
 
-  // ─── Avatar ───────────────────────────────
   const handlePickAvatar = () => {
     Alert.alert('Foto de perfil', 'Escolha uma opção', [
       { text: 'Cancelar', style: 'cancel' },
@@ -133,7 +115,6 @@ export function StudentProfileScreen() {
     }
   }
 
-  // ─── Salvar ───────────────────────────────
   const handleSave = async () => {
     const errs: Record<string, string> = {}
     if (!form.name.trim() || form.name.length < 3) errs.name = 'Nome deve ter ao menos 3 caracteres'
@@ -163,6 +144,21 @@ export function StudentProfileScreen() {
     }
   }
 
+  // Copiar código
+  const handleCopyCode = () => {
+    if (!user?.userCode) return
+    Clipboard.setString(user.userCode)
+    Alert.alert('Copiado!', 'Código copiado para a área de transferência.')
+  }
+
+  // Compartilhar código
+  const handleShareCode = () => {
+    if (!user?.userCode) return
+    Share.share({
+      message: `Meu código FitGym: ${user.userCode}\nBusque por mim no app para nos conectarmos!`,
+    })
+  }
+
   const selectedStateName = STATES.find(s => s.uf === form.state)
 
   return (
@@ -189,6 +185,30 @@ export function StudentProfileScreen() {
             <Text style={s.avatarRole}>Aluno</Text>
           </View>
 
+          {/* Card de código de usuário */}
+          {user?.userCode && (
+            <View style={s.codeCard}>
+              <View style={s.codeCardLeft}>
+                <View style={s.codeIconBox}>
+                  <Ionicons name="qr-code-outline" size={22} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={s.codeLabel}>Código de usuário</Text>
+                  <Text style={s.codeValue}>{user.userCode}</Text>
+                  <Text style={s.codeHint}>Compartilhe para ser encontrado</Text>
+                </View>
+              </View>
+              <View style={s.codeActions}>
+                <TouchableOpacity style={s.codeBtn} onPress={handleCopyCode}>
+                  <Ionicons name="copy-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={s.codeBtn} onPress={handleShareCode}>
+                  <Ionicons name="share-social-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Dados pessoais */}
           <Text style={s.sectionTitle}>Dados pessoais</Text>
           <View style={s.card}>
@@ -198,7 +218,6 @@ export function StudentProfileScreen() {
             <Input label="Telefone" value={form.phone} keyboardType="phone-pad" maxLength={15}
               onChangeText={raw => set('phone', maskPhone(raw))} />
 
-            {/* Sexo */}
             <View>
               <Text style={s.fieldLabel}>Sexo</Text>
               <TouchableOpacity style={s.selector} onPress={() => setSexModal(true)} activeOpacity={0.8}>
@@ -209,13 +228,11 @@ export function StudentProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Data de nascimento */}
             <Input label="Data de nascimento" value={form.birthDate}
               placeholder="DD/MM/AAAA" keyboardType="numeric" maxLength={10}
               onChangeText={raw => set('birthDate', maskDate(raw))}
               error={errors.birthDate} />
 
-            {/* E-mail — bloqueado */}
             <View>
               <Text style={s.fieldLabel}>E-mail</Text>
               <View style={s.lockedField}>
@@ -224,13 +241,10 @@ export function StudentProfileScreen() {
               </View>
             </View>
 
-            {/* CPF — bloqueado */}
             <View>
               <Text style={s.fieldLabel}>CPF</Text>
               <View style={s.lockedField}>
-                <Text style={s.lockedValue}>
-                  {user?.cpf ? maskCpf(user.cpf) : '—'}
-                </Text>
+                <Text style={s.lockedValue}>{user?.cpf ? maskCpf(user.cpf) : '—'}</Text>
                 <Ionicons name="lock-closed" size={16} color={colors.textDisabled} />
               </View>
             </View>
@@ -241,10 +255,7 @@ export function StudentProfileScreen() {
           <View style={s.card}>
             <Input label="CEP" value={form.cep} keyboardType="numeric" maxLength={9}
               onChangeText={raw => set('cep', maskCep(raw))} />
-
-            <Input label="Rua" value={form.street}
-              onChangeText={v => set('street', v)} />
-
+            <Input label="Rua" value={form.street} onChangeText={v => set('street', v)} />
             <View style={s.row}>
               <View style={{ width: 90 }}>
                 <Input label="Nº" value={form.number} keyboardType="numeric"
@@ -255,11 +266,7 @@ export function StudentProfileScreen() {
                   onChangeText={v => set('neighborhood', v)} />
               </View>
             </View>
-
-            <Input label="Cidade" value={form.city}
-              onChangeText={v => set('city', v)} />
-
-            {/* Estado — seletor */}
+            <Input label="Cidade" value={form.city} onChangeText={v => set('city', v)} />
             <View>
               <Text style={s.fieldLabel}>Estado</Text>
               <TouchableOpacity style={s.selector} onPress={() => setStateModal(true)} activeOpacity={0.8}>
@@ -330,9 +337,7 @@ export function StudentProfileScreen() {
                   <View style={s.stateUfBadge}>
                     <Text style={s.stateUf}>{item.uf}</Text>
                   </View>
-                  <Text style={[s.stateName, active && s.stateNameActive]}>
-                    {item.name}
-                  </Text>
+                  <Text style={[s.stateName, active && s.stateNameActive]}>{item.name}</Text>
                   {active && <Ionicons name="checkmark" size={18} color={colors.primary} />}
                 </TouchableOpacity>
               )
@@ -344,13 +349,11 @@ export function StudentProfileScreen() {
   )
 }
 
-// ─── Styles ──────────────────────────────────
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
   flex:   { flex: 1 },
   scroll: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  // Avatar
   avatarSection:     { alignItems: 'center', paddingVertical: spacing['6'] },
   avatar:            { width: 90, height: 90, borderRadius: radii.full, borderWidth: 3, borderColor: colors.primary },
   avatarPlaceholder: { width: 90, height: 90, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.primary },
@@ -359,36 +362,40 @@ const s = StyleSheet.create({
   avatarName:        { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary, marginTop: spacing['2'] },
   avatarRole:        { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: 2 },
 
-  // Sections
+  // Card de código
+  codeCard:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['2'], borderWidth: 1.5, borderColor: `${colors.primary}30`, ...shadows.sm },
+  codeCardLeft:{ flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
+  codeIconBox: { width: 44, height: 44, borderRadius: radii.lg, backgroundColor: `${colors.primary}15`, alignItems: 'center', justifyContent: 'center' },
+  codeLabel:   { fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.textSecondary },
+  codeValue:   { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.primary, letterSpacing: 2 },
+  codeHint:    { fontFamily: typography.family.regular, fontSize: 10, color: colors.textDisabled, marginTop: 1 },
+  codeActions: { flexDirection: 'row', gap: spacing['2'] },
+  codeBtn:     { width: 38, height: 38, borderRadius: radii.lg, backgroundColor: `${colors.primary}15`, alignItems: 'center', justifyContent: 'center' },
+
   sectionTitle: { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary, marginBottom: spacing['3'], marginTop: spacing['4'] },
   card:         { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], gap: spacing['4'], ...shadows.sm },
 
-  // Selector genérico
   fieldLabel:          { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary, marginBottom: spacing['1'] },
   selector:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'] },
   selectorValue:       { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
   selectorPlaceholder: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled },
 
-  // Campos bloqueados
   lockedField: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], opacity: 0.6 },
   lockedValue: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textSecondary },
 
   row: { flexDirection: 'row', gap: spacing['3'] },
   btn: { marginTop: spacing['6'] },
 
-  // Modal base
   overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], paddingBottom: spacing['8'], maxHeight: '50%' },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
   sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
 
-  // Opções do modal de sexo
-  option:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing['4'], paddingHorizontal: spacing['6'], borderBottomWidth: 1, borderBottomColor: colors.divider },
-  optionActive:    { backgroundColor: colors.surfaceHigh },
-  optionText:      { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
-  optionTextActive:{ fontFamily: typography.family.semiBold, color: colors.primary },
+  option:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing['4'], paddingHorizontal: spacing['6'], borderBottomWidth: 1, borderBottomColor: colors.divider },
+  optionActive:     { backgroundColor: colors.surfaceHigh },
+  optionText:       { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  optionTextActive: { fontFamily: typography.family.semiBold, color: colors.primary },
 
-  // Opções do modal de estado
   stateOption:       { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['3'], paddingHorizontal: spacing['6'], borderBottomWidth: 1, borderBottomColor: colors.divider },
   stateOptionActive: { backgroundColor: colors.surfaceHigh },
   stateUfBadge:      { width: 36, height: 36, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },

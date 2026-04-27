@@ -85,4 +85,15 @@ export const userService = {
       authenticated: true,
       body:          JSON.stringify({}),
   }),
+
+  searchByCode: (code: string) =>
+  apiRequest<{
+    id: string; name: string; email: string; role: string
+    avatar: string | null; userCode: string
+    city: string | null; state: string | null
+    personalProfile?: { cref: string; classFormat: string } | null
+    studentProfile?:  { goal: string; experience: string } | null
+  }>(`/user/search?code=${encodeURIComponent(code)}`, {
+    authenticated: true,
+  }),
 }
