@@ -12,6 +12,7 @@ import Constants from 'expo-constants'
 import { sessionService } from '../../services/session.service'
 import type { WorkoutSession } from '../../services/session.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
+import { friendService } from '../../services/friend.service'
 
 const getBaseUrl = () => {
   const host = Constants.expoConfig?.hostUri
@@ -216,7 +217,7 @@ export function StudentFeedScreen() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
-      const data = await sessionService.getHistory()
+      const data = await friendService.getFeed()
       setSessions(data)
     } catch {
       // silencia
