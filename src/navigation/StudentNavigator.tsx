@@ -1,14 +1,19 @@
 import React from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { Ionicons } from '@expo/vector-icons'
-import { StudentHomeScreen }      from '../screens/student/StudentHomeScreen'
-import { StudentWorkoutsScreen }  from '../screens/student/StudentWorkoutsScreen'
-import { StudentFeedScreen }      from '../screens/student/StudentFeedScreen'
-import { StudentDashboardScreen } from '../screens/student/StudentDashboardScreen'
-import { StudentPersonalsScreen } from '../screens/student/StudentPersonalsScreen'
-import { StudentProfileScreen }   from '../screens/student/StudentProfileScreen'
-import { colors, typography }     from '../theme'
 
+import { StudentHomeScreen }       from '../screens/student/StudentHomeScreen'
+import { StudentWorkoutsScreen }   from '../screens/student/StudentWorkoutsScreen'
+import { StudentFeedScreen }       from '../screens/student/StudentFeedScreen'
+import { StudentDashboardScreen }  from '../screens/student/StudentDashboardScreen'
+import { StudentPersonalsScreen }  from '../screens/student/StudentPersonalsScreen'
+import { StudentProfileScreen }    from '../screens/student/StudentProfileScreen'
+import { CommunitySearchScreen }   from '../screens/community/CommunitySearchScreen'
+import { FriendRequestsScreen }    from '../screens/community/FriendRequestsScreen'
+import { colors, typography }      from '../theme'
+
+// ─── Tab ─────────────────────────────────────
 export type StudentTabParamList = {
   Home:      undefined
   Workouts:  undefined
@@ -20,7 +25,7 @@ export type StudentTabParamList = {
 
 const Tab = createBottomTabNavigator<StudentTabParamList>()
 
-export function StudentNavigator() {
+function StudentTabs() {
   return (
     <Tab.Navigator
       screenOptions={{
@@ -102,5 +107,24 @@ export function StudentNavigator() {
         }}
       />
     </Tab.Navigator>
+  )
+}
+
+// ─── Stack (envolve o Tab + telas modais) ────
+export type StudentStackParamList = {
+  StudentTabs:      undefined
+  CommunitySearch:  undefined  
+  FriendRequests:   undefined  
+}
+
+const Stack = createNativeStackNavigator<StudentStackParamList>()
+
+export function StudentNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="StudentTabs"     component={StudentTabs} />
+      <Stack.Screen name="CommunitySearch" component={CommunitySearchScreen} />
+      <Stack.Screen name="FriendRequests"  component={FriendRequestsScreen} />
+    </Stack.Navigator>
   )
 }
