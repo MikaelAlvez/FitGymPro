@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Image, TextInput, ActivityIndicator, RefreshControl, Alert,
@@ -20,13 +20,13 @@ const getBaseUrl = () => {
 }
 
 interface Student {
-  id:       string
-  name:     string
-  avatar:   string | null
-  active:   boolean
+  id:        string
+  name:      string
+  avatar:    string | null
+  active:    boolean
   userCode?: string
-  city:     string | null
-  state:    string | null
+  city:      string | null
+  state:     string | null
   studentProfile: {
     goal:       string
     experience: string
@@ -47,8 +47,8 @@ const STATUS_FILTERS = [
   { key: 'inactive', label: 'Inativos' },
 ]
 
-// Detecta padrão de código
-const isUserCode = (text: string) => /^[A-Z]{2,3}-[A-Z0-9]{4,6}$/i.test(text.trim())
+// Formato exato: STU-XXXXXX
+const isUserCode = (text: string) => /^[A-Z]{2,3}-[A-Z0-9]{6}$/.test(text.trim().toUpperCase())
 
 export function StudentsScreen() {
   const navigation = useNavigation<any>()
@@ -60,10 +60,12 @@ export function StudentsScreen() {
   const [search,       setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
-  // Estados para busca por código
   const [codeResult,    setCodeResult]    = useState<Student | null>(null)
   const [searchingCode, setSearchingCode] = useState(false)
   const [isCodeSearch,  setIsCodeSearch]  = useState(false)
+
+  // Ref para debounce
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -100,48 +102,69 @@ export function StudentsScreen() {
     if (!isCodeSearch) applyFilters(students, search, statusFilter)
   }, [students, isCodeSearch])
 
-  // Busca combinada — local ou por código
-  const handleSearch = async (v: string) => {
+  // Função de busca por código
+  const searchByCode = useCallback(async (code: string) => {
+    setIsCodeSearch(true)
+    setSearchingCode(true)
+    try {
+      const result = await userService.searchByCode(code)
+      if (result.role !== 'STUDENT') {
+        Alert.alert('Atenção', 'Esse código pertence a um personal, não a um aluno.')
+        setIsCodeSearch(false)
+        setCodeResult(null)
+        return
+      }
+      const alreadyLinked = students.find(s => s.id === result.id)
+      if (alreadyLinked) {
+        setCodeResult(alreadyLinked)
+      } else {
+        setCodeResult({
+          id:       result.id,
+          name:     result.name,
+          avatar:   result.avatar,
+          active:   true,
+          userCode: result.userCode,
+          city:     result.city,
+          state:    result.state,
+          studentProfile: result.studentProfile
+            ? { goal: result.studentProfile.goal, experience: result.studentProfile.experience, weight: '', height: '' }
+            : null,
+        })
+      }
+    } catch {
+      setCodeResult(null)
+      setIsCodeSearch(false)
+    } finally {
+      setSearchingCode(false)
+    }
+  }, [students])
+
+  // Atualiza texto e dispara busca com debounce
+  const handleSearchChange = (v: string) => {
     setSearch(v)
     setCodeResult(null)
+    setIsCodeSearch(false)
 
-    if (isUserCode(v)) {
-      setIsCodeSearch(true)
-      setSearchingCode(true)
-      try {
-        const result = await userService.searchByCode(v.trim().toUpperCase())
-        if (result.role !== 'STUDENT') {
-          Alert.alert('Atenção', 'Esse código pertence a um personal, não a um aluno.')
-          setIsCodeSearch(false)
-          return
-        }
-        // Verifica se já é aluno vinculado
-        const alreadyLinked = students.find(s => s.id === result.id)
-        if (alreadyLinked) {
-          setCodeResult(alreadyLinked)
-        } else {
-          setCodeResult({
-            id:             result.id,
-            name:           result.name,
-            avatar:         result.avatar,
-            active:         true,
-            userCode:       result.userCode,
-            city:           result.city,
-            state:          result.state,
-            studentProfile: result.studentProfile
-              ? { goal: result.studentProfile.goal, experience: result.studentProfile.experience, weight: '', height: '' }
-              : null,
-          })
-        }
-      } catch {
-        Alert.alert('Não encontrado', 'Nenhum aluno com esse código.')
-        setIsCodeSearch(false)
-      } finally {
-        setSearchingCode(false)
-      }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    const upper = v.trim().toUpperCase()
+
+    if (isUserCode(upper)) {
+      debounceRef.current = setTimeout(() => {
+        searchByCode(upper)
+      }, 400)
     } else {
-      setIsCodeSearch(false)
       applyFilters(students, v, statusFilter)
+    }
+  }
+
+  // Busca imediata ao pressionar Enter ou botão
+  const handleSearchSubmit = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    const upper = search.trim().toUpperCase()
+    if (!upper) return
+    if (isUserCode(upper)) {
+      searchByCode(upper)
     }
   }
 
@@ -151,6 +174,7 @@ export function StudentsScreen() {
   }
 
   const clearSearch = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
     setSearch('')
     setCodeResult(null)
     setIsCodeSearch(false)
@@ -200,7 +224,6 @@ export function StudentsScreen() {
                 </Text>
               </View>
             )}
-            {/* Badge "não vinculado" quando vem de busca por código */}
             {!isLinked && isCodeSearch && (
               <View style={s.notLinkedBadge}>
                 <Text style={s.notLinkedText}>Não vinculado</Text>
@@ -208,7 +231,6 @@ export function StudentsScreen() {
             )}
           </View>
 
-          {/* Mostrar código */}
           {item.userCode && (
             <Text style={s.userCode}>{item.userCode}</Text>
           )}
@@ -239,11 +261,7 @@ export function StudentsScreen() {
           </View>
         </View>
 
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={item.active ? colors.textSecondary : colors.textDisabled}
-        />
+        <Ionicons name="chevron-forward" size={20} color={item.active ? colors.textSecondary : colors.textDisabled} />
       </TouchableOpacity>
     )
   }
@@ -267,11 +285,13 @@ export function StudentsScreen() {
           <TextInput
             style={s.searchInput}
             value={search}
-            onChangeText={handleSearch}
-            placeholder="Nome, cidade, objetivo ou código STU-XXXXXX"
+            onChangeText={handleSearchChange}
+            onSubmitEditing={handleSearchSubmit}
+            placeholder="Nome, cidade ou código STU-XXXXXX"
             placeholderTextColor={colors.textDisabled}
-            autoCapitalize="characters"
+            autoCapitalize="none"
             autoCorrect={false}
+            returnKeyType="search"
           />
           {searchingCode && <ActivityIndicator size="small" color={colors.primary} />}
           {search.length > 0 && !searchingCode && (
@@ -280,19 +300,31 @@ export function StudentsScreen() {
             </TouchableOpacity>
           )}
         </View>
+        <TouchableOpacity
+          style={[s.searchBtn, searchingCode && { opacity: 0.6 }]}
+          onPress={handleSearchSubmit}
+          disabled={searchingCode}
+          activeOpacity={0.8}
+        >
+          {searchingCode
+            ? <ActivityIndicator size="small" color={colors.white} />
+            : <Ionicons name="search" size={20} color={colors.white} />
+          }
+        </TouchableOpacity>
       </View>
 
-      {/* Badge de busca por código */}
       {isCodeSearch && (
         <View style={s.codeBadgeRow}>
           <View style={s.codeBadge}>
             <Ionicons name="qr-code-outline" size={13} color={colors.primary} />
-            <Text style={s.codeBadgeText}>Buscando por código</Text>
+            <Text style={s.codeBadgeText}>Resultado por código</Text>
           </View>
+          <TouchableOpacity onPress={clearSearch}>
+            <Text style={s.codeBadgeClear}>Limpar</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* Filtros — ocultos durante busca por código */}
       {!isCodeSearch && (
         <View style={s.filtersRow}>
           {STATUS_FILTERS.map(f => (
@@ -354,14 +386,15 @@ const s = StyleSheet.create({
   headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
   headerSub:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
 
-  searchRow:   { paddingHorizontal: spacing['5'], paddingTop: spacing['3'], paddingBottom: spacing['1'] },
-  searchBox:   { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 48, paddingHorizontal: spacing['4'], gap: spacing['2'] },
+  searchRow:   { paddingHorizontal: spacing['5'], paddingTop: spacing['3'], paddingBottom: spacing['1'], flexDirection: 'row', gap: spacing['2'] },
+  searchBox:   { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 48, paddingHorizontal: spacing['4'], gap: spacing['2'] },
   searchInput: { flex: 1, fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  searchBtn:   { width: 48, height: 48, borderRadius: radii.lg, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 
-  // Badge de busca por código
-  codeBadgeRow: { paddingHorizontal: spacing['5'], paddingBottom: spacing['2'] },
-  codeBadge:    { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['3'], paddingVertical: spacing['1'] },
-  codeBadgeText:{ fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.primary },
+  codeBadgeRow:  { paddingHorizontal: spacing['5'], paddingBottom: spacing['2'], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  codeBadge:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['3'], paddingVertical: spacing['1'] },
+  codeBadgeText: { fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.primary },
+  codeBadgeClear:{ fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.error },
 
   filtersRow:           { flexDirection: 'row', paddingHorizontal: spacing['5'], paddingVertical: spacing['2'], gap: spacing['2'] },
   filterChip:           { paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], borderRadius: radii.full, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
@@ -394,7 +427,6 @@ const s = StyleSheet.create({
   statusTextActive:   { color: colors.success },
   statusTextInactive: { color: colors.textDisabled },
 
-  // Badge não vinculado
   notLinkedBadge: { backgroundColor: `${colors.error}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
   notLinkedText:  { fontFamily: typography.family.medium, fontSize: 10, color: colors.error },
 

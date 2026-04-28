@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Image, Alert, ActivityIndicator, Modal, TextInput,
@@ -39,8 +39,8 @@ const STATUS_CONFIG = {
   REJECTED: { label: 'Recusado',   color: colors.error,   icon: 'close-circle'     as const },
 }
 
-// Detecta se é um código no formato XXX-XXXXXX
-const isUserCode = (text: string) => /^[A-Z]{2,3}-[A-Z0-9]{4,6}$/i.test(text.trim())
+// Formato exato: PER-XXXXXX (3 letras + hífen + 6 chars)
+const isUserCode = (text: string) => /^[A-Z]{2,3}-[A-Z0-9]{6}$/.test(text.trim().toUpperCase())
 
 export function StudentPersonalsScreen() {
   const [personals,  setPersonals]  = useState<PersonalItem[]>([])
@@ -55,10 +55,12 @@ export function StudentPersonalsScreen() {
   const [search,       setSearch]       = useState('')
   const [formatFilter, setFormatFilter] = useState('')
 
-  // Estado para busca por código
-  const [codeResult,     setCodeResult]     = useState<PersonalItem | null>(null)
-  const [searchingCode,  setSearchingCode]  = useState(false)
-  const [isCodeSearch,   setIsCodeSearch]   = useState(false)
+  const [codeResult,    setCodeResult]    = useState<PersonalItem | null>(null)
+  const [searchingCode, setSearchingCode] = useState(false)
+  const [isCodeSearch,  setIsCodeSearch]  = useState(false)
+
+  // Ref para debounce
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -75,7 +77,7 @@ export function StudentPersonalsScreen() {
 
   useEffect(() => { load() }, [load])
 
-  // Filtro local combinado
+  // Filtro local — só quando não é busca por código
   useEffect(() => {
     if (isCodeSearch) return
     let result = personals
@@ -96,51 +98,71 @@ export function StudentPersonalsScreen() {
     setFiltered(result)
   }, [search, formatFilter, personals, isCodeSearch])
 
-  // Busca por código quando padrão é detectado
-  const handleSearch = async (v: string) => {
+  // Função de busca por código
+  const searchByCode = useCallback(async (code: string) => {
+    setIsCodeSearch(true)
+    setSearchingCode(true)
+    try {
+      const result = await userService.searchByCode(code)
+      if (result.role !== 'PERSONAL') {
+        Alert.alert('Atenção', 'Esse código pertence a um aluno, não a um personal.')
+        setIsCodeSearch(false)
+        setCodeResult(null)
+        return
+      }
+      // Verifica se já tem status de solicitação com esse personal
+      const existing = personals.find(p => p.id === result.id)
+      const personalItem: PersonalItem = {
+        id:            result.id,
+        name:          result.name,
+        avatar:        result.avatar,
+        city:          result.city,
+        state:         result.state,
+        userCode:      result.userCode,
+        requestStatus: existing?.requestStatus ?? null,
+        personalProfile: result.personalProfile
+          ? { cref: result.personalProfile.cref, classFormat: result.personalProfile.classFormat, course: '' }
+          : null,
+      }
+      setCodeResult(personalItem)
+    } catch {
+      setCodeResult(null)
+      setIsCodeSearch(false)
+    } finally {
+      setSearchingCode(false)
+    }
+  }, [personals])
+
+  // Atualiza texto e dispara busca com debounce
+  const handleSearchChange = (v: string) => {
     setSearch(v)
     setCodeResult(null)
+    setIsCodeSearch(false)
 
-    if (isUserCode(v)) {
-      setIsCodeSearch(true)
-      setSearchingCode(true)
-      try {
-        const result = await userService.searchByCode(v.trim().toUpperCase())
-        if (result.role !== 'PERSONAL') {
-          Alert.alert('Atenção', 'Esse código pertence a um aluno, não a um personal.')
-          setIsCodeSearch(false)
-          return
-        }
-        // Converte resultado para PersonalItem compatível
-        const personalItem: PersonalItem = {
-          id:              result.id,
-          name:            result.name,
-          avatar:          result.avatar,
-          city:            result.city,
-          state:           result.state,
-          userCode:        result.userCode,
-          requestStatus:   personals.find(p => p.id === result.id)?.requestStatus ?? null, // ✅ null em vez de undefined
-          personalProfile: result.personalProfile
-            ? {
-                cref:        result.personalProfile.cref,
-                classFormat: result.personalProfile.classFormat,
-                course:      '', 
-              }
-            : null,  
-        }
-        setCodeResult(personalItem)
-      } catch {
-        Alert.alert('Não encontrado', 'Nenhum personal com esse código.')
-        setIsCodeSearch(false)
-      } finally {
-        setSearchingCode(false)
-      }
-    } else {
-      setIsCodeSearch(false)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    const upper = v.trim().toUpperCase()
+
+    if (isUserCode(upper)) {
+      // Aguarda 400ms após última tecla para buscar
+      debounceRef.current = setTimeout(() => {
+        searchByCode(upper)
+      }, 400)
+    }
+  }
+
+  // Busca imediata ao pressionar Enter ou botão
+  const handleSearchSubmit = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    const upper = search.trim().toUpperCase()
+    if (!upper) return
+    if (isUserCode(upper)) {
+      searchByCode(upper)
     }
   }
 
   const clearSearch = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
     setSearch('')
     setCodeResult(null)
     setIsCodeSearch(false)
@@ -238,7 +260,6 @@ export function StudentPersonalsScreen() {
           {item.personalProfile?.cref && (
             <Text style={s.cref}>CREF: {item.personalProfile.cref}</Text>
           )}
-          {/* Mostrar código se disponível */}
           {item.userCode && (
             <Text style={s.userCode}>{item.userCode}</Text>
           )}
@@ -290,32 +311,46 @@ export function StudentPersonalsScreen() {
           <TextInput
             style={s.searchInput}
             value={search}
-            onChangeText={handleSearch}
-            placeholder="Nome, CREF, cidade ou código PER-XXXXXX"
+            onChangeText={handleSearchChange}
+            onSubmitEditing={handleSearchSubmit}
+            placeholder="Nome, CREF ou código PER-XXXXXX"
             placeholderTextColor={colors.textDisabled}
-            autoCapitalize="characters"
+            autoCapitalize="none"
             autoCorrect={false}
+            returnKeyType="search"
           />
           {searchingCode && <ActivityIndicator size="small" color={colors.primary} />}
           {search.length > 0 && !searchingCode && (
-            <TouchableOpacity onPress={clearSearch}>
+            <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
+        <TouchableOpacity
+          style={[s.searchBtn, searchingCode && { opacity: 0.6 }]}
+          onPress={handleSearchSubmit}
+          disabled={searchingCode}
+          activeOpacity={0.8}
+        >
+          {searchingCode
+            ? <ActivityIndicator size="small" color={colors.white} />
+            : <Ionicons name="search" size={20} color={colors.white} />
+          }
+        </TouchableOpacity>
       </View>
 
-      {/* Badge indicando busca por código */}
       {isCodeSearch && (
         <View style={s.codeBadgeRow}>
           <View style={s.codeBadge}>
             <Ionicons name="qr-code-outline" size={13} color={colors.primary} />
-            <Text style={s.codeBadgeText}>Buscando por código</Text>
+            <Text style={s.codeBadgeText}>Resultado por código</Text>
           </View>
+          <TouchableOpacity onPress={clearSearch}>
+            <Text style={s.codeBadgeClear}>Limpar</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* Filtros — ocultos durante busca por código */}
       {!isCodeSearch && (
         <View style={s.filtersRow}>
           {FORMAT_FILTERS.map(f => (
@@ -425,14 +460,15 @@ const s = StyleSheet.create({
   headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
   headerSub:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
 
-  searchRow:   { paddingHorizontal: spacing['5'], paddingTop: spacing['3'], paddingBottom: spacing['2'] },
-  searchBox:   { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 48, paddingHorizontal: spacing['4'], gap: spacing['2'] },
+  searchRow:   { paddingHorizontal: spacing['5'], paddingTop: spacing['3'], paddingBottom: spacing['2'], flexDirection: 'row', gap: spacing['2'] },
+  searchBox:   { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 48, paddingHorizontal: spacing['4'], gap: spacing['2'] },
   searchInput: { flex: 1, fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  searchBtn:   { width: 48, height: 48, borderRadius: radii.lg, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 
-  // ✅ Badge de busca por código
-  codeBadgeRow: { paddingHorizontal: spacing['5'], paddingBottom: spacing['2'] },
-  codeBadge:    { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['3'], paddingVertical: spacing['1'] },
-  codeBadgeText:{ fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.primary },
+  codeBadgeRow:  { paddingHorizontal: spacing['5'], paddingBottom: spacing['2'], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  codeBadge:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['3'], paddingVertical: spacing['1'] },
+  codeBadgeText: { fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.primary },
+  codeBadgeClear:{ fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.error },
 
   filtersRow:           { flexDirection: 'row', paddingHorizontal: spacing['5'], paddingBottom: spacing['3'], gap: spacing['2'] },
   filterChip:           { paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], borderRadius: radii.full, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
