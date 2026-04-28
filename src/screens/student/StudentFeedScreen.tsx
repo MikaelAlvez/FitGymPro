@@ -7,12 +7,12 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import Constants from 'expo-constants'
 import { sessionService } from '../../services/session.service'
 import type { WorkoutSession } from '../../services/session.service'
-import { colors, typography, spacing, radii, shadows } from '../../theme'
 import { friendService } from '../../services/friend.service'
+import { colors, typography, spacing, radii, shadows } from '../../theme'
 
 const getBaseUrl = () => {
   const host = Constants.expoConfig?.hostUri
@@ -49,12 +49,13 @@ const formatTime = (iso: string) => {
 
 interface SessionCardProps {
   item:        WorkoutSession
+  isOwn:       boolean          // indica se é do próprio usuário
   onEdit:      (s: WorkoutSession) => void
   onDelete:    (s: WorkoutSession) => void
   onOpenPhoto: (url: string, label: string) => void
 }
 
-function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) {
+function SessionCard({ item, isOwn, onEdit, onDelete, onOpenPhoto }: SessionCardProps) {
   const [photoIndex, setPhotoIndex] = useState(0)
 
   const photoStartUrl = item.photoStart ? `${getBaseUrl()}${item.photoStart}` : null
@@ -63,18 +64,8 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
   const hasBothPhotos = !!(photoStartUrl && photoEndUrl)
 
   const photos: { url: string; caption: string; notes: string | null; icon: string }[] = []
-  if (photoStartUrl) photos.push({
-    url:     photoStartUrl,
-    caption: item.caption,
-    notes:   item.notes,
-    icon:    'log-in-outline',
-  })
-  if (photoEndUrl) photos.push({
-    url:     photoEndUrl,
-    caption: item.captionEnd ?? item.caption,
-    notes:   item.notesEnd ?? null,
-    icon:    'log-out-outline',
-  })
+  if (photoStartUrl) photos.push({ url: photoStartUrl, caption: item.caption, notes: item.notes, icon: 'log-in-outline' })
+  if (photoEndUrl)   photos.push({ url: photoEndUrl,   caption: item.captionEnd ?? item.caption, notes: item.notesEnd ?? null, icon: 'log-out-outline' })
 
   const currentPhoto   = photos[photoIndex]
   const currentCaption = currentPhoto?.caption ?? item.caption
@@ -86,29 +77,71 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
     setPhotoIndex(Math.min(Math.max(index, 0), photos.length - 1))
   }
 
+  // Avatar do dono da sessão (quando vem de amigo)
+  const studentAvatarUrl = (item as any).student?.avatar
+    ? `${getBaseUrl()}${(item as any).student.avatar}`
+    : null
+  const studentName = (item as any).student?.name ?? ''
+
   return (
     <View style={s.card}>
 
       {/* ─── Header ─── */}
       <View style={s.cardHeader}>
-        <View style={s.cardIconBox}>
-          <Ionicons name="barbell" size={18} color={colors.primary} />
-        </View>
-        <View style={s.cardHeaderInfo}>
-          <Text style={s.cardWorkoutName}>{item.workout?.name ?? 'Treino'}</Text>
-          <Text style={s.cardDate}>{formatDate(item.startedAt)}</Text>
-        </View>
+
+        {/* Avatar do dono quando é post de amigo */}
+        {!isOwn && (
+          <View style={s.friendAvatarBox}>
+            {studentAvatarUrl
+              ? <Image source={{ uri: studentAvatarUrl }} style={s.friendAvatar} />
+              : (
+                <View style={s.friendAvatarPlaceholder}>
+                  <Text style={s.friendAvatarInitial}>{studentName.charAt(0).toUpperCase()}</Text>
+                </View>
+              )
+            }
+          </View>
+        )}
+
+        {!isOwn
+          ? (
+            <View style={s.cardHeaderInfo}>
+              <Text style={s.friendName}>{studentName}</Text>
+              <Text style={s.cardWorkoutName}>{item.workout?.name ?? 'Treino'}</Text>
+              <Text style={s.cardDate}>{formatDate(item.startedAt)}</Text>
+            </View>
+          ) : (
+            <View style={s.cardIconBox}>
+              <Ionicons name="barbell" size={18} color={colors.primary} />
+            </View>
+          )
+        }
+
+        {isOwn
+          ? (
+            <View style={[s.cardHeaderInfo, { flex: 1 }]}>
+              <Text style={s.cardWorkoutName}>{item.workout?.name ?? 'Treino'}</Text>
+              <Text style={s.cardDate}>{formatDate(item.startedAt)}</Text>
+            </View>
+          ) : null
+        }
+
         <View style={s.headerActions}>
           <View style={s.completedBadge}>
             <Ionicons name="checkmark-circle" size={13} color={colors.success} />
             <Text style={s.completedBadgeText}>Concluído</Text>
           </View>
-          <TouchableOpacity style={s.actionBtn} onPress={() => onEdit(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="pencil-outline" size={16} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={s.actionBtn} onPress={() => onDelete(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="trash-outline" size={16} color={colors.error} />
-          </TouchableOpacity>
+          {/* Só mostra editar/excluir nos próprios posts */}
+          {isOwn && (
+            <>
+              <TouchableOpacity style={s.actionBtn} onPress={() => onEdit(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="pencil-outline" size={16} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={s.actionBtn} onPress={() => onDelete(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="trash-outline" size={16} color={colors.error} />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
 
@@ -125,12 +158,7 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
             onMomentumScrollEnd={handleScroll}
           >
             {photos.map((p, i) => (
-              <TouchableOpacity
-                key={i}
-                style={s.photoBox}
-                activeOpacity={0.92}
-                onPress={() => onOpenPhoto(p.url, p.caption)}
-              >
+              <TouchableOpacity key={i} style={s.photoBox} activeOpacity={0.92} onPress={() => onOpenPhoto(p.url, p.caption)}>
                 <Image source={{ uri: p.url }} style={s.photo} />
                 <View style={s.photoLabel}>
                   <Ionicons name={p.icon as any} size={12} color={colors.white} />
@@ -142,7 +170,6 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
               </TouchableOpacity>
             ))}
           </ScrollView>
-
           {hasBothPhotos && (
             <View style={s.dotsRow}>
               {photos.map((_, i) => (
@@ -153,10 +180,8 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
         </View>
       )}
 
-      {/* Legenda dinâmica */}
       <Text style={s.caption}>{currentCaption}</Text>
 
-      {/* Observação dinâmica */}
       {currentNotes && (
         <View style={s.notesBox}>
           <Ionicons name="chatbubble-outline" size={13} color={colors.textSecondary} />
@@ -164,7 +189,6 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
         </View>
       )}
 
-      {/* ─── Stats ─── */}
       <View style={s.statsRow}>
         <View style={s.statItem}>
           <Ionicons name="time-outline" size={14} color={colors.primary} />
@@ -185,7 +209,6 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
         </View>
       </View>
 
-      {/* ─── Localização ─── */}
       {item.location && (
         <View style={s.locationRow}>
           <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
@@ -197,9 +220,11 @@ function SessionCard({ item, onEdit, onDelete, onOpenPhoto }: SessionCardProps) 
 }
 
 export function StudentFeedScreen() {
+  const navigation    = useNavigation<any>()
   const [sessions,    setSessions]    = useState<WorkoutSession[]>([])
   const [loading,     setLoading]     = useState(true)
   const [refreshing,  setRefreshing]  = useState(false)
+  const [pendingCount,setPendingCount]= useState(0)  // ✅
 
   const [editModal,     setEditModal]     = useState(false)
   const [editing,       setEditing]       = useState<WorkoutSession | null>(null)
@@ -214,11 +239,23 @@ export function StudentFeedScreen() {
   const [photoFullUrl,  setPhotoFullUrl]  = useState<string | null>(null)
   const [photoFullLabel,setPhotoFullLabel]= useState('')
 
+  // ID do usuário logado para distinguir posts próprios de amigos
+  const [myUserId, setMyUserId] = useState<string | null>(null)
+
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
-      const data = await friendService.getFeed()
+      const [data, pending] = await Promise.all([
+        friendService.getFeed(),
+        friendService.listPendingRequests().catch(() => []),
+      ])
       setSessions(data)
+      setPendingCount(pending.length)
+
+      // Pega o ID do usuário logado a partir do primeiro post próprio ou do storage
+      const { apiRequest } = await import('../../services/api')
+      const me = await apiRequest<{ id: string }>('/auth/me', { authenticated: true }).catch(() => null)
+      if (me) setMyUserId(me.id)
     } catch {
       // silencia
     } finally {
@@ -290,11 +327,37 @@ export function StudentFeedScreen() {
   return (
     <SafeAreaView style={s.safe}>
 
+      {/* Header com botão de solicitações de amizade */}
       <View style={s.header}>
-        <Text style={s.headerTitle}>Meu Feed</Text>
-        <Text style={s.headerSub}>
-          {sessions.length} treino{sessions.length !== 1 ? 's' : ''} registrado{sessions.length !== 1 ? 's' : ''}
-        </Text>
+        <View>
+          <Text style={s.headerTitle}>Meu Feed</Text>
+          <Text style={s.headerSub}>
+            {sessions.length} treino{sessions.length !== 1 ? 's' : ''} registrado{sessions.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        <View style={s.headerRight}>
+          {/* Botão buscar amigos */}
+          <TouchableOpacity
+            style={s.headerBtn}
+            onPress={() => navigation.navigate('CommunitySearch')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="person-add-outline" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+          {/* Botão solicitações com badge */}
+          <TouchableOpacity
+            style={s.headerBtn}
+            onPress={() => navigation.navigate('FriendRequests')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="people-outline" size={22} color={colors.textPrimary} />
+            {pendingCount > 0 && (
+              <View style={s.badge}>
+                <Text style={s.badgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -303,14 +366,18 @@ export function StudentFeedScreen() {
         <FlatList
           data={sessions}
           keyExtractor={i => i.id}
-          renderItem={({ item }) => (
-            <SessionCard
-              item={item}
-              onEdit={openEditModal}
-              onDelete={handleDelete}
-              onOpenPhoto={openPhoto}
-            />
-          )}
+          renderItem={({ item }) => {
+            const isOwn = myUserId ? (item as any).studentId === myUserId : true
+            return (
+              <SessionCard
+                item={item}
+                isOwn={isOwn}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                onOpenPhoto={openPhoto}
+              />
+            )
+          }}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -323,34 +390,34 @@ export function StudentFeedScreen() {
           ListEmptyComponent={
             <View style={s.empty}>
               <Ionicons name="fitness-outline" size={52} color={colors.textDisabled} />
-              <Text style={s.emptyTitle}>Nenhum treino registrado</Text>
-              <Text style={s.emptyText}>Faça check-in em um treino para começar seu histórico</Text>
+              <Text style={s.emptyTitle}>Nenhum treino no feed</Text>
+              <Text style={s.emptyText}>Adicione amigos para ver os treinos deles aqui</Text>
+              <TouchableOpacity
+                style={s.emptyBtn}
+                onPress={() => navigation.navigate('CommunitySearch')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="person-add-outline" size={16} color={colors.white} />
+                <Text style={s.emptyBtnText}>Buscar amigos</Text>
+              </TouchableOpacity>
             </View>
           }
         />
       )}
 
-      {/* ─── Modal foto tela cheia ─── */}
-      <Modal
-        visible={photoModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPhotoModal(false)}
-        statusBarTranslucent
-      >
+      {/* Modal foto tela cheia */}
+      <Modal visible={photoModal} transparent animationType="fade" onRequestClose={() => setPhotoModal(false)} statusBarTranslucent>
         <View style={s.photoModalBg}>
           <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
           <TouchableOpacity style={s.photoModalClose} onPress={() => setPhotoModal(false)}>
             <Ionicons name="close-circle" size={36} color={colors.white} />
           </TouchableOpacity>
           <Text style={s.photoModalLabel}>{photoFullLabel}</Text>
-          {photoFullUrl && (
-            <Image source={{ uri: photoFullUrl }} style={s.photoModalImage} resizeMode="contain" />
-          )}
+          {photoFullUrl && <Image source={{ uri: photoFullUrl }} style={s.photoModalImage} resizeMode="contain" />}
         </View>
       </Modal>
 
-      {/* ─── Modal edição ─── */}
+      {/* Modal edição */}
       <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setEditModal(false)} />
         <View style={s.sheet}>
@@ -360,105 +427,51 @@ export function StudentFeedScreen() {
               <Ionicons name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-
           <ScrollView contentContainerStyle={s.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-            {/* Seção Check-in */}
             <View style={s.editSectionHeader}>
               <Ionicons name="log-in-outline" size={15} color={colors.success} />
               <Text style={s.editSectionTitle}>Check-in</Text>
             </View>
-
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Legenda *</Text>
-              <TextInput
-                style={s.input}
-                value={editCaption}
-                onChangeText={setEditCaption}
-                placeholder="Ex: Dia de peito e tríceps 💪"
-                placeholderTextColor={colors.textDisabled}
-                maxLength={150}
-              />
+              <TextInput style={s.input} value={editCaption} onChangeText={setEditCaption} placeholder="Ex: Dia de peito e tríceps 💪" placeholderTextColor={colors.textDisabled} maxLength={150} />
               <Text style={s.charCount}>{editCaption.length}/150</Text>
             </View>
-
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Observação (opcional)</Text>
-              <TextInput
-                style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
-                value={editNotes}
-                onChangeText={setEditNotes}
-                placeholder="Ex: Aumentei a carga no supino..."
-                placeholderTextColor={colors.textDisabled}
-                multiline
-                maxLength={300}
-              />
+              <TextInput style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]} value={editNotes} onChangeText={setEditNotes} placeholder="Ex: Aumentei a carga no supino..." placeholderTextColor={colors.textDisabled} multiline maxLength={300} />
             </View>
 
-            {/* Seção Check-out — só se sessão finalizada */}
             {editing?.finishedAt && (
               <>
                 <View style={s.editSectionHeader}>
                   <Ionicons name="log-out-outline" size={15} color={colors.error} />
                   <Text style={s.editSectionTitle}>Check-out</Text>
                 </View>
-
                 <View style={s.inputGroup}>
                   <Text style={s.inputLabel}>Legenda</Text>
-                  <TextInput
-                    style={s.input}
-                    value={editCaptionEnd}
-                    onChangeText={setEditCaptionEnd}
-                    placeholder="Ex: Treino concluído! 🔥"
-                    placeholderTextColor={colors.textDisabled}
-                    maxLength={150}
-                  />
+                  <TextInput style={s.input} value={editCaptionEnd} onChangeText={setEditCaptionEnd} placeholder="Ex: Treino concluído! 🔥" placeholderTextColor={colors.textDisabled} maxLength={150} />
                   <Text style={s.charCount}>{editCaptionEnd.length}/150</Text>
                 </View>
-
                 <View style={s.inputGroup}>
                   <Text style={s.inputLabel}>Observação (opcional)</Text>
-                  <TextInput
-                    style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
-                    value={editNotesEnd}
-                    onChangeText={setEditNotesEnd}
-                    placeholder="Ex: Senti bem os músculos, ótimo treino!"
-                    placeholderTextColor={colors.textDisabled}
-                    multiline
-                    maxLength={300}
-                  />
+                  <TextInput style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]} value={editNotesEnd} onChangeText={setEditNotesEnd} placeholder="Ex: Senti bem os músculos, ótimo treino!" placeholderTextColor={colors.textDisabled} multiline maxLength={300} />
                 </View>
               </>
             )}
 
-            {/* Localização */}
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Localização (opcional)</Text>
-              <TextInput
-                style={s.input}
-                value={editLocation}
-                onChangeText={setEditLocation}
-                placeholder="Ex: Academia FitGym..."
-                placeholderTextColor={colors.textDisabled}
-              />
+              <TextInput style={s.input} value={editLocation} onChangeText={setEditLocation} placeholder="Ex: Academia FitGym..." placeholderTextColor={colors.textDisabled} />
             </View>
 
-            <TouchableOpacity
-              style={[s.saveBtn, saving && { opacity: 0.6 }]}
-              onPress={handleSave}
-              disabled={saving}
-              activeOpacity={0.8}
-            >
-              {saving
-                ? <ActivityIndicator color={colors.white} />
-                : <Text style={s.saveBtnText}>Salvar alterações</Text>
-              }
+            <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.8}>
+              {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>Salvar alterações</Text>}
             </TouchableOpacity>
-
           </ScrollView>
         </View>
       </Modal>
-
     </SafeAreaView>
   )
 }
@@ -466,9 +479,16 @@ export function StudentFeedScreen() {
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
 
-  header:      { paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['3'] },
+  // Header com botões
+  header:      { paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['3'], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
   headerSub:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  headerBtn:   { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+
+  // Badge de notificações
+  badge:     { position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: colors.error, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  badgeText: { fontFamily: typography.family.bold, fontSize: 9, color: colors.white },
 
   list: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
@@ -483,6 +503,13 @@ const s = StyleSheet.create({
   completedBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.success}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
   completedBadgeText: { fontFamily: typography.family.medium, fontSize: 10, color: colors.success },
   actionBtn:          { width: 30, height: 30, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+
+  // Avatar de amigo no card
+  friendAvatarBox:         { width: 40, height: 40, borderRadius: radii.full, overflow: 'hidden' },
+  friendAvatar:            { width: 40, height: 40, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
+  friendAvatarPlaceholder: { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center' },
+  friendAvatarInitial:     { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
+  friendName:              { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.primary },
 
   photosContainer: { gap: spacing['2'] },
   photosScroll:    { gap: spacing['2'] },
@@ -513,9 +540,11 @@ const s = StyleSheet.create({
   locationRow:  { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
   locationText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, flex: 1 },
 
-  empty:      { alignItems: 'center', marginTop: spacing['12'], gap: spacing['3'], paddingHorizontal: spacing['8'] },
-  emptyTitle: { fontFamily: typography.family.semiBold, fontSize: typography.size.lg, color: colors.textSecondary },
-  emptyText:  { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled, textAlign: 'center' },
+  empty:       { alignItems: 'center', marginTop: spacing['12'], gap: spacing['3'], paddingHorizontal: spacing['8'] },
+  emptyTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.lg, color: colors.textSecondary },
+  emptyText:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled, textAlign: 'center' },
+  emptyBtn:    { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['5'], paddingVertical: spacing['3'], marginTop: spacing['2'] },
+  emptyBtnText:{ fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.white },
 
   overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '85%' },
