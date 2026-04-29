@@ -11,6 +11,9 @@ import { StudentPersonalsScreen }  from '../screens/student/StudentPersonalsScre
 import { StudentProfileScreen }    from '../screens/student/StudentProfileScreen'
 import { CommunitySearchScreen }   from '../screens/community/CommunitySearchScreen'
 import { FriendRequestsScreen }    from '../screens/community/FriendRequestsScreen'
+import { GroupsScreen }           from '../screens/groups/GroupsScreen'
+import { GroupDetailScreen }      from '../screens/groups/GroupDetailScreen'
+import { ChallengeRankingScreen } from '../screens/groups/ChallengeRankingScreen'
 import { colors, typography }      from '../theme'
 
 // ─── Tab ─────────────────────────────────────
@@ -77,6 +80,16 @@ function StudentTabs() {
         }}
       />
       <Tab.Screen
+        name="Groups"
+        component={GroupsScreen}
+        options={{
+          tabBarLabel: 'Grupos',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'people-circle' : 'people-circle-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Dashboard"
         component={StudentDashboardScreen}
         options={{
@@ -112,9 +125,11 @@ function StudentTabs() {
 
 // ─── Stack (envolve o Tab + telas modais) ────
 export type StudentStackParamList = {
-  StudentTabs:      undefined
-  CommunitySearch:  undefined  
-  FriendRequests:   undefined  
+  StudentTabs:        undefined
+  CommunitySearch:    undefined
+  FriendRequests:     undefined
+  GroupDetail:        { groupId: string }        
+  ChallengeRanking:   { groupId: string; challengeId: string } 
 }
 
 const Stack = createNativeStackNavigator<StudentStackParamList>()
@@ -125,6 +140,8 @@ export function StudentNavigator() {
       <Stack.Screen name="StudentTabs"     component={StudentTabs} />
       <Stack.Screen name="CommunitySearch" component={CommunitySearchScreen} />
       <Stack.Screen name="FriendRequests"  component={FriendRequestsScreen} />
+      <Stack.Screen name="GroupDetail"       component={GroupDetailScreen} />
+      <Stack.Screen name="ChallengeRanking"  component={ChallengeRankingScreen} />
     </Stack.Navigator>
   )
 }
