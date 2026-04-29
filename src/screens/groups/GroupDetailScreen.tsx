@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native'
 import Constants from 'expo-constants'
 import { groupService } from '../../services/group.service'
-import type { Group, GroupChallenge } from '../../services/group.service'
+import type { Group, GroupChallenge, GroupMember } from '../../services/group.service'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
@@ -21,7 +21,9 @@ const getBaseUrl = () => {
   return 'http://10.0.2.2:3333'
 }
 
-const formatDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+const formatDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', {
+  day: '2-digit', month: 'short', year: 'numeric',
+})
 
 const getChallengeStatus = (c: GroupChallenge): 'upcoming' | 'active' | 'ended' => {
   const now   = new Date()
@@ -33,14 +35,136 @@ const getChallengeStatus = (c: GroupChallenge): 'upcoming' | 'active' | 'ended' 
 }
 
 const STATUS_CONFIG = {
-  upcoming: { label: 'Em breve',  color: '#F59E0B',      icon: 'time-outline'      as const },
-  active:   { label: 'Ativo',     color: colors.success, icon: 'flash-outline'     as const },
-  ended:    { label: 'Encerrado', color: colors.textDisabled, icon: 'checkmark-done-outline' as const },
+  upcoming: { label: 'Em breve',   color: '#F59E0B',           icon: 'time-outline'           as const },
+  active:   { label: 'Ativo',      color: colors.success,      icon: 'flash-outline'          as const },
+  ended:    { label: 'Encerrado',  color: colors.textDisabled, icon: 'checkmark-done-outline' as const },
 }
 
+const maskDate = (v: string) => {
+  const d = v.replace(/\D/g, '').slice(0, 8)
+  if (d.length > 4) return `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}`
+  if (d.length > 2) return `${d.slice(0,2)}/${d.slice(2)}`
+  return d
+}
+
+// ─── Sub-componentes tipados ──────────────────
+
+interface ChallengeItemProps {
+  c:          GroupChallenge
+  checkingIn: string | null
+  groupId:    string
+  onCheckin:  (c: GroupChallenge) => void
+  onRanking:  (challengeId: string) => void
+}
+
+function ChallengeItem({ c, checkingIn, groupId, onCheckin, onRanking }: ChallengeItemProps) {
+  const status  = getChallengeStatus(c)
+  const cfg     = STATUS_CONFIG[status]
+  const myCount = c.checkins?.length ?? 0
+  const pct     = Math.min((myCount / c.goal) * 100, 100)
+
+  return (
+    <View style={s.challengeCard}>
+      <View style={s.challengeHeader}>
+        <View style={s.challengeTitleRow}>
+          <Text style={s.challengeTitle}>{c.title}</Text>
+          <View style={[s.statusBadge, { backgroundColor: `${cfg.color}20` }]}>
+            <Ionicons name={cfg.icon} size={12} color={cfg.color} />
+            <Text style={[s.statusText, { color: cfg.color }]}>{cfg.label}</Text>
+          </View>
+        </View>
+        {c.description && <Text style={s.challengeDesc}>{c.description}</Text>}
+      </View>
+
+      <View style={s.challengeDates}>
+        <Ionicons name="calendar-outline" size={13} color={colors.textSecondary} />
+        <Text style={s.challengeDateText}>
+          {formatDate(c.startDate)} → {formatDate(c.endDate)}
+        </Text>
+      </View>
+
+      <View style={s.progressSection}>
+        <View style={s.progressHeader}>
+          <Text style={s.progressLabel}>Seu progresso</Text>
+          <Text style={s.progressCount}>{myCount}/{c.goal} treinos</Text>
+        </View>
+        <View style={s.progressBar}>
+          <View style={[s.progressFill, {
+            width: `${pct}%` as any,
+            backgroundColor: pct >= 100 ? colors.success : colors.primary,
+          }]} />
+        </View>
+      </View>
+
+      <View style={s.challengeActions}>
+        {status === 'active' && (
+          <TouchableOpacity
+            style={[s.checkinBtn, checkingIn === c.id && { opacity: 0.6 }]}
+            onPress={() => onCheckin(c)}
+            disabled={checkingIn === c.id}
+            activeOpacity={0.8}
+          >
+            {checkingIn === c.id
+              ? <ActivityIndicator size="small" color={colors.white} />
+              : <>
+                  <Ionicons name="checkmark-circle-outline" size={18} color={colors.white} />
+                  <Text style={s.checkinBtnText}>Check-in</Text>
+                </>
+            }
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={s.rankingBtn}
+          onPress={() => onRanking(c.id)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="podium-outline" size={18} color={colors.primary} />
+          <Text style={s.rankingBtnText}>Ranking</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+}
+
+interface MemberItemProps {
+  m: GroupMember
+}
+
+function MemberItem({ m }: MemberItemProps) {
+  const avatarUrl   = m.user.avatar ? `${getBaseUrl()}${m.user.avatar}` : null
+  const isItemOwner = m.role === 'OWNER'
+
+  return (
+    <View style={s.memberCard}>
+      {avatarUrl
+        ? <Image source={{ uri: avatarUrl }} style={s.memberAvatar} />
+        : (
+          <View style={s.memberAvatarPlaceholder}>
+            <Text style={s.memberAvatarInitial}>{m.user.name.charAt(0).toUpperCase()}</Text>
+          </View>
+        )
+      }
+      <View style={s.memberInfo}>
+        <View style={s.memberNameRow}>
+          <Text style={s.memberName}>{m.user.name}</Text>
+          {isItemOwner && (
+            <View style={s.ownerBadge}>
+              <Ionicons name="star" size={10} color="#F59E0B" />
+              <Text style={s.ownerBadgeText}>Criador</Text>
+            </View>
+          )}
+        </View>
+        <Text style={s.memberCode}>{m.user.userCode}</Text>
+      </View>
+    </View>
+  )
+}
+
+// ─── Tela principal ───────────────────────────
+
 export function GroupDetailScreen() {
-  const navigation = useNavigation<any>()
-  const route      = useRoute<any>()
+  const navigation  = useNavigation<any>()
+  const route       = useRoute<any>()
   const { groupId } = route.params as { groupId: string }
   const { user }    = useAuth()
 
@@ -49,7 +173,6 @@ export function GroupDetailScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab,  setActiveTab]  = useState<'challenges' | 'members'>('challenges')
 
-  // Modal criar desafio
   const [challengeModal,    setChallengeModal]    = useState(false)
   const [challengeTitle,    setChallengeTitle]    = useState('')
   const [challengeDesc,     setChallengeDesc]     = useState('')
@@ -58,8 +181,7 @@ export function GroupDetailScreen() {
   const [challengeEnd,      setChallengeEnd]      = useState('')
   const [creatingChallenge, setCreatingChallenge] = useState(false)
 
-  // Checkin
-  const [checkingIn,    setCheckingIn]    = useState<string | null>(null)
+  const [checkingIn, setCheckingIn] = useState<string | null>(null)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -77,7 +199,9 @@ export function GroupDetailScreen() {
 
   useFocusEffect(useCallback(() => { load() }, [load]))
 
-  const isOwner = group?.myRole === 'OWNER'
+  const isOwner    = group?.myRole === 'OWNER'
+  const challenges = group?.challenges ?? []
+  const members    = group?.members    ?? []
 
   const handleCreateChallenge = async () => {
     if (!challengeTitle.trim()) { Alert.alert('Atenção', 'Título é obrigatório.'); return }
@@ -85,7 +209,6 @@ export function GroupDetailScreen() {
     if (!goal || goal < 1) { Alert.alert('Atenção', 'Meta deve ser ao menos 1.'); return }
     if (!challengeStart || !challengeEnd) { Alert.alert('Atenção', 'Datas são obrigatórias.'); return }
 
-    // Converte DD/MM/AAAA para ISO
     const parseDate = (str: string) => {
       const [d, m, y] = str.split('/')
       return new Date(`${y}-${m}-${d}`).toISOString()
@@ -101,7 +224,8 @@ export function GroupDetailScreen() {
         endDate:     parseDate(challengeEnd),
       })
       setChallengeModal(false)
-      setChallengeTitle(''); setChallengeDesc(''); setChallengeGoal('7'); setChallengeStart(''); setChallengeEnd('')
+      setChallengeTitle(''); setChallengeDesc(''); setChallengeGoal('7')
+      setChallengeStart(''); setChallengeEnd('')
       load(true)
     } catch (err: any) {
       Alert.alert('Erro', err?.message ?? 'Não foi possível criar o desafio.')
@@ -171,12 +295,17 @@ export function GroupDetailScreen() {
     Share.share({ message: `Entre no meu grupo "${group.name}" no FitGym!\nCódigo: ${group.code}` })
   }
 
-  const maskDate = (v: string) => {
-    const d = v.replace(/\D/g, '').slice(0, 8)
-    if (d.length > 4) return `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}`
-    if (d.length > 2) return `${d.slice(0,2)}/${d.slice(2)}`
-    return d
-  }
+  const footerComponent = isOwner ? (
+    <TouchableOpacity style={s.deleteBtn} onPress={handleDelete}>
+      <Ionicons name="trash-outline" size={18} color={colors.error} />
+      <Text style={s.deleteBtnText}>Deletar grupo</Text>
+    </TouchableOpacity>
+  ) : (
+    <TouchableOpacity style={s.leaveBtn} onPress={handleLeave}>
+      <Ionicons name="exit-outline" size={18} color={colors.error} />
+      <Text style={s.leaveBtnText}>Sair do grupo</Text>
+    </TouchableOpacity>
+  )
 
   if (loading) {
     return (
@@ -187,9 +316,6 @@ export function GroupDetailScreen() {
   }
 
   if (!group) return null
-
-  const challenges = group.challenges ?? []
-  const members    = group.members    ?? []
 
   return (
     <SafeAreaView style={s.safe}>
@@ -208,7 +334,7 @@ export function GroupDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Card info do grupo */}
+      {/* Info card */}
       <View style={s.infoCard}>
         <TouchableOpacity
           style={s.codeBox}
@@ -261,144 +387,60 @@ export function GroupDetailScreen() {
         )}
       </View>
 
-      {/* Conteúdo das tabs */}
-      <FlatList
-        data={activeTab === 'challenges' ? challenges : members}
-        keyExtractor={i => (i as any).id}
-        contentContainerStyle={s.list}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true) }} tintColor={colors.primary} />
-        }
-        renderItem={({ item }) => {
-          if (activeTab === 'challenges') {
-            const c       = item as GroupChallenge
-            const status  = getChallengeStatus(c)
-            const cfg     = STATUS_CONFIG[status]
-            const myCount = c.checkins?.length ?? 0
-            const pct     = Math.min((myCount / c.goal) * 100, 100)
-
-            return (
-              <View style={s.challengeCard}>
-                <View style={s.challengeHeader}>
-                  <View style={s.challengeTitleRow}>
-                    <Text style={s.challengeTitle}>{c.title}</Text>
-                    <View style={[s.statusBadge, { backgroundColor: `${cfg.color}20` }]}>
-                      <Ionicons name={cfg.icon} size={12} color={cfg.color} />
-                      <Text style={[s.statusText, { color: cfg.color }]}>{cfg.label}</Text>
-                    </View>
-                  </View>
-                  {c.description && <Text style={s.challengeDesc}>{c.description}</Text>}
-                </View>
-
-                <View style={s.challengeDates}>
-                  <Ionicons name="calendar-outline" size={13} color={colors.textSecondary} />
-                  <Text style={s.challengeDateText}>
-                    {formatDate(c.startDate)} → {formatDate(c.endDate)}
-                  </Text>
-                </View>
-
-                {/* Progresso do usuário */}
-                <View style={s.progressSection}>
-                  <View style={s.progressHeader}>
-                    <Text style={s.progressLabel}>Seu progresso</Text>
-                    <Text style={s.progressCount}>{myCount}/{c.goal} treinos</Text>
-                  </View>
-                  <View style={s.progressBar}>
-                    <View style={[s.progressFill, { width: `${pct}%` as any, backgroundColor: pct >= 100 ? colors.success : colors.primary }]} />
-                  </View>
-                </View>
-
-                <View style={s.challengeActions}>
-                  {/* Botão checkin */}
-                  {status === 'active' && (
-                    <TouchableOpacity
-                      style={[s.checkinBtn, checkingIn === c.id && { opacity: 0.6 }]}
-                      onPress={() => handleCheckin(c)}
-                      disabled={checkingIn === c.id}
-                      activeOpacity={0.8}
-                    >
-                      {checkingIn === c.id
-                        ? <ActivityIndicator size="small" color={colors.white} />
-                        : <>
-                            <Ionicons name="checkmark-circle-outline" size={18} color={colors.white} />
-                            <Text style={s.checkinBtnText}>Check-in</Text>
-                          </>
-                      }
-                    </TouchableOpacity>
-                  )}
-                  {/* Botão ranking */}
-                  <TouchableOpacity
-                    style={s.rankingBtn}
-                    onPress={() => navigation.navigate('ChallengeRanking', { groupId, challengeId: c.id })}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="podium-outline" size={18} color={colors.primary} />
-                    <Text style={s.rankingBtnText}>Ranking</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )
-          }
-
-          // Membros
-          const m          = item as typeof members[0]
-          const avatarUrl  = m.user.avatar ? `${getBaseUrl()}${m.user.avatar}` : null
-          const isItemOwner = m.role === 'OWNER'
-
-          return (
-            <View style={s.memberCard}>
-              {avatarUrl
-                ? <Image source={{ uri: avatarUrl }} style={s.memberAvatar} />
-                : (
-                  <View style={s.memberAvatarPlaceholder}>
-                    <Text style={s.memberAvatarInitial}>{m.user.name.charAt(0).toUpperCase()}</Text>
-                  </View>
-                )
-              }
-              <View style={s.memberInfo}>
-                <View style={s.memberNameRow}>
-                  <Text style={s.memberName}>{m.user.name}</Text>
-                  {isItemOwner && (
-                    <View style={s.ownerBadge}>
-                      <Ionicons name="star" size={10} color="#F59E0B" />
-                      <Text style={s.ownerBadgeText}>Criador</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={s.memberCode}>{m.user.userCode}</Text>
-              </View>
-            </View>
-          )
-        }}
-        ListEmptyComponent={
-          <View style={s.empty}>
-            <Ionicons
-              name={activeTab === 'challenges' ? 'trophy-outline' : 'people-outline'}
-              size={48} color={colors.textDisabled}
+      {/* FlatLists separados por tipo*/}
+      {activeTab === 'challenges' ? (
+        <FlatList<GroupChallenge>
+          data={challenges}
+          keyExtractor={i => i.id}
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); load(true) }}
+              tintColor={colors.primary}
             />
-            <Text style={s.emptyText}>
-              {activeTab === 'challenges'
-                ? isOwner ? 'Crie o primeiro desafio!' : 'Nenhum desafio ainda'
-                : 'Nenhum membro'
-              }
-            </Text>
-          </View>
-        }
-        ListFooterComponent={
-          !isOwner ? (
-            <TouchableOpacity style={s.leaveBtn} onPress={handleLeave}>
-              <Ionicons name="exit-outline" size={18} color={colors.error} />
-              <Text style={s.leaveBtnText}>Sair do grupo</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={s.deleteBtn} onPress={handleDelete}>
-              <Ionicons name="trash-outline" size={18} color={colors.error} />
-              <Text style={s.deleteBtnText}>Deletar grupo</Text>
-            </TouchableOpacity>
-          )
-        }
-      />
+          }
+          renderItem={({ item }) => (
+            <ChallengeItem
+              c={item}
+              checkingIn={checkingIn}
+              groupId={groupId}
+              onCheckin={handleCheckin}
+              onRanking={challengeId => navigation.navigate('ChallengeRanking', { groupId, challengeId })}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={s.empty}>
+              <Ionicons name="trophy-outline" size={48} color={colors.textDisabled} />
+              <Text style={s.emptyText}>{isOwner ? 'Crie o primeiro desafio!' : 'Nenhum desafio ainda'}</Text>
+            </View>
+          }
+          ListFooterComponent={footerComponent}
+        />
+      ) : (
+        <FlatList<GroupMember>
+          data={members}
+          keyExtractor={i => i.id}
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); load(true) }}
+              tintColor={colors.primary}
+            />
+          }
+          renderItem={({ item }) => <MemberItem m={item} />}
+          ListEmptyComponent={
+            <View style={s.empty}>
+              <Ionicons name="people-outline" size={48} color={colors.textDisabled} />
+              <Text style={s.emptyText}>Nenhum membro</Text>
+            </View>
+          }
+          ListFooterComponent={footerComponent}
+        />
+      )}
 
       {/* Modal criar desafio */}
       <Modal visible={challengeModal} transparent animationType="slide" onRequestClose={() => setChallengeModal(false)}>
@@ -413,46 +455,62 @@ export function GroupDetailScreen() {
           <ScrollView contentContainerStyle={s.sheetBody} keyboardShouldPersistTaps="handled">
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Título *</Text>
-              <TextInput style={s.input} value={challengeTitle} onChangeText={setChallengeTitle}
-                placeholder="Ex: 30 dias de treino" placeholderTextColor={colors.textDisabled} maxLength={60} />
+              <TextInput
+                style={s.input} value={challengeTitle} onChangeText={setChallengeTitle}
+                placeholder="Ex: 30 dias de treino" placeholderTextColor={colors.textDisabled} maxLength={60}
+              />
             </View>
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Descrição (opcional)</Text>
-              <TextInput style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
+              <TextInput
+                style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
                 value={challengeDesc} onChangeText={setChallengeDesc}
                 placeholder="Ex: Treinar ao menos 30 vezes em 30 dias!" placeholderTextColor={colors.textDisabled}
-                multiline maxLength={200} />
+                multiline maxLength={200}
+              />
             </View>
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Meta (número de treinos) *</Text>
-              <TextInput style={s.input} value={challengeGoal} onChangeText={setChallengeGoal}
-                keyboardType="numeric" placeholder="Ex: 30" placeholderTextColor={colors.textDisabled} maxLength={3} />
+              <TextInput
+                style={s.input} value={challengeGoal} onChangeText={setChallengeGoal}
+                keyboardType="numeric" placeholder="Ex: 30" placeholderTextColor={colors.textDisabled} maxLength={3}
+              />
             </View>
             <View style={s.dateRow}>
               <View style={[s.inputGroup, { flex: 1 }]}>
                 <Text style={s.inputLabel}>Início *</Text>
-                <TextInput style={s.input} value={challengeStart}
+                <TextInput
+                  style={s.input} value={challengeStart}
                   onChangeText={v => setChallengeStart(maskDate(v))}
                   placeholder="DD/MM/AAAA" placeholderTextColor={colors.textDisabled}
-                  keyboardType="numeric" maxLength={10} />
+                  keyboardType="numeric" maxLength={10}
+                />
               </View>
               <View style={[s.inputGroup, { flex: 1 }]}>
                 <Text style={s.inputLabel}>Fim *</Text>
-                <TextInput style={s.input} value={challengeEnd}
+                <TextInput
+                  style={s.input} value={challengeEnd}
                   onChangeText={v => setChallengeEnd(maskDate(v))}
                   placeholder="DD/MM/AAAA" placeholderTextColor={colors.textDisabled}
-                  keyboardType="numeric" maxLength={10} />
+                  keyboardType="numeric" maxLength={10}
+                />
               </View>
             </View>
             <TouchableOpacity
               style={[s.saveBtn, creatingChallenge && { opacity: 0.6 }]}
-              onPress={handleCreateChallenge} disabled={creatingChallenge} activeOpacity={0.8}
+              onPress={handleCreateChallenge}
+              disabled={creatingChallenge}
+              activeOpacity={0.8}
             >
-              {creatingChallenge ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>Criar desafio</Text>}
+              {creatingChallenge
+                ? <ActivityIndicator color={colors.white} />
+                : <Text style={s.saveBtnText}>Criar desafio</Text>
+              }
             </TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
+
     </SafeAreaView>
   )
 }
@@ -467,34 +525,34 @@ const s = StyleSheet.create({
   headerSub:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
   headerBtn:    { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
 
-  infoCard:  { marginHorizontal: spacing['5'], backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
-  codeBox:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: `${colors.primary}10`, borderRadius: radii.lg, paddingVertical: spacing['2'] },
-  codeText:  { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.primary, letterSpacing: 2 },
-  infoStats: { flexDirection: 'row', justifyContent: 'space-around' },
-  infoStat:  { alignItems: 'center', gap: 2 },
-  infoStatValue: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
-  infoStatLabel: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
+  infoCard:        { marginHorizontal: spacing['5'], backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
+  codeBox:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: `${colors.primary}10`, borderRadius: radii.lg, paddingVertical: spacing['2'] },
+  codeText:        { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.primary, letterSpacing: 2 },
+  infoStats:       { flexDirection: 'row', justifyContent: 'space-around' },
+  infoStat:        { alignItems: 'center', gap: 2 },
+  infoStatValue:   { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
+  infoStatLabel:   { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
   infoStatDivider: { width: 1, backgroundColor: colors.border },
 
-  tabsRow:          { flexDirection: 'row', paddingHorizontal: spacing['5'], paddingBottom: spacing['3'], gap: spacing['2'], alignItems: 'center' },
-  tab:              { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['1'], paddingVertical: spacing['3'], borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border },
-  tabActive:        { backgroundColor: `${colors.primary}15`, borderColor: colors.primary },
-  tabText:          { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
-  tabTextActive:    { color: colors.primary, fontFamily: typography.family.semiBold },
-  addChallengeBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['3'] },
+  tabsRow:             { flexDirection: 'row', paddingHorizontal: spacing['5'], paddingBottom: spacing['3'], gap: spacing['2'], alignItems: 'center' },
+  tab:                 { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['1'], paddingVertical: spacing['3'], borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border },
+  tabActive:           { backgroundColor: `${colors.primary}15`, borderColor: colors.primary },
+  tabText:             { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
+  tabTextActive:       { color: colors.primary, fontFamily: typography.family.semiBold },
+  addChallengeBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['3'] },
   addChallengeBtnText: { fontFamily: typography.family.semiBold, fontSize: typography.size.xs, color: colors.white },
 
   list: { paddingHorizontal: spacing['5'], paddingBottom: spacing['6'] },
 
-  challengeCard:    { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
-  challengeHeader:  { gap: spacing['1'] },
-  challengeTitleRow:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing['2'] },
-  challengeTitle:   { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary, flex: 1 },
-  challengeDesc:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
-  statusBadge:      { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
-  statusText:       { fontFamily: typography.family.medium, fontSize: 10 },
-  challengeDates:   { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
-  challengeDateText:{ fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
+  challengeCard:     { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
+  challengeHeader:   { gap: spacing['1'] },
+  challengeTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing['2'] },
+  challengeTitle:    { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary, flex: 1 },
+  challengeDesc:     { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
+  statusBadge:       { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
+  statusText:        { fontFamily: typography.family.medium, fontSize: 10 },
+  challengeDates:    { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
+  challengeDateText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
 
   progressSection: { gap: spacing['1'] },
   progressHeader:  { flexDirection: 'row', justifyContent: 'space-between' },
@@ -513,12 +571,12 @@ const s = StyleSheet.create({
   memberAvatar:            { width: 48, height: 48, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
   memberAvatarPlaceholder: { width: 48, height: 48, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.primary },
   memberAvatarInitial:     { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.white },
-  memberInfo:    { flex: 1 },
-  memberNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
-  memberName:    { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
-  memberCode:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textDisabled, marginTop: 2, letterSpacing: 1 },
-  ownerBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${'#F59E0B'}20`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
-  ownerBadgeText: { fontFamily: typography.family.medium, fontSize: 10, color: '#F59E0B' },
+  memberInfo:              { flex: 1 },
+  memberNameRow:           { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  memberName:              { fontFamily: typography.family.semiBold, fontSize: typography.size.md, color: colors.textPrimary },
+  memberCode:              { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textDisabled, marginTop: 2, letterSpacing: 1 },
+  ownerBadge:              { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${'#F59E0B'}20`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
+  ownerBadgeText:          { fontFamily: typography.family.medium, fontSize: 10, color: '#F59E0B' },
 
   leaveBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], paddingVertical: spacing['5'], marginTop: spacing['2'] },
   leaveBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.base, color: colors.error },
@@ -528,15 +586,15 @@ const s = StyleSheet.create({
   empty:     { alignItems: 'center', marginTop: spacing['10'], gap: spacing['2'] },
   emptyText: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled },
 
-  overlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet:      { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'] },
-  sheetHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
-  sheetTitle: { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
-  sheetBody:  { padding: spacing['6'], gap: spacing['4'], paddingBottom: spacing['10'] },
-  inputGroup: { gap: spacing['1'] },
-  inputLabel: { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
-  input:      { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
-  dateRow:    { flexDirection: 'row', gap: spacing['3'] },
-  saveBtn:    { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText:{ fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
+  overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'] },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
+  sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
+  sheetBody:   { padding: spacing['6'], gap: spacing['4'], paddingBottom: spacing['10'] },
+  inputGroup:  { gap: spacing['1'] },
+  inputLabel:  { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
+  input:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 52, paddingHorizontal: spacing['4'], fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textPrimary },
+  dateRow:     { flexDirection: 'row', gap: spacing['3'] },
+  saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
 })
