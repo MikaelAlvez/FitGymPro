@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
+import { useNavigation } from '@react-navigation/native'  // ✅ import no topo
 import { userService } from '../../services/user.service'
 import { friendService } from '../../services/friend.service'
 import type { FriendStatusResult } from '../../services/friend.service'
@@ -39,11 +40,13 @@ const FORMAT_LABEL: Record<string, string> = {
 }
 
 export function CommunitySearchScreen() {
-  const [search,        setSearch]        = useState('')
-  const [loading,       setLoading]       = useState(false)
-  const [result,        setResult]        = useState<SearchResult | null>(null)
-  const [friendStatus,  setFriendStatus]  = useState<FriendStatusResult | null>(null)
-  const [actioning,     setActioning]     = useState(false)
+  const navigation = useNavigation<any>()  // ✅ aqui, no topo do componente
+
+  const [search,       setSearch]       = useState('')
+  const [loading,      setLoading]      = useState(false)
+  const [result,       setResult]       = useState<SearchResult | null>(null)
+  const [friendStatus, setFriendStatus] = useState<FriendStatusResult | null>(null)
+  const [actioning,    setActioning]    = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const doSearch = async (code: string) => {
@@ -119,6 +122,7 @@ export function CommunitySearchScreen() {
     )
   }
 
+  // ✅ navigation agora está acessível aqui pois foi declarado no topo
   const renderActionButton = () => {
     if (!result || !friendStatus) return null
     const { status, requestId, isSender } = friendStatus
@@ -201,8 +205,13 @@ export function CommunitySearchScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <Text style={s.headerTitle}>Buscar na Comunidade</Text>
-        <Text style={s.headerSub}>Encontre amigos pelo código</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <View>
+          <Text style={s.headerTitle}>Buscar na Comunidade</Text>
+          <Text style={s.headerSub}>Encontre amigos pelo código</Text>
+        </View>
       </View>
 
       <View style={s.searchRow}>
@@ -314,7 +323,8 @@ export function CommunitySearchScreen() {
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
 
-  header:      { paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['3'] },
+  header:      { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['3'] },
+  backBtn:     { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
   headerSub:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
 
@@ -341,7 +351,6 @@ const s = StyleSheet.create({
   chip:     { backgroundColor: colors.surfaceHigh, borderRadius: radii.full, paddingHorizontal: spacing['3'], paddingVertical: spacing['1'] },
   chipText: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
 
-  // Botões de ação
   addBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: colors.primary, borderRadius: radii.lg, height: 48, width: '100%' },
   addBtnText:  { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
 
