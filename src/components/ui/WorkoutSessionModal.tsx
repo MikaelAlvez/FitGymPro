@@ -542,8 +542,8 @@ const s = StyleSheet.create({
   body:        { padding: spacing['6'], gap: spacing['4'], paddingBottom: spacing['10'] },
 
   timerSection:    { gap: spacing['3'] },
-  timerCard:       { backgroundColor: colors.surfaceHigh, borderRadius: radii['2xl'], padding: spacing['8'], alignItems: 'center', gap: spacing['2'], borderWidth: 1.5, borderColor: `${colors.primary}30` },
-  timerText:       { fontFamily: typography.family.bold, fontSize: 48, color: colors.primary, letterSpacing: 2 },
+  timerCard: { backgroundColor: colors.surfaceHigh, borderRadius: radii['2xl'], paddingVertical: spacing['10'], paddingHorizontal: spacing['8'], alignItems: 'center', gap: spacing['3'], borderWidth: 1.5, borderColor: `${colors.primary}30` },
+  timerText: { fontFamily: typography.family.bold, fontSize: 72, color: colors.primary, letterSpacing: 4 },
   timerLabel:      { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
   checkoutBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: colors.success, borderRadius: radii.lg, height: 52 },
   checkoutBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },

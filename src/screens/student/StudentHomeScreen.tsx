@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'  
 import { Audio } from 'expo-av'
 import { useAuth }        from '../../contexts/AuthContext'
 import { apiRequest }     from '../../services/api'
@@ -89,14 +89,12 @@ const FORMAT_LABEL: Record<string, string> = {
   hybrid:     'Híbrido',
 }
 
-// Parse drop sets
 interface DropSetEntry { reps: string; load: string }
 const parseDropSets = (dropSets?: string): DropSetEntry[] => {
   if (!dropSets) return []
   try { return JSON.parse(dropSets) } catch { return [] }
 }
 
-// Cronômetro de descanso com beep
 function RestButton({ restTime, enabled }: { restTime: string | undefined; enabled: boolean }) {
   const totalSecs = restTimeToSeconds(restTime)
   const [countdown, setCountdown] = useState(0)
@@ -155,7 +153,7 @@ function RestButton({ restTime, enabled }: { restTime: string | undefined; enabl
     >
       <Ionicons
         name={running ? 'pause-circle-outline' : 'timer-outline'}
-        size={13}
+        size={16}
         color={!enabled ? colors.textDisabled : running ? colors.white : colors.primary}
       />
       <Text style={[s.restBtnText, running && s.restBtnTextRunning, !enabled && s.restBtnTextDisabled]}>
@@ -167,6 +165,7 @@ function RestButton({ restTime, enabled }: { restTime: string | undefined; enabl
 
 export function StudentHomeScreen() {
   const { user, signOut } = useAuth()
+  const navigation = useNavigation<any>()  
   const firstName = user?.name?.split(' ')[0] ?? 'Aluno'
   const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -182,13 +181,8 @@ export function StudentHomeScreen() {
   const [loadingWorkout, setLoadingWorkout] = useState(true)
   const [doneExercises,  setDoneExercises]  = useState<Set<string>>(new Set())
   const [expandedWorkout,setExpandedWorkout]= useState<string | null>(null)
-
-  // Controla quais exercícios estão expandidos (mostram séries)
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set())
-
-  // Séries marcadas: chave = `${exerciseId}-${serieIndex}`
   const [doneSeries, setDoneSeries] = useState<Set<string>>(new Set())
-
   const [menuVisible,    setMenuVisible]    = useState(false)
   const [workoutModal,   setWorkoutModal]   = useState(false)
   const [activeSessionId,        setActiveSessionId]        = useState<string | null>(null)
@@ -282,7 +276,6 @@ export function StudentHomeScreen() {
     }
   }
 
-  // Toggle exercício expandido (mostra séries)
   const toggleExpandExercise = (exId: string) => {
     setExpandedExercises(prev => {
       const n = new Set(prev)
@@ -291,24 +284,19 @@ export function StudentHomeScreen() {
     })
   }
 
-  // Toggle série individual
   const toggleSerie = (exId: string, serieIdx: number, totalSeries: number) => {
     const key = `${exId}-${serieIdx}`
     setDoneSeries(prev => {
       const n = new Set(prev)
       n.has(key) ? n.delete(key) : n.add(key)
-
-      // Se todas as séries do exercício estão marcadas, marca o exercício como done
       const allDone = Array.from({ length: totalSeries }, (_, i) =>
         i === serieIdx ? !prev.has(key) : n.has(`${exId}-${i}`)
       ).every(Boolean)
-
       if (allDone && !doneExercises.has(exId)) {
         toggleExercise(exId)
       } else if (!allDone && doneExercises.has(exId)) {
         toggleExercise(exId)
       }
-
       return n
     })
   }
@@ -331,17 +319,13 @@ export function StudentHomeScreen() {
     setMenuVisible(false)
   }
 
-  // Renderiza as séries de um exercício expandido
   const renderSeries = (ex: Exercise, workoutId: string) => {
-    const exId    = ex.id ?? ex.name
-    const enabled = activeSessionWorkoutId === workoutId
-    const isDrop  = ex.isDrop ?? false
+    const exId   = ex.id ?? ex.name
+    const isDrop = ex.isDrop ?? false
 
     if (isDrop) {
-      // ── Drop set: cada série tem reps e carga diferentes
       const entries = parseDropSets(ex.dropSets)
       if (entries.length === 0) return null
-
       return (
         <View style={s.seriesContainer}>
           <View style={s.dropSetBanner}>
@@ -365,9 +349,7 @@ export function StudentHomeScreen() {
                   }
                 </View>
                 <View style={s.serieInfo}>
-                  <Text style={[s.serieReps, done && s.serieTextDone]}>
-                    {entry.reps || '—'} reps
-                  </Text>
+                  <Text style={[s.serieReps, done && s.serieTextDone]}>{entry.reps || '—'} reps</Text>
                   {entry.load ? (
                     <View style={s.serieLoadChip}>
                       <Ionicons name="barbell-outline" size={10} color={colors.textSecondary} />
@@ -375,9 +357,7 @@ export function StudentHomeScreen() {
                     </View>
                   ) : null}
                 </View>
-                {done && (
-                  <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                )}
+                {done && <Ionicons name="checkmark-circle" size={16} color={colors.success} />}
               </TouchableOpacity>
             )
           })}
@@ -385,7 +365,6 @@ export function StudentHomeScreen() {
       )
     }
 
-    // ── Exercício normal: N séries iguais
     const totalSeries = parseInt(ex.sets) || 1
     return (
       <View style={s.seriesContainer}>
@@ -406,9 +385,7 @@ export function StudentHomeScreen() {
                 }
               </View>
               <View style={s.serieInfo}>
-                <Text style={[s.serieReps, done && s.serieTextDone]}>
-                  {ex.reps || '—'} reps
-                </Text>
+                <Text style={[s.serieReps, done && s.serieTextDone]}>{ex.reps || '—'} reps</Text>
                 {ex.load ? (
                   <View style={s.serieLoadChip}>
                     <Ionicons name="barbell-outline" size={10} color={colors.textSecondary} />
@@ -416,9 +393,7 @@ export function StudentHomeScreen() {
                   </View>
                 ) : null}
               </View>
-              {done && (
-                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-              )}
+              {done && <Ionicons name="checkmark-circle" size={16} color={colors.success} />}
             </TouchableOpacity>
           )
         })}
@@ -434,14 +409,13 @@ export function StudentHomeScreen() {
     workoutId: string,
     labelPrefix?: string,
   ) => {
-    const exId      = ex.id ?? String(index)
-    const done      = doneExercises.has(exId)
-    const enabled   = activeSessionWorkoutId === workoutId
-    const isLast    = index === total - 1
+    const exId       = ex.id ?? String(index)
+    const done       = doneExercises.has(exId)
+    const enabled    = activeSessionWorkoutId === workoutId
+    const isLast     = index === total - 1
     const isExpanded = expandedExercises.has(exId)
-    const isDrop    = ex.isDrop ?? false
+    const isDrop     = ex.isDrop ?? false
 
-    // Conta séries feitas
     const totalSeries = isDrop
       ? parseDropSets(ex.dropSets).length
       : (parseInt(ex.sets) || 1)
@@ -452,7 +426,6 @@ export function StudentHomeScreen() {
     return (
       <View key={key}>
         <View style={[s.exerciseRow, !isLast && !isExpanded && s.exerciseDivider]}>
-          {/* Checkbox do exercício */}
           <TouchableOpacity onPress={() => toggleExercise(exId)} activeOpacity={0.7}>
             <Ionicons
               name={done ? 'checkmark-circle' : 'ellipse-outline'}
@@ -472,9 +445,7 @@ export function StudentHomeScreen() {
               {ex.type !== 'cardio' && isDrop && (
                 <View style={s.metaChip}>
                   <Ionicons name="trending-down-outline" size={10} color={colors.warning} />
-                  <Text style={[s.exerciseMetaText, { color: colors.warning }]}>
-                    Drop · {ex.sets} séries
-                  </Text>
+                  <Text style={[s.exerciseMetaText, { color: colors.warning }]}>Drop · {ex.sets} séries</Text>
                 </View>
               )}
               {ex.type === 'cardio' && ex.duration && (
@@ -489,23 +460,17 @@ export function StudentHomeScreen() {
                   <Text style={s.exerciseMetaText}>{formatLoad(ex.load)}</Text>
                 </View>
               ) : null}
-              {/* Progresso de séries */}
               {ex.type !== 'cardio' && doneSeriesCount > 0 && (
                 <View style={s.metaChip}>
                   <Ionicons name="checkmark-circle" size={10} color={colors.success} />
-                  <Text style={[s.exerciseMetaText, { color: colors.success }]}>
-                    {doneSeriesCount}/{totalSeries}
-                  </Text>
+                  <Text style={[s.exerciseMetaText, { color: colors.success }]}>{doneSeriesCount}/{totalSeries}</Text>
                 </View>
               )}
             </View>
           </View>
 
           <View style={s.exerciseActions}>
-            {ex.type !== 'cardio' && (
-              <RestButton restTime={ex.restTime} enabled={enabled} />
-            )}
-            {/* Botão expandir séries */}
+            {ex.type !== 'cardio' && <RestButton restTime={ex.restTime} enabled={enabled} />}
             {ex.type !== 'cardio' && (
               <TouchableOpacity
                 style={s.expandSeriesBtn}
@@ -521,8 +486,6 @@ export function StudentHomeScreen() {
             )}
           </View>
         </View>
-
-        {/* Séries expandidas */}
         {isExpanded && ex.type !== 'cardio' && renderSeries(ex, workoutId)}
       </View>
     )
@@ -532,15 +495,12 @@ export function StudentHomeScreen() {
     const items    = workout.exercises
     const rendered: React.ReactNode[] = []
     let i = 0
-
     while (i < items.length) {
       const ex = items[i]
-
       if (ex.type === 'cardio') {
         rendered.push(renderExerciseItem(ex, `cardio-${ex.id ?? i}`, i, items.length, workout.id))
         i++; continue
       }
-
       if (ex.groupId) {
         const groupId    = ex.groupId
         const groupLabel = ex.groupLabel ?? 'Grupo'
@@ -559,11 +519,9 @@ export function StudentHomeScreen() {
         )
         continue
       }
-
       rendered.push(renderExerciseItem(ex, ex.id ?? i, i, items.length, workout.id))
       i++
     }
-
     return rendered
   }
 
@@ -621,41 +579,48 @@ export function StudentHomeScreen() {
           </>
         )}
 
-        {/* Card personal */}
+        {/* Seção Personal — sempre visível com botão Personais */}
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>Meu Personal</Text>
+          <TouchableOpacity
+            style={s.personalsBtn}
+            onPress={() => navigation.navigate('Personals')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="people-outline" size={15} color={colors.primary} />
+            <Text style={s.personalsBtnText}>Personais</Text>
+          </TouchableOpacity>
+        </View>
+
         {personal && (
-          <>
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>Meu Personal</Text>
-            </View>
-            <View style={s.personalCard}>
-              {personal.avatar
-                ? <Image source={{ uri: `${getBaseUrl()}${personal.avatar}` }} style={s.personalAvatar} />
-                : <View style={s.personalAvatarPlaceholder}><Text style={s.personalAvatarInitial}>{personal.name.charAt(0).toUpperCase()}</Text></View>
-              }
-              <View style={s.personalInfo}>
-                <Text style={s.personalName}>{personal.name}</Text>
-                {personal.personalProfile?.cref && <Text style={s.personalCref}>CREF: {personal.personalProfile.cref}</Text>}
-                <View style={s.personalTags}>
-                  {personal.personalProfile?.classFormat && (
-                    <View style={s.personalTag}>
-                      <Ionicons name="location-outline" size={11} color={colors.primary} />
-                      <Text style={s.personalTagText}>{FORMAT_LABEL[personal.personalProfile.classFormat] ?? personal.personalProfile.classFormat}</Text>
-                    </View>
-                  )}
-                  {(personal.city || personal.state) && (
-                    <View style={s.personalTag}>
-                      <Ionicons name="map-outline" size={11} color={colors.textSecondary} />
-                      <Text style={s.personalTagText}>{[personal.city, personal.state].filter(Boolean).join(' - ')}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-              <View style={s.linkedBadge}>
-                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                <Text style={s.linkedBadgeText}>Vinculado</Text>
+          <View style={s.personalCard}>
+            {personal.avatar
+              ? <Image source={{ uri: `${getBaseUrl()}${personal.avatar}` }} style={s.personalAvatar} />
+              : <View style={s.personalAvatarPlaceholder}><Text style={s.personalAvatarInitial}>{personal.name.charAt(0).toUpperCase()}</Text></View>
+            }
+            <View style={s.personalInfo}>
+              <Text style={s.personalName}>{personal.name}</Text>
+              {personal.personalProfile?.cref && <Text style={s.personalCref}>CREF: {personal.personalProfile.cref}</Text>}
+              <View style={s.personalTags}>
+                {personal.personalProfile?.classFormat && (
+                  <View style={s.personalTag}>
+                    <Ionicons name="location-outline" size={11} color={colors.primary} />
+                    <Text style={s.personalTagText}>{FORMAT_LABEL[personal.personalProfile.classFormat] ?? personal.personalProfile.classFormat}</Text>
+                  </View>
+                )}
+                {(personal.city || personal.state) && (
+                  <View style={s.personalTag}>
+                    <Ionicons name="map-outline" size={11} color={colors.textSecondary} />
+                    <Text style={s.personalTagText}>{[personal.city, personal.state].filter(Boolean).join(' - ')}</Text>
+                  </View>
+                )}
               </View>
             </View>
-          </>
+            <View style={s.linkedBadge}>
+              <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+              <Text style={s.linkedBadgeText}>Vinculado</Text>
+            </View>
+          </View>
         )}
 
         {/* Treinos de hoje */}
@@ -811,7 +776,7 @@ export function StudentHomeScreen() {
           workoutId={sessionWorkout.id}
           workoutName={sessionWorkout.name}
           onClose={() => setSessionModal(false)}
-          onCheckinDone={(sessionId) => {  
+          onCheckinDone={(sessionId) => {
             setActiveSessionWorkoutId(sessionWorkout.id)
             setActiveSessionId(sessionId)
           }}
@@ -857,6 +822,10 @@ const s = StyleSheet.create({
   editBtnText:    { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.primary },
   createBtn:      { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
   createBtnText:  { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.white },
+
+  // Botão Personais
+  personalsBtn:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: `${colors.primary}15`, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
+  personalsBtnText: { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.primary },
 
   personalCard:              { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], gap: spacing['3'], borderWidth: 1.5, borderColor: `${colors.success}30`, ...shadows.sm },
   personalAvatar:            { width: 52, height: 52, borderRadius: radii.full, borderWidth: 2, borderColor: colors.success },
@@ -921,11 +890,9 @@ const s = StyleSheet.create({
   exerciseMetaText:{ fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
   metaChip:        { flexDirection: 'row', alignItems: 'center', gap: 2 },
 
-  // Ações do exercício (rest + expand)
   exerciseActions:  { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
   expandSeriesBtn:  { width: 28, height: 28, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
 
-  // Séries
   seriesContainer: { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, marginBottom: spacing['2'], overflow: 'hidden' },
   serieRow:        { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], paddingVertical: spacing['2'], paddingHorizontal: spacing['3'], borderBottomWidth: 1, borderBottomColor: colors.divider },
   serieRowDone:    { backgroundColor: `${colors.success}08` },
@@ -938,14 +905,13 @@ const s = StyleSheet.create({
   serieLoadChip:   { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surface, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
   serieLoadText:   { fontFamily: typography.family.regular, fontSize: 10, color: colors.textSecondary },
 
-  // Drop set banner
   dropSetBanner:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], backgroundColor: `${colors.warning}15`, borderBottomWidth: 1, borderBottomColor: `${colors.warning}20` },
   dropSetBannerText: { fontFamily: typography.family.semiBold, fontSize: 10, color: colors.warning },
 
-  restBtn:             { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 4, minWidth: 60 },
+  restBtn:             { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], minWidth: 72 },
   restBtnRunning:      { backgroundColor: colors.primary },
   restBtnDisabled:     { backgroundColor: colors.surfaceHigh },
-  restBtnText:         { fontFamily: typography.family.bold, fontSize: 10, color: colors.primary },
+  restBtnText:         { fontFamily: typography.family.bold, fontSize: 13, color: colors.primary },
   restBtnTextRunning:  { color: colors.white },
   restBtnTextDisabled: { color: colors.textDisabled },
 

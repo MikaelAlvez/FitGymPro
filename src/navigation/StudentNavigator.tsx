@@ -22,7 +22,6 @@ export type StudentTabParamList = {
   Workouts:  undefined
   Feed:      undefined
   Dashboard: undefined
-  Personals: undefined
   Profile:   undefined
   Groups:    undefined
 }
@@ -101,16 +100,6 @@ function StudentTabs() {
         }}
       />
       <Tab.Screen
-        name="Personals"
-        component={StudentPersonalsScreen}
-        options={{
-          tabBarLabel: 'Personais',
-          tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons name={focused ? 'people' : 'people-outline'} size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
         name="Profile"
         component={StudentProfileScreen}
         options={{
@@ -131,6 +120,7 @@ export type StudentStackParamList = {
   FriendRequests:     undefined
   GroupDetail:        { groupId: string }        
   ChallengeRanking:   { groupId: string; challengeId: string } 
+  Personals:          undefined 
 }
 
 const Stack = createNativeStackNavigator<StudentStackParamList>()
@@ -143,6 +133,7 @@ export function StudentNavigator() {
       <Stack.Screen name="FriendRequests"  component={FriendRequestsScreen} />
       <Stack.Screen name="GroupDetail"       component={GroupDetailScreen} />
       <Stack.Screen name="ChallengeRanking"  component={ChallengeRankingScreen} />
+      <Stack.Screen name="Personals"        component={StudentPersonalsScreen} />
     </Stack.Navigator>
   )
 }
