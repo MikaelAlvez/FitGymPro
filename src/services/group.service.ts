@@ -48,7 +48,7 @@ export interface ChallengeRanking {
 
 export const groupService = {
   // Grupos
-  create: (data: { name: string; description?: string }) =>
+  create: (data: { name: string; description?: string; avatar?: string }) =>
     apiRequest<Group>('/groups', {
       method: 'POST', authenticated: true, body: JSON.stringify(data),
     }),
