@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
-import { useFocusEffect, useNavigation } from '@react-navigation/native'  
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { Audio } from 'expo-av'
 import { useAuth }        from '../../contexts/AuthContext'
 import { apiRequest }     from '../../services/api'
@@ -165,7 +165,7 @@ function RestButton({ restTime, enabled }: { restTime: string | undefined; enabl
 
 export function StudentHomeScreen() {
   const { user, signOut } = useAuth()
-  const navigation = useNavigation<any>()  
+  const navigation = useNavigation<any>()
   const firstName = user?.name?.split(' ')[0] ?? 'Aluno'
   const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -182,7 +182,7 @@ export function StudentHomeScreen() {
   const [doneExercises,  setDoneExercises]  = useState<Set<string>>(new Set())
   const [expandedWorkout,setExpandedWorkout]= useState<string | null>(null)
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set())
-  const [doneSeries, setDoneSeries] = useState<Set<string>>(new Set())
+  const [doneSeries,     setDoneSeries]     = useState<Set<string>>(new Set())
   const [menuVisible,    setMenuVisible]    = useState(false)
   const [workoutModal,   setWorkoutModal]   = useState(false)
   const [activeSessionId,        setActiveSessionId]        = useState<string | null>(null)
@@ -789,9 +789,18 @@ export function StudentHomeScreen() {
         />
       )}
 
+      {/* Menu com Perfil + Sair */}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
         <TouchableOpacity style={s.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)} />
         <View style={s.menuBox}>
+          <TouchableOpacity
+            style={s.menuItem}
+            onPress={() => { setMenuVisible(false); navigation.navigate('Profile') }}
+          >
+            <Ionicons name="person-outline" size={20} color={colors.textPrimary} />
+            <Text style={s.menuItemText}>Meu Perfil</Text>
+          </TouchableOpacity>
+          <View style={s.menuDivider} />
           <TouchableOpacity style={s.menuItem} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color={colors.error} />
             <Text style={s.menuItemTextDanger}>Sair da conta</Text>
@@ -823,7 +832,6 @@ const s = StyleSheet.create({
   createBtn:      { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: colors.primary, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
   createBtnText:  { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.white },
 
-  // Botão Personais
   personalsBtn:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], backgroundColor: `${colors.primary}15`, borderRadius: radii.lg, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'] },
   personalsBtnText: { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.primary },
 
@@ -939,7 +947,9 @@ const s = StyleSheet.create({
   saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
 
   menuOverlay:        { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  menuBox:            { position: 'absolute', top: 90, right: spacing['5'], backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, ...shadows.md, minWidth: 160 },
+  menuBox:            { position: 'absolute', top: 90, right: spacing['5'], backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, ...shadows.md, minWidth: 180 },
   menuItem:           { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingVertical: spacing['4'], paddingHorizontal: spacing['4'] },
+  menuItemText:       { fontFamily: typography.family.medium, fontSize: typography.size.md, color: colors.textPrimary },
   menuItemTextDanger: { fontFamily: typography.family.medium, fontSize: typography.size.md, color: colors.error },
+  menuDivider:        { height: 1, backgroundColor: colors.border, marginHorizontal: spacing['4'] },
 })

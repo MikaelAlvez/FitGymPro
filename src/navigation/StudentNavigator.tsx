@@ -16,13 +16,13 @@ import { GroupDetailScreen }      from '../screens/groups/GroupDetailScreen'
 import { ChallengeRankingScreen } from '../screens/groups/ChallengeRankingScreen'
 import { colors, typography }      from '../theme'
 
+
 // ─── Tab ─────────────────────────────────────
 export type StudentTabParamList = {
   Home:      undefined
   Workouts:  undefined
   Feed:      undefined
   Dashboard: undefined
-  Profile:   undefined
   Groups:    undefined
 }
 
@@ -99,16 +99,6 @@ function StudentTabs() {
           ),
         }}
       />
-      <Tab.Screen
-        name="Profile"
-        component={StudentProfileScreen}
-        options={{
-          tabBarLabel: 'Perfil',
-          tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
-          ),
-        }}
-      />
     </Tab.Navigator>
   )
 }
@@ -121,6 +111,7 @@ export type StudentStackParamList = {
   GroupDetail:        { groupId: string }        
   ChallengeRanking:   { groupId: string; challengeId: string } 
   Personals:          undefined 
+  Profile:          undefined  
 }
 
 const Stack = createNativeStackNavigator<StudentStackParamList>()
@@ -134,6 +125,7 @@ export function StudentNavigator() {
       <Stack.Screen name="GroupDetail"       component={GroupDetailScreen} />
       <Stack.Screen name="ChallengeRanking"  component={ChallengeRankingScreen} />
       <Stack.Screen name="Personals"        component={StudentPersonalsScreen} />
+      <Stack.Screen name="Profile" component={StudentProfileScreen} />
     </Stack.Navigator>
   )
 }
