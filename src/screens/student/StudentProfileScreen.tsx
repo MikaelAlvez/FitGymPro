@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
+import { useNavigation } from '@react-navigation/native'
 
 import { Input }           from '../../components/ui/Input'
 import { Button }          from '../../components/ui/Button'
@@ -73,6 +74,7 @@ function maskCpf(raw: string): string {
 
 export function StudentProfileScreen() {
   const { user, updateUser } = useAuth()
+  const navigation = useNavigation<any>()
   const avatarUrl = user?.avatar ? `${getBaseUrl()}${user.avatar}` : null
 
   const [saving,     setSaving]     = useState(false)
@@ -144,14 +146,12 @@ export function StudentProfileScreen() {
     }
   }
 
-  // Copiar código
   const handleCopyCode = () => {
     if (!user?.userCode) return
     Clipboard.setString(user.userCode)
     Alert.alert('Copiado!', 'Código copiado para a área de transferência.')
   }
 
-  // Compartilhar código
   const handleShareCode = () => {
     if (!user?.userCode) return
     Share.share({
@@ -165,6 +165,14 @@ export function StudentProfileScreen() {
     <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+          {/* Header com botão voltar */}
+          <View style={s.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+              <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={s.headerTitle}>Meu Perfil</Text>
+          </View>
 
           {/* Avatar */}
           <View style={s.avatarSection}>
@@ -354,6 +362,11 @@ const s = StyleSheet.create({
   flex:   { flex: 1 },
   scroll: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
+  // Header com botão voltar
+  header:      { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingTop: spacing['5'], paddingBottom: spacing['2'] },
+  backBtn:     { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
+
   avatarSection:     { alignItems: 'center', paddingVertical: spacing['6'] },
   avatar:            { width: 90, height: 90, borderRadius: radii.full, borderWidth: 3, borderColor: colors.primary },
   avatarPlaceholder: { width: 90, height: 90, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.primary },
@@ -362,7 +375,6 @@ const s = StyleSheet.create({
   avatarName:        { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary, marginTop: spacing['2'] },
   avatarRole:        { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: 2 },
 
-  // Card de código
   codeCard:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['2'], borderWidth: 1.5, borderColor: `${colors.primary}30`, ...shadows.sm },
   codeCardLeft:{ flexDirection: 'row', alignItems: 'center', gap: spacing['3'] },
   codeIconBox: { width: 44, height: 44, borderRadius: radii.lg, backgroundColor: `${colors.primary}15`, alignItems: 'center', justifyContent: 'center' },
