@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
+import { useNavigation } from '@react-navigation/native'
 import { personalRequestService } from '../../services/personal-request.service'
 import type { PersonalItem } from '../../services/personal-request.service'
 import { userService } from '../../services/user.service'
@@ -39,10 +40,11 @@ const STATUS_CONFIG = {
   REJECTED: { label: 'Recusado',   color: colors.error,   icon: 'close-circle'     as const },
 }
 
-// Formato exato: PER-XXXXXX (3 letras + hífen + 6 chars)
 const isUserCode = (text: string) => /^[A-Z]{2,3}-[A-Z0-9]{6}$/.test(text.trim().toUpperCase())
 
 export function StudentPersonalsScreen() {
+  const navigation = useNavigation<any>()
+
   const [personals,  setPersonals]  = useState<PersonalItem[]>([])
   const [filtered,   setFiltered]   = useState<PersonalItem[]>([])
   const [loading,    setLoading]    = useState(true)
@@ -59,7 +61,6 @@ export function StudentPersonalsScreen() {
   const [searchingCode, setSearchingCode] = useState(false)
   const [isCodeSearch,  setIsCodeSearch]  = useState(false)
 
-  // Ref para debounce
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async (silent = false) => {
@@ -77,7 +78,6 @@ export function StudentPersonalsScreen() {
 
   useEffect(() => { load() }, [load])
 
-  // Filtro local — só quando não é busca por código
   useEffect(() => {
     if (isCodeSearch) return
     let result = personals
@@ -98,7 +98,6 @@ export function StudentPersonalsScreen() {
     setFiltered(result)
   }, [search, formatFilter, personals, isCodeSearch])
 
-  // Função de busca por código
   const searchByCode = useCallback(async (code: string) => {
     setIsCodeSearch(true)
     setSearchingCode(true)
@@ -110,7 +109,6 @@ export function StudentPersonalsScreen() {
         setCodeResult(null)
         return
       }
-      // Verifica se já tem status de solicitação com esse personal
       const existing = personals.find(p => p.id === result.id)
       const personalItem: PersonalItem = {
         id:            result.id,
@@ -133,32 +131,22 @@ export function StudentPersonalsScreen() {
     }
   }, [personals])
 
-  // Atualiza texto e dispara busca com debounce
   const handleSearchChange = (v: string) => {
     setSearch(v)
     setCodeResult(null)
     setIsCodeSearch(false)
-
     if (debounceRef.current) clearTimeout(debounceRef.current)
-
     const upper = v.trim().toUpperCase()
-
     if (isUserCode(upper)) {
-      // Aguarda 400ms após última tecla para buscar
-      debounceRef.current = setTimeout(() => {
-        searchByCode(upper)
-      }, 400)
+      debounceRef.current = setTimeout(() => { searchByCode(upper) }, 400)
     }
   }
 
-  // Busca imediata ao pressionar Enter ou botão
   const handleSearchSubmit = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     const upper = search.trim().toUpperCase()
     if (!upper) return
-    if (isUserCode(upper)) {
-      searchByCode(upper)
-    }
+    if (isUserCode(upper)) searchByCode(upper)
   }
 
   const clearSearch = () => {
@@ -294,11 +282,18 @@ export function StudentPersonalsScreen() {
 
   return (
     <SafeAreaView style={s.safe}>
+
+      {/* Header com botão voltar */}
       <View style={s.header}>
-        <Text style={s.headerTitle}>Personal Trainers</Text>
-        <Text style={s.headerSub}>
-          {displayList.length} personal{displayList.length !== 1 ? 'is' : ''} encontrado{displayList.length !== 1 ? 's' : ''}
-        </Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <View>
+          <Text style={s.headerTitle}>Personal Trainers</Text>
+          <Text style={s.headerSub}>
+            {displayList.length} personal{displayList.length !== 1 ? 'is' : ''} encontrado{displayList.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
       </View>
 
       <View style={s.searchRow}>
@@ -313,7 +308,7 @@ export function StudentPersonalsScreen() {
             value={search}
             onChangeText={handleSearchChange}
             onSubmitEditing={handleSearchSubmit}
-            placeholder="Nome, CREF ou código PER-XXXXXX"
+            placeholder="Cidade, Nome, CREF ou código PER-XXXXXX"
             placeholderTextColor={colors.textDisabled}
             autoCapitalize="none"
             autoCorrect={false}
@@ -449,14 +444,17 @@ export function StudentPersonalsScreen() {
           </View>
         </View>
       </Modal>
+
     </SafeAreaView>
   )
 }
 
 const s = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1, backgroundColor: colors.background },
 
-  header:      { paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['2'] },
+  // Header com botão voltar
+  header:      { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], paddingHorizontal: spacing['5'], paddingTop: spacing['5'], paddingBottom: spacing['2'] },
+  backBtn:     { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
   headerSub:   { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary, marginTop: spacing['1'] },
 
