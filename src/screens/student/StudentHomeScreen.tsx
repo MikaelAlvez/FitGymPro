@@ -811,6 +811,10 @@ export function StudentHomeScreen() {
           workoutId={sessionWorkout.id}
           workoutName={sessionWorkout.name}
           onClose={() => setSessionModal(false)}
+          onCheckinDone={(sessionId) => {  
+            setActiveSessionWorkoutId(sessionWorkout.id)
+            setActiveSessionId(sessionId)
+          }}
           onFinished={() => {
             setSessionModal(false)
             setActiveSessionWorkoutId(null)

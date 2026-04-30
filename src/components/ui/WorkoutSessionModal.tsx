@@ -37,6 +37,7 @@ interface Props {
   workoutName: string
   onClose:     () => void
   onFinished:  () => void
+  onCheckinDone?:   (sessionId: string) => void  
 }
 
 type Phase = 'checkin' | 'running' | 'checkout'
@@ -56,7 +57,7 @@ const formatDaysLeft = (endDate: string) => {
   return `${diff} dias restantes`
 }
 
-export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, onFinished }: Props) {
+export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, onFinished, onCheckinDone }: Props) {
   const [phase,      setPhase]      = useState<Phase>('checkin')
   const [session,    setSession]    = useState<WorkoutSession | null>(null)
   const [elapsed,    setElapsed]    = useState(0)
@@ -226,6 +227,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
       resetForm()
       startTimer()
       await scheduleNotification()
+      onCheckinDone?.(s.id) 
     } catch (err: any) {
       setUploading(false)
       Alert.alert('Erro', err?.message ?? 'Não foi possível iniciar o treino.')
