@@ -112,4 +112,20 @@ export const groupService = {
       `/groups/${groupId}/challenges/${challengeId}/checkin/${checkinId}`, {
         method: 'DELETE', authenticated: true,
       }),
+
+  // Grupos com desafios ativos do usuário
+  getActiveChallenges: () =>
+    apiRequest<{
+      groupId:    string
+      groupName:  string
+      groupCode:  string
+      challenges: {
+        id:            string
+        title:         string
+        goal:          number
+        myCheckins:    number
+        totalCheckins: number
+        endDate:       string
+      }[]
+    }[]>('/groups/active-challenges', { authenticated: true }),
 }

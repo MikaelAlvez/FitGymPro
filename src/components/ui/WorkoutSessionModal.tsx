@@ -3,16 +3,33 @@ import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
   TextInput, ScrollView, Alert, ActivityIndicator, Image,
 } from 'react-native'
-import { Ionicons }       from '@expo/vector-icons'
-import * as ImagePicker   from 'expo-image-picker'
-import * as Location      from 'expo-location'
-import Constants          from 'expo-constants'
+import { Ionicons }           from '@expo/vector-icons'
+import * as ImagePicker       from 'expo-image-picker'
+import * as Location          from 'expo-location'
+import Constants              from 'expo-constants'
 import { sessionService }     from '../../services/session.service'
+import { groupService }       from '../../services/group.service'
 import { uploadSessionPhoto } from '../../services/upload.service'
 import type { WorkoutSession } from '../../services/session.service'
 import { colors, typography, spacing, radii } from '../../theme'
 
 const isExpoGo = Constants.appOwnership === 'expo'
+
+interface ActiveChallenge {
+  id:            string
+  title:         string
+  goal:          number
+  myCheckins:    number
+  totalCheckins: number
+  endDate:       string
+}
+
+interface ActiveChallengeGroup {
+  groupId:    string
+  groupName:  string
+  groupCode:  string
+  challenges: ActiveChallenge[]
+}
 
 interface Props {
   visible:     boolean
@@ -32,6 +49,13 @@ const formatTime = (seconds: number) => {
   return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
 }
 
+const formatDaysLeft = (endDate: string) => {
+  const diff = Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000)
+  if (diff <= 0) return 'Último dia'
+  if (diff === 1) return '1 dia restante'
+  return `${diff} dias restantes`
+}
+
 export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, onFinished }: Props) {
   const [phase,      setPhase]      = useState<Phase>('checkin')
   const [session,    setSession]    = useState<WorkoutSession | null>(null)
@@ -40,10 +64,15 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
   const [uploading,  setUploading]  = useState(false)
   const [caption,    setCaption]    = useState('')
   const [notes,      setNotes]      = useState('')
-  const [notesEnd,   setNotesEnd]   = useState('')  
+  const [notesEnd,   setNotesEnd]   = useState('')
   const [location,   setLocation]   = useState('')
   const [photoUri,   setPhotoUri]   = useState<string | null>(null)
   const [loadingLoc, setLoadingLoc] = useState(false)
+
+  // Grupos com desafios ativos
+  const [activeGroups,     setActiveGroups]     = useState<ActiveChallengeGroup[]>([])
+  const [selectedChallenges, setSelectedChallenges] = useState<Set<string>>(new Set())
+  const [loadingGroups,    setLoadingGroups]    = useState(false)
 
   const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null)
   const notifIdRef = useRef<string | null>(null)
@@ -73,6 +102,35 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
   useEffect(() => {
     if (!visible) stopTimer()
   }, [visible])
+
+  // Carrega grupos com desafios ativos quando fase muda para checkout
+  useEffect(() => {
+    if (phase !== 'checkout') return
+    ;(async () => {
+      setLoadingGroups(true)
+      try {
+        const groups = await groupService.getActiveChallenges()
+        setActiveGroups(groups)
+        setSelectedChallenges(new Set()) // limpa seleção ao abrir
+      } catch {
+        setActiveGroups([])
+      } finally {
+        setLoadingGroups(false)
+      }
+    })()
+  }, [phase])
+
+  const toggleChallenge = (challengeId: string) => {
+    setSelectedChallenges(prev => {
+      const next = new Set(prev)
+      if (next.has(challengeId)) {
+        next.delete(challengeId)
+      } else {
+        next.add(challengeId)
+      }
+      return next
+    })
+  }
 
   const startTimer = (initial = 0) => {
     if (timerRef.current) clearInterval(timerRef.current)
@@ -128,6 +186,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
 
   const resetForm = () => {
     setCaption(''); setNotes(''); setNotesEnd(''); setLocation(''); setPhotoUri(null)
+    setSelectedChallenges(new Set())
   }
 
   const handlePickPhoto = async () => {
@@ -180,13 +239,35 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
       setLoading(true)
       let photoUrl: string | undefined
       if (photoUri) { setUploading(true); photoUrl = await uploadSessionPhoto(photoUri); setUploading(false) }
+
       await sessionService.checkout(session.id, {
         caption:  caption.trim(),
         notes:    notes.trim() || undefined,
-        notesEnd: notesEnd.trim() || undefined, 
+        notesEnd: notesEnd.trim() || undefined,
         location: location || undefined,
         photoEnd: photoUrl,
       })
+
+      // Faz checkin nos desafios selecionados
+      if (selectedChallenges.size > 0) {
+        const checkinPromises: Promise<any>[] = []
+
+        for (const group of activeGroups) {
+          for (const challenge of group.challenges) {
+            if (selectedChallenges.has(challenge.id)) {
+              checkinPromises.push(
+                groupService.checkin(group.groupId, challenge.id, {
+                  sessionId: session.id,
+                  note: `Treino: ${workoutName}`,
+                }).catch(() => null) // silencia erro individual para não bloquear o checkout
+              )
+            }
+          }
+        }
+
+        await Promise.all(checkinPromises)
+      }
+
       stopTimer()
       onFinished()
       onClose()
@@ -232,7 +313,11 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 <Text style={s.timerText}>{formatTime(elapsed)}</Text>
                 <Text style={s.timerLabel}>{workoutName}</Text>
               </View>
-              <TouchableOpacity style={s.checkoutBtn} onPress={() => { setPhase('checkout'); resetForm() }} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={s.checkoutBtn}
+                onPress={() => { setPhase('checkout'); resetForm() }}
+                activeOpacity={0.8}
+              >
                 <Ionicons name="checkmark-done-circle" size={20} color={colors.white} />
                 <Text style={s.checkoutBtnText}>Finalizar Treino</Text>
               </TouchableOpacity>
@@ -293,7 +378,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 </View>
               )}
 
-              {/* Observação de fim — apenas no checkout */}
+              {/* Observação de fim */}
               {phase === 'checkout' && (
                 <View style={s.inputGroup}>
                   <Text style={s.inputLabel}>Observação final (opcional)</Text>
@@ -329,6 +414,89 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 </View>
               </View>
 
+              {/* Seleção de grupos/desafios — só no checkout */}
+              {phase === 'checkout' && (
+                <View style={s.groupsSection}>
+                  <View style={s.groupsSectionHeader}>
+                    <Ionicons name="trophy-outline" size={16} color={colors.primary} />
+                    <Text style={s.groupsSectionTitle}>Contabilizar em desafios</Text>
+                  </View>
+                  <Text style={s.groupsSectionSub}>
+                    Selecione os desafios que este treino deve contar
+                  </Text>
+
+                  {loadingGroups ? (
+                    <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['3'] }} />
+                  ) : activeGroups.length === 0 ? (
+                    <View style={s.noGroupsBox}>
+                      <Text style={s.noGroupsText}>Nenhum desafio ativo nos seus grupos</Text>
+                    </View>
+                  ) : (
+                    <View style={s.groupsList}>
+                      {activeGroups.map(group => (
+                        <View key={group.groupId} style={s.groupBlock}>
+                          {/* Nome do grupo */}
+                          <View style={s.groupBlockHeader}>
+                            <View style={s.groupCodeDot} />
+                            <Text style={s.groupBlockName}>{group.groupName}</Text>
+                            <Text style={s.groupBlockCode}>{group.groupCode}</Text>
+                          </View>
+
+                          {/* Desafios do grupo */}
+                          {group.challenges.map(challenge => {
+                            const selected = selectedChallenges.has(challenge.id)
+                            const pct      = Math.min((challenge.myCheckins / challenge.goal) * 100, 100)
+                            const daysLeft = formatDaysLeft(challenge.endDate)
+
+                            return (
+                              <TouchableOpacity
+                                key={challenge.id}
+                                style={[s.challengeOption, selected && s.challengeOptionSelected]}
+                                onPress={() => toggleChallenge(challenge.id)}
+                                activeOpacity={0.8}
+                              >
+                                {/* Checkbox */}
+                                <View style={[s.checkbox, selected && s.checkboxSelected]}>
+                                  {selected && <Ionicons name="checkmark" size={14} color={colors.white} />}
+                                </View>
+
+                                <View style={s.challengeOptionInfo}>
+                                  <Text style={[s.challengeOptionTitle, selected && { color: colors.primary }]}>
+                                    {challenge.title}
+                                  </Text>
+                                  <View style={s.challengeOptionMeta}>
+                                    <Text style={s.challengeOptionProgress}>
+                                      {challenge.myCheckins}/{challenge.goal} treinos
+                                    </Text>
+                                    <Text style={s.challengeOptionDays}>{daysLeft}</Text>
+                                  </View>
+                                  {/* Mini barra de progresso */}
+                                  <View style={s.miniProgressBar}>
+                                    <View style={[s.miniProgressFill, {
+                                      width: `${pct}%` as any,
+                                      backgroundColor: pct >= 100 ? colors.success : selected ? colors.primary : colors.textDisabled,
+                                    }]} />
+                                  </View>
+                                </View>
+                              </TouchableOpacity>
+                            )
+                          })}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {selectedChallenges.size > 0 && (
+                    <View style={s.selectedSummary}>
+                      <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                      <Text style={s.selectedSummaryText}>
+                        {selectedChallenges.size} desafio{selectedChallenges.size !== 1 ? 's' : ''} selecionado{selectedChallenges.size !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
               {/* Botão ação */}
               <TouchableOpacity
                 style={[phase === 'checkin' ? s.startBtn : s.finishBtn, isProcessing && { opacity: 0.6 }]}
@@ -340,8 +508,19 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                   <ActivityIndicator color={colors.white} />
                 ) : (
                   <>
-                    <Ionicons name={phase === 'checkin' ? 'play-circle' : 'checkmark-done-circle'} size={20} color={colors.white} />
-                    <Text style={s.actionBtnText}>{phase === 'checkin' ? 'Iniciar Treino' : 'Concluir Treino'}</Text>
+                    <Ionicons
+                      name={phase === 'checkin' ? 'play-circle' : 'checkmark-done-circle'}
+                      size={20}
+                      color={colors.white}
+                    />
+                    <Text style={s.actionBtnText}>
+                      {phase === 'checkin'
+                        ? 'Iniciar Treino'
+                        : selectedChallenges.size > 0
+                          ? `Concluir + ${selectedChallenges.size} desafio${selectedChallenges.size !== 1 ? 's' : ''}`
+                          : 'Concluir Treino'
+                      }
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -355,7 +534,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
 
 const s = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '88%' },
+  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radii['2xl'], borderTopRightRadius: radii['2xl'], maxHeight: '92%' },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing['6'], paddingVertical: spacing['4'], borderBottomWidth: 1, borderBottomColor: colors.border },
   sheetTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.base, color: colors.textPrimary },
   body:        { padding: spacing['6'], gap: spacing['4'], paddingBottom: spacing['10'] },
@@ -382,6 +561,40 @@ const s = StyleSheet.create({
 
   locationRow: { flexDirection: 'row', gap: spacing['2'], alignItems: 'center' },
   locationBtn: { width: 52, height: 52, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+
+  // Seção de grupos/desafios
+  groupsSection:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.xl, padding: spacing['4'], gap: spacing['3'], borderWidth: 1.5, borderColor: `${colors.primary}20` },
+  groupsSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  groupsSectionTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.textPrimary },
+  groupsSectionSub:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary, marginTop: -spacing['2'] },
+
+  noGroupsBox:  { paddingVertical: spacing['3'], alignItems: 'center' },
+  noGroupsText: { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled },
+
+  groupsList:  { gap: spacing['3'] },
+  groupBlock:  { gap: spacing['2'] },
+  groupBlockHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  groupCodeDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+  groupBlockName:   { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.textPrimary, flex: 1 },
+  groupBlockCode:   { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textDisabled, letterSpacing: 1 },
+
+  challengeOption:         { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing['3'], borderWidth: 1.5, borderColor: colors.border },
+  challengeOptionSelected: { borderColor: colors.primary, backgroundColor: `${colors.primary}08` },
+
+  checkbox:         { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  checkboxSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+
+  challengeOptionInfo:     { flex: 1, gap: 3 },
+  challengeOptionTitle:    { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.textPrimary },
+  challengeOptionMeta:     { flexDirection: 'row', justifyContent: 'space-between' },
+  challengeOptionProgress: { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
+  challengeOptionDays:     { fontFamily: typography.family.medium, fontSize: typography.size.xs, color: '#F59E0B' },
+
+  miniProgressBar:  { height: 4, backgroundColor: colors.border, borderRadius: 2, overflow: 'hidden', marginTop: 2 },
+  miniProgressFill: { height: '100%', borderRadius: 2 },
+
+  selectedSummary:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], justifyContent: 'center' },
+  selectedSummaryText: { fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.success },
 
   startBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: colors.primary, borderRadius: radii.lg, height: 52 },
   finishBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: colors.success, borderRadius: radii.lg, height: 52 },

@@ -35,9 +35,9 @@ const getChallengeStatus = (c: GroupChallenge): 'upcoming' | 'active' | 'ended' 
 }
 
 const STATUS_CONFIG = {
-  upcoming: { label: 'Em breve',   color: '#F59E0B',           icon: 'time-outline'           as const },
-  active:   { label: 'Ativo',      color: colors.success,      icon: 'flash-outline'          as const },
-  ended:    { label: 'Encerrado',  color: colors.textDisabled, icon: 'checkmark-done-outline' as const },
+  upcoming: { label: 'Em breve',  color: '#F59E0B',           icon: 'time-outline'           as const },
+  active:   { label: 'Ativo',     color: colors.success,      icon: 'flash-outline'          as const },
+  ended:    { label: 'Encerrado', color: colors.textDisabled, icon: 'checkmark-done-outline' as const },
 }
 
 const maskDate = (v: string) => {
@@ -47,17 +47,15 @@ const maskDate = (v: string) => {
   return d
 }
 
-// ─── Sub-componentes tipados ──────────────────
+// ─── ChallengeItem ────────────────────────────
 
 interface ChallengeItemProps {
-  c:          GroupChallenge
-  checkingIn: string | null
-  groupId:    string
-  onCheckin:  (c: GroupChallenge) => void
-  onRanking:  (challengeId: string) => void
+  c:         GroupChallenge
+  groupId:   string
+  onRanking: (challengeId: string) => void
 }
 
-function ChallengeItem({ c, checkingIn, groupId, onCheckin, onRanking }: ChallengeItemProps) {
+function ChallengeItem({ c, groupId, onRanking }: ChallengeItemProps) {
   const status  = getChallengeStatus(c)
   const cfg     = STATUS_CONFIG[status]
   const myCount = c.checkins?.length ?? 0
@@ -94,37 +92,26 @@ function ChallengeItem({ c, checkingIn, groupId, onCheckin, onRanking }: Challen
             backgroundColor: pct >= 100 ? colors.success : colors.primary,
           }]} />
         </View>
+        {/* ✅ Dica sobre como contabilizar */}
+        <Text style={s.progressHint}>
+          Faça check-in e checkout na tela de treinos para contabilizar
+        </Text>
       </View>
 
-      <View style={s.challengeActions}>
-        {status === 'active' && (
-          <TouchableOpacity
-            style={[s.checkinBtn, checkingIn === c.id && { opacity: 0.6 }]}
-            onPress={() => onCheckin(c)}
-            disabled={checkingIn === c.id}
-            activeOpacity={0.8}
-          >
-            {checkingIn === c.id
-              ? <ActivityIndicator size="small" color={colors.white} />
-              : <>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={colors.white} />
-                  <Text style={s.checkinBtnText}>Check-in</Text>
-                </>
-            }
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={s.rankingBtn}
-          onPress={() => onRanking(c.id)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="podium-outline" size={18} color={colors.primary} />
-          <Text style={s.rankingBtnText}>Ranking</Text>
-        </TouchableOpacity>
-      </View>
+      {/* ✅ Apenas botão de ranking — sem botão de check-in */}
+      <TouchableOpacity
+        style={s.rankingBtnFull}
+        onPress={() => onRanking(c.id)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="podium-outline" size={18} color={colors.primary} />
+        <Text style={s.rankingBtnText}>Ver Ranking</Text>
+      </TouchableOpacity>
     </View>
   )
 }
+
+// ─── MemberItem ───────────────────────────────
 
 interface MemberItemProps {
   m: GroupMember
@@ -181,8 +168,6 @@ export function GroupDetailScreen() {
   const [challengeEnd,      setChallengeEnd]      = useState('')
   const [creatingChallenge, setCreatingChallenge] = useState(false)
 
-  const [checkingIn, setCheckingIn] = useState<string | null>(null)
-
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
@@ -231,28 +216,6 @@ export function GroupDetailScreen() {
       Alert.alert('Erro', err?.message ?? 'Não foi possível criar o desafio.')
     } finally {
       setCreatingChallenge(false)
-    }
-  }
-
-  const handleCheckin = async (challenge: GroupChallenge) => {
-    const status = getChallengeStatus(challenge)
-    if (status !== 'active') {
-      Alert.alert('Atenção', status === 'upcoming' ? 'O desafio ainda não começou.' : 'O desafio já encerrou.')
-      return
-    }
-    try {
-      setCheckingIn(challenge.id)
-      const result = await groupService.checkin(groupId, challenge.id)
-      if (result.completed) {
-        Alert.alert('🎉 Meta atingida!', `Você completou o desafio com ${result.total} check-ins!`)
-      } else {
-        Alert.alert('✅ Check-in registrado!', `${result.total}/${result.goal} treinos`)
-      }
-      load(true)
-    } catch (err: any) {
-      Alert.alert('Erro', err?.message ?? 'Não foi possível fazer check-in.')
-    } finally {
-      setCheckingIn(null)
     }
   }
 
@@ -387,7 +350,7 @@ export function GroupDetailScreen() {
         )}
       </View>
 
-      {/* FlatLists separados por tipo*/}
+      {/* ✅ FlatLists separados por tipo */}
       {activeTab === 'challenges' ? (
         <FlatList<GroupChallenge>
           data={challenges}
@@ -404,9 +367,7 @@ export function GroupDetailScreen() {
           renderItem={({ item }) => (
             <ChallengeItem
               c={item}
-              checkingIn={checkingIn}
               groupId={groupId}
-              onCheckin={handleCheckin}
               onRanking={challengeId => navigation.navigate('ChallengeRanking', { groupId, challengeId })}
             />
           )}
@@ -560,12 +521,11 @@ const s = StyleSheet.create({
   progressCount:   { fontFamily: typography.family.bold, fontSize: typography.size.xs, color: colors.primary },
   progressBar:     { height: 6, backgroundColor: colors.surfaceHigh, borderRadius: 3, overflow: 'hidden' },
   progressFill:    { height: '100%', borderRadius: 3 },
+  progressHint:    { fontFamily: typography.family.regular, fontSize: 10, color: colors.textDisabled, marginTop: 2 },
 
-  challengeActions: { flexDirection: 'row', gap: spacing['2'] },
-  checkinBtn:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: colors.primary, borderRadius: radii.lg, height: 44 },
-  checkinBtnText:   { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.white },
-  rankingBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['1'], backgroundColor: `${colors.primary}15`, borderRadius: radii.lg, height: 44, paddingHorizontal: spacing['4'], borderWidth: 1.5, borderColor: `${colors.primary}30` },
-  rankingBtnText:   { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.primary },
+  // ✅ Botão ranking ocupa largura total
+  rankingBtnFull: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: `${colors.primary}15`, borderRadius: radii.lg, height: 44, borderWidth: 1.5, borderColor: `${colors.primary}30` },
+  rankingBtnText: { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.primary },
 
   memberCard:              { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
   memberAvatar:            { width: 48, height: 48, borderRadius: radii.full, borderWidth: 2, borderColor: colors.primary },
@@ -580,8 +540,8 @@ const s = StyleSheet.create({
 
   leaveBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], paddingVertical: spacing['5'], marginTop: spacing['2'] },
   leaveBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.base, color: colors.error },
-  deleteBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], paddingVertical: spacing['5'], marginTop: spacing['2'] },
-  deleteBtnText: { fontFamily: typography.family.medium, fontSize: typography.size.base, color: colors.error },
+  deleteBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], paddingVertical: spacing['5'], marginTop: spacing['2'] },
+  deleteBtnText:{ fontFamily: typography.family.medium, fontSize: typography.size.base, color: colors.error },
 
   empty:     { alignItems: 'center', marginTop: spacing['10'], gap: spacing['2'] },
   emptyText: { fontFamily: typography.family.regular, fontSize: typography.size.base, color: colors.textDisabled },

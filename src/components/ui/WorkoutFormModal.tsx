@@ -24,6 +24,11 @@ const GROUP_OPTIONS = [
   { label: 'Triset', max: 3 },
 ]
 
+export interface DropSetEntry {
+  reps: string
+  load: string
+}
+
 interface Props {
   visible:         boolean
   onClose:         () => void
@@ -39,13 +44,27 @@ export interface WorkoutPayload {
   exercises: Exercise[]
 }
 
+// ─── Helpers ────────────────────────────────
+const parseDropSets = (dropSets?: string): DropSetEntry[] => {
+  if (!dropSets) return []
+  try { return JSON.parse(dropSets) } catch { return [] }
+}
+
+const serializeDropSets = (entries: DropSetEntry[]): string =>
+  JSON.stringify(entries)
+
+const buildDefaultDropSets = (sets: string): DropSetEntry[] => {
+  const n = parseInt(sets) || 1
+  return Array.from({ length: n }, () => ({ reps: '', load: '' }))
+}
+
 export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, title }: Props) {
   const [saving,    setSaving]    = useState(false)
   const [wName,     setWName]     = useState('')
   const [wDays,     setWDays]     = useState<string[]>([])
   const [wNotes,    setWNotes]    = useState('')
   const [exercises, setExercises] = useState<Exercise[]>([
-    { name: '', sets: '', reps: '', order: 0, type: 'exercise', load: '', restTime: '' },
+    { name: '', sets: '', reps: '', order: 0, type: 'exercise', load: '', restTime: '', isDrop: false },
   ])
 
   useEffect(() => {
@@ -67,22 +86,66 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
               duration:   e.duration   ?? undefined,
               load:       e.load       ?? '',
               restTime:   e.restTime   ?? '',
+              isDrop:     e.isDrop     ?? false,
+              dropSets:   e.dropSets   ?? undefined,
             }))
-          : [{ name: '', sets: '', reps: '', order: 0, type: 'exercise' as const, load: '', restTime: '' }],
+          : [{ name: '', sets: '', reps: '', order: 0, type: 'exercise' as const, load: '', restTime: '', isDrop: false }],
       )
     } else {
       setWName('')
       setWDays([])
       setWNotes('')
-      setExercises([{ name: '', sets: '', reps: '', order: 0, type: 'exercise', load: '', restTime: '' }])
+      setExercises([{ name: '', sets: '', reps: '', order: 0, type: 'exercise', load: '', restTime: '', isDrop: false }])
     }
   }, [visible, editingWorkout])
 
   const toggleDay = (day: string) =>
     setWDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
 
-  const updateExercise = (idx: number, field: keyof Exercise, value: string) =>
+  const updateExercise = (idx: number, field: keyof Exercise, value: any) =>
     setExercises(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e))
+
+  // Ativa/desativa modo drop set
+  const toggleDrop = (idx: number) => {
+    setExercises(prev => prev.map((e, i) => {
+      if (i !== idx) return e
+      const enabling = !e.isDrop
+      if (enabling) {
+        const entries = buildDefaultDropSets(e.sets || '1')
+        return { ...e, isDrop: true, dropSets: serializeDropSets(entries) }
+      }
+      return { ...e, isDrop: false, dropSets: undefined }
+    }))
+  }
+
+  // Atualiza uma entrada individual do drop set
+  const updateDropEntry = (exIdx: number, dropIdx: number, field: keyof DropSetEntry, value: string) => {
+    setExercises(prev => prev.map((e, i) => {
+      if (i !== exIdx) return e
+      const entries = parseDropSets(e.dropSets)
+      entries[dropIdx] = { ...entries[dropIdx], [field]: value }
+      return { ...e, dropSets: serializeDropSets(entries) }
+    }))
+  }
+
+  // Quando o número de séries muda no modo drop, ajusta o número de entradas
+  const handleSetsChange = (idx: number, value: string) => {
+    setExercises(prev => prev.map((e, i) => {
+      if (i !== idx) return e
+      const updated = { ...e, sets: value }
+      if (e.isDrop) {
+        const n       = parseInt(value) || 1
+        const entries = parseDropSets(e.dropSets)
+        if (entries.length < n) {
+          while (entries.length < n) entries.push({ reps: '', load: '' })
+        } else if (entries.length > n) {
+          entries.splice(n)
+        }
+        updated.dropSets = serializeDropSets(entries)
+      }
+      return updated
+    }))
+  }
 
   const removeExercise = (idx: number) => {
     const ex = exercises[idx]
@@ -94,7 +157,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
   }
 
   const addExercise = () =>
-    setExercises(prev => [...prev, { name: '', sets: '', reps: '', order: prev.length, type: 'exercise', load: '', restTime: '' }])
+    setExercises(prev => [...prev, { name: '', sets: '', reps: '', order: prev.length, type: 'exercise', load: '', restTime: '', isDrop: false }])
 
   const addCardio = () =>
     setExercises(prev => [...prev, { name: '', sets: '', reps: '', order: prev.length, type: 'cardio', duration: '00:30' }])
@@ -109,6 +172,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
           name: '', sets: updated[idx].sets, reps: updated[idx].reps,
           load: updated[idx].load ?? '', restTime: updated[idx].restTime ?? '',
           order: idx + n, type: 'exercise', groupId, groupLabel: label,
+          isDrop: false,
         })
       }
       return updated
@@ -135,8 +199,21 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
     if (exercises.length === 0) { Alert.alert('Atenção', 'Adicione ao menos um exercício.'); return }
 
     const regularExercises = exercises.filter(e => e.type === 'exercise')
-    if (regularExercises.some(e => !e.name.trim() || !e.sets.trim() || !e.reps.trim())) {
-      Alert.alert('Atenção', 'Preencha nome, séries e repetições de todos os exercícios.')
+    if (regularExercises.some(e => !e.name.trim() || !e.sets.trim())) {
+      Alert.alert('Atenção', 'Preencha nome e séries de todos os exercícios.')
+      return
+    }
+    // Valida drop sets
+    for (const ex of regularExercises.filter(e => e.isDrop)) {
+      const entries = parseDropSets(ex.dropSets)
+      if (entries.some(d => !d.reps.trim())) {
+        Alert.alert('Atenção', `Preencha as repetições de todas as séries do drop set "${ex.name}".`)
+        return
+      }
+    }
+    // Valida reps dos exercícios normais
+    if (regularExercises.filter(e => !e.isDrop).some(e => !e.reps.trim())) {
+      Alert.alert('Atenção', 'Preencha as repetições de todos os exercícios.')
       return
     }
     if (exercises.filter(e => e.type === 'cardio').some(e => !e.name.trim())) {
@@ -159,7 +236,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
     }
   }
 
-  // Renderiza campos de um exercício (séries, reps, carga, descanso min:seg)
+  // ─── Campos base (séries, reps, carga, descanso) ──
   const renderExerciseFields = (exItem: Exercise, exIdx: number) => {
     const restParts = (exItem.restTime ?? '').split(':')
     const restMins  = restParts[0] ?? ''
@@ -172,37 +249,42 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
           <TextInput
             style={s.inputSmall}
             value={exItem.sets}
-            onChangeText={v => updateExercise(exIdx, 'sets', v)}
+            onChangeText={v => handleSetsChange(exIdx, v)}
             placeholder="4"
             placeholderTextColor={colors.textDisabled}
             keyboardType="numeric"
           />
         </View>
 
-        <View style={s.fieldItem}>
-          <Text style={s.fieldLabel}>Repetições</Text>
-          <TextInput
-            style={s.inputSmall}
-            value={exItem.reps}
-            onChangeText={v => updateExercise(exIdx, 'reps', v)}
-            placeholder="12"
-            placeholderTextColor={colors.textDisabled}
-            keyboardType="numeric"
-          />
-        </View>
+        {/* Reps — oculto no modo drop (cada série tem a sua) */}
+        {!exItem.isDrop && (
+          <View style={s.fieldItem}>
+            <Text style={s.fieldLabel}>Repetições</Text>
+            <TextInput
+              style={s.inputSmall}
+              value={exItem.reps}
+              onChangeText={v => updateExercise(exIdx, 'reps', v)}
+              placeholder="12"
+              placeholderTextColor={colors.textDisabled}
+              keyboardType="numeric"
+            />
+          </View>
+        )}
 
-        <View style={s.fieldItem}>
-          <Text style={s.fieldLabel}>Carga (opcional)</Text>
-          <TextInput
-            style={s.inputSmall}
-            value={exItem.load ?? ''}
-            onChangeText={v => updateExercise(exIdx, 'load', v)}
-            placeholder="20kg"
-            placeholderTextColor={colors.textDisabled}
-          />
-        </View>
+        {/* Carga — oculto no modo drop */}
+        {!exItem.isDrop && (
+          <View style={s.fieldItem}>
+            <Text style={s.fieldLabel}>Carga (opcional)</Text>
+            <TextInput
+              style={s.inputSmall}
+              value={exItem.load ?? ''}
+              onChangeText={v => updateExercise(exIdx, 'load', v)}
+              placeholder="20kg"
+              placeholderTextColor={colors.textDisabled}
+            />
+          </View>
+        )}
 
-        {/* Descanso em minutos e segundos */}
         <View style={s.fieldItem}>
           <Text style={s.fieldLabel}>Descanso (opcional)</Text>
           <View style={s.restTimeRow}>
@@ -235,6 +317,52 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
     )
   }
 
+  // ─── Entradas do Drop Set ──────────────────
+  const renderDropSets = (exItem: Exercise, exIdx: number) => {
+    const entries = parseDropSets(exItem.dropSets)
+    if (entries.length === 0) return null
+
+    return (
+      <View style={s.dropSetsContainer}>
+        <View style={s.dropSetsHeader}>
+          <Ionicons name="trending-down-outline" size={13} color={colors.warning} />
+          <Text style={s.dropSetsTitle}>Séries do Drop Set</Text>
+        </View>
+        {entries.map((entry, di) => (
+          <View key={di} style={s.dropSetRow}>
+            <View style={s.dropSetBadge}>
+              <Text style={s.dropSetBadgeText}>S{di + 1}</Text>
+            </View>
+            <View style={s.dropSetField}>
+              <Text style={s.dropSetLabel}>Reps *</Text>
+              <TextInput
+                style={s.dropSetInput}
+                value={entry.reps}
+                onChangeText={v => updateDropEntry(exIdx, di, 'reps', v)}
+                placeholder="15"
+                placeholderTextColor={colors.textDisabled}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={s.dropSetField}>
+              <Text style={s.dropSetLabel}>Carga</Text>
+              <TextInput
+                style={s.dropSetInput}
+                value={entry.load}
+                onChangeText={v => updateDropEntry(exIdx, di, 'load', v)}
+                placeholder="12kg"
+                placeholderTextColor={colors.textDisabled}
+              />
+            </View>
+          </View>
+        ))}
+        <Text style={s.dropSetHint}>
+          Ex: {entries.map((e, i) => `S${i+1}: ${e.reps || '?'}x${e.load || '?'}`).join(' → ')}
+        </Text>
+      </View>
+    )
+  }
+
   const renderExercises = () => {
     const nodes: React.ReactNode[] = []
     let i = 0
@@ -243,7 +371,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
       const ex  = exercises[i]
       const idx = i
 
-      // ── Cardio ──────────────────────────
+      // ── Cardio ──
       if (ex.type === 'cardio') {
         const cardioIdx = idx
         nodes.push(
@@ -274,10 +402,8 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
                     const mins = ex.duration?.split(':')[1] ?? '00'
                     updateExercise(cardioIdx, 'duration', `${v}:${mins}`)
                   }}
-                  placeholder="00"
-                  placeholderTextColor={colors.textDisabled}
-                  keyboardType="numeric"
-                  maxLength={2}
+                  placeholder="00" placeholderTextColor={colors.textDisabled}
+                  keyboardType="numeric" maxLength={2}
                 />
               </View>
               <Text style={s.durationSep}>:</Text>
@@ -290,10 +416,8 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
                     const hrs = ex.duration?.split(':')[0] ?? '00'
                     updateExercise(cardioIdx, 'duration', `${hrs}:${v}`)
                   }}
-                  placeholder="30"
-                  placeholderTextColor={colors.textDisabled}
-                  keyboardType="numeric"
-                  maxLength={2}
+                  placeholder="30" placeholderTextColor={colors.textDisabled}
+                  keyboardType="numeric" maxLength={2}
                 />
               </View>
             </View>
@@ -303,7 +427,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
         continue
       }
 
-      // ── Grupo ───────────────────────────
+      // ── Grupo ──
       if (ex.groupId) {
         const groupId    = ex.groupId
         const groupLabel = ex.groupLabel ?? 'Grupo'
@@ -326,9 +450,19 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
               <View key={`gex-${gIdx}`} style={[s.exerciseForm, gi < groupItems.length - 1 && s.exerciseFormGrouped]}>
                 <View style={s.exerciseFormHeader}>
                   <Text style={s.exerciseFormIndex}>{String.fromCharCode(65 + gi)}</Text>
-                  <TouchableOpacity onPress={() => removeFromGroup(gIdx)}>
-                    <Ionicons name="remove-circle-outline" size={20} color={colors.error} />
-                  </TouchableOpacity>
+                  <View style={s.exerciseFormActions}>
+                    {/* Toggle drop set dentro de grupo */}
+                    <TouchableOpacity
+                      style={[s.dropBtn, gEx.isDrop && s.dropBtnActive]}
+                      onPress={() => toggleDrop(gIdx)}
+                    >
+                      <Ionicons name="trending-down-outline" size={14} color={gEx.isDrop ? colors.white : colors.warning} />
+                      <Text style={[s.dropBtnText, gEx.isDrop && s.dropBtnTextActive]}>Drop</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => removeFromGroup(gIdx)}>
+                      <Ionicons name="remove-circle-outline" size={20} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <TextInput
                   style={s.input}
@@ -338,6 +472,7 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
                   placeholderTextColor={colors.textDisabled}
                 />
                 {renderExerciseFields(gEx, gIdx)}
+                {gEx.isDrop && renderDropSets(gEx, gIdx)}
               </View>
             ))}
           </View>
@@ -345,13 +480,21 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
         continue
       }
 
-      // ── Exercício simples ────────────────
+      // ── Exercício simples ──
       const simpleIdx = idx
       nodes.push(
         <View key={`ex-${simpleIdx}`} style={s.exerciseForm}>
           <View style={s.exerciseFormHeader}>
             <Text style={s.exerciseFormIndex}>#{simpleIdx + 1}</Text>
             <View style={s.exerciseFormActions}>
+              {/* Toggle drop set */}
+              <TouchableOpacity
+                style={[s.dropBtn, ex.isDrop && s.dropBtnActive]}
+                onPress={() => toggleDrop(simpleIdx)}
+              >
+                <Ionicons name="trending-down-outline" size={14} color={ex.isDrop ? colors.white : colors.warning} />
+                <Text style={[s.dropBtnText, ex.isDrop && s.dropBtnTextActive]}>Drop</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={s.groupBtn}
                 onPress={() => {
@@ -386,6 +529,8 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
             placeholderTextColor={colors.textDisabled}
           />
           {renderExerciseFields(ex, simpleIdx)}
+          {/* Renderiza drop sets se ativo */}
+          {ex.isDrop && renderDropSets(ex, simpleIdx)}
         </View>
       )
       i++
@@ -408,15 +553,25 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
 
           <View style={s.inputGroup}>
             <Text style={s.inputLabel}>Nome do treino *</Text>
-            <TextInput style={s.input} value={wName} onChangeText={setWName} placeholder="Ex: Treino A — Peito" placeholderTextColor={colors.textDisabled} />
+            <TextInput
+              style={s.input} value={wName} onChangeText={setWName}
+              placeholder="Ex: Treino A — Peito" placeholderTextColor={colors.textDisabled}
+            />
           </View>
 
           <View style={s.inputGroup}>
             <Text style={s.inputLabel}>Dias da semana *</Text>
             <View style={s.daysSelector}>
               {DAYS.map(d => (
-                <TouchableOpacity key={d.key} style={[s.daySelectorItem, wDays.includes(d.key) && s.daySelectorItemActive]} onPress={() => toggleDay(d.key)} activeOpacity={0.8}>
-                  <Text style={[s.daySelectorText, wDays.includes(d.key) && s.daySelectorTextActive]}>{d.label}</Text>
+                <TouchableOpacity
+                  key={d.key}
+                  style={[s.daySelectorItem, wDays.includes(d.key) && s.daySelectorItemActive]}
+                  onPress={() => toggleDay(d.key)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.daySelectorText, wDays.includes(d.key) && s.daySelectorTextActive]}>
+                    {d.label}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -439,11 +594,23 @@ export function WorkoutFormModal({ visible, onClose, onSave, editingWorkout, tit
 
           <View style={s.inputGroup}>
             <Text style={s.inputLabel}>Observações (opcional)</Text>
-            <TextInput style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} value={wNotes} onChangeText={setWNotes} placeholder="Ex: Descanso de 60s entre séries..." placeholderTextColor={colors.textDisabled} multiline maxLength={500} />
+            <TextInput
+              style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]}
+              value={wNotes} onChangeText={setWNotes}
+              placeholder="Ex: Descanso de 60s entre séries..."
+              placeholderTextColor={colors.textDisabled}
+              multiline maxLength={500}
+            />
           </View>
 
-          <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.8}>
-            {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>{editingWorkout ? 'Salvar alterações' : 'Criar treino'}</Text>}
+          <TouchableOpacity
+            style={[s.saveBtn, saving && { opacity: 0.6 }]}
+            onPress={handleSave} disabled={saving} activeOpacity={0.8}
+          >
+            {saving
+              ? <ActivityIndicator color={colors.white} />
+              : <Text style={s.saveBtnText}>{editingWorkout ? 'Salvar alterações' : 'Criar treino'}</Text>
+            }
           </TouchableOpacity>
 
         </ScrollView>
@@ -475,18 +642,36 @@ const s = StyleSheet.create({
   exerciseFormHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   exerciseFormIndex:   { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.primary },
   exerciseFormActions: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
-  groupBtn:            { width: 28, height: 28, borderRadius: radii.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+
+  // Botão drop set
+  dropBtn:         { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: spacing['2'], paddingVertical: 4, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.warning, backgroundColor: 'transparent' },
+  dropBtnActive:   { backgroundColor: colors.warning, borderColor: colors.warning },
+  dropBtnText:     { fontFamily: typography.family.bold, fontSize: 10, color: colors.warning },
+  dropBtnTextActive: { color: colors.white },
+
+  groupBtn: { width: 28, height: 28, borderRadius: radii.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
 
   fieldsGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['2'] },
   fieldItem:   { width: '47%', gap: spacing['1'] },
   fieldLabel:  { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
 
-  // ✅ Descanso min:seg
   restTimeRow:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
   restTimeInput:  { flex: 1 },
   restTimeSep:    { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.textSecondary },
   restTimeLabels: { flexDirection: 'row', marginTop: 2 },
   restTimeUnit:   { flex: 1, fontFamily: typography.family.regular, fontSize: 9, color: colors.textDisabled, textAlign: 'center' },
+
+  // Drop set entries
+  dropSetsContainer: { backgroundColor: `${colors.warning}10`, borderRadius: radii.lg, padding: spacing['3'], gap: spacing['2'], borderWidth: 1, borderColor: `${colors.warning}30` },
+  dropSetsHeader:    { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
+  dropSetsTitle:     { fontFamily: typography.family.semiBold, fontSize: typography.size.xs, color: colors.warning },
+  dropSetRow:        { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  dropSetBadge:      { width: 28, height: 28, borderRadius: radii.md, backgroundColor: colors.warning, alignItems: 'center', justifyContent: 'center' },
+  dropSetBadgeText:  { fontFamily: typography.family.bold, fontSize: 10, color: colors.white },
+  dropSetField:      { flex: 1, gap: 2 },
+  dropSetLabel:      { fontFamily: typography.family.regular, fontSize: 9, color: colors.textSecondary },
+  dropSetInput:      { backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.border, height: 40, paddingHorizontal: spacing['2'], fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textPrimary, textAlign: 'center' },
+  dropSetHint:       { fontFamily: typography.family.regular, fontSize: 9, color: colors.textDisabled, textAlign: 'center', marginTop: 2 },
 
   groupContainer:  { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, marginBottom: spacing['2'], overflow: 'hidden', borderWidth: 1.5, borderColor: `${colors.primary}30` },
   groupHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], backgroundColor: `${colors.primary}10`, borderBottomWidth: 1, borderBottomColor: `${colors.primary}20` },

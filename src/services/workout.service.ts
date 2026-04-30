@@ -6,12 +6,19 @@ export interface Exercise {
   sets:       string
   reps:       string
   order:      number
-  type?:      'exercise' | 'cardio'
+  type:       'exercise' | 'cardio'
   groupId?:   string
   groupLabel?:string
-  duration?:  string 
-  load?:      string  
-  restTime?:  string  
+  duration?:  string
+  load?:      string
+  restTime?:  string
+  isDrop?:    boolean  
+  dropSets?:  string    
+}
+
+export interface DropSetEntry {
+  reps: string
+  load: string
 }
 
 export interface Workout {

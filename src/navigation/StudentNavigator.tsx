@@ -24,6 +24,7 @@ export type StudentTabParamList = {
   Dashboard: undefined
   Personals: undefined
   Profile:   undefined
+  Groups:    undefined
 }
 
 const Tab = createBottomTabNavigator<StudentTabParamList>()
