@@ -89,13 +89,19 @@ const FORMAT_LABEL: Record<string, string> = {
   hybrid:     'Híbrido',
 }
 
+// Parse drop sets
+interface DropSetEntry { reps: string; load: string }
+const parseDropSets = (dropSets?: string): DropSetEntry[] => {
+  if (!dropSets) return []
+  try { return JSON.parse(dropSets) } catch { return [] }
+}
+
 // Cronômetro de descanso com beep
 function RestButton({ restTime, enabled }: { restTime: string | undefined; enabled: boolean }) {
   const totalSecs = restTimeToSeconds(restTime)
   const [countdown, setCountdown] = useState(0)
   const [running,   setRunning]   = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current) }, [])
 
   const playBeep = async () => {
@@ -108,9 +114,7 @@ function RestButton({ restTime, enabled }: { restTime: string | undefined; enabl
       sound.setOnPlaybackStatusUpdate(status => {
         if ('didJustFinish' in status && status.didJustFinish) sound.unloadAsync()
       })
-    } catch {
-      // silencia
-    }
+    } catch { /* silencia */ }
   }
 
   const start = () => {
@@ -143,7 +147,6 @@ function RestButton({ restTime, enabled }: { restTime: string | undefined; enabl
   }
 
   if (!restTime || totalSecs === 0) return null
-
   return (
     <TouchableOpacity
       style={[s.restBtn, running && s.restBtnRunning, !enabled && s.restBtnDisabled]}
@@ -179,17 +182,20 @@ export function StudentHomeScreen() {
   const [loadingWorkout, setLoadingWorkout] = useState(true)
   const [doneExercises,  setDoneExercises]  = useState<Set<string>>(new Set())
   const [expandedWorkout,setExpandedWorkout]= useState<string | null>(null)
+
+  // Controla quais exercícios estão expandidos (mostram séries)
+  const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set())
+
+  // Séries marcadas: chave = `${exerciseId}-${serieIndex}`
+  const [doneSeries, setDoneSeries] = useState<Set<string>>(new Set())
+
   const [menuVisible,    setMenuVisible]    = useState(false)
   const [workoutModal,   setWorkoutModal]   = useState(false)
-
-  // ID da sessão ativa e do workout ativo
   const [activeSessionId,        setActiveSessionId]        = useState<string | null>(null)
   const [activeSessionWorkoutId, setActiveSessionWorkoutId] = useState<string | null>(null)
-
   const [sessionModal,   setSessionModal]   = useState(false)
   const [sessionWorkout, setSessionWorkout] = useState<{ id: string; name: string } | null>(null)
 
-  // Carrega dados incluindo exercícios já marcados na sessão ativa
   const loadData = useCallback(async () => {
     try {
       const [profileData, workoutsData, activeSession] = await Promise.all([
@@ -199,27 +205,25 @@ export function StudentHomeScreen() {
         workoutService.myWorkouts(),
         sessionService.getActive().catch(() => null),
       ])
-
       setProfile(profileData.studentProfile)
       setPersonal(profileData.personal ?? null)
       setTodayWorkouts(workoutsData.filter(w => w.days.includes(TODAY_KEY) && w.active))
       setActiveSessionWorkoutId(activeSession?.workoutId ?? null)
       setActiveSessionId(activeSession?.id ?? null)
       setExpandedWorkout(null)
+      setExpandedExercises(new Set())
+      setDoneSeries(new Set())
 
-      // Carrega exercícios concluídos da sessão ativa
-     const todayList = workoutsData.filter(w => w.days.includes(TODAY_KEY) && w.active)
-
-    if (todayList.length > 0) {
-      const allDone = await Promise.all(
-        todayList.map(w => sessionService.getTodayDone(w.id).catch(() => []))
-      )
-      const merged = new Set(allDone.flat())
-      setDoneExercises(merged)
-    } else {
-      setDoneExercises(new Set())
-    }
-    
+      const todayList = workoutsData.filter(w => w.days.includes(TODAY_KEY) && w.active)
+      if (todayList.length > 0) {
+        const allDone = await Promise.all(
+          todayList.map(w => sessionService.getTodayDone(w.id).catch(() => []))
+        )
+        const merged = new Set(allDone.flat())
+        setDoneExercises(merged)
+      } else {
+        setDoneExercises(new Set())
+      }
     } catch {
       // silencia
     } finally {
@@ -258,22 +262,17 @@ export function StudentHomeScreen() {
   const doneCount      = doneExercises.size
   const totalProgress  = totalExercises > 0 ? doneCount / totalExercises : 0
 
-  // Toggle com persistência no backend se sessão ativa
   const toggleExercise = async (id: string) => {
-    // Atualiza UI imediatamente
     setDoneExercises(prev => {
       const n = new Set(prev)
       n.has(id) ? n.delete(id) : n.add(id)
       return n
     })
-
-    // Usa sessão ativa OU busca a última sessão do dia
     const sessionId = activeSessionId
     if (sessionId) {
       try {
         await sessionService.toggleExerciseDone(sessionId, id)
       } catch {
-        // Reverte se falhar
         setDoneExercises(prev => {
           const n = new Set(prev)
           n.has(id) ? n.delete(id) : n.add(id)
@@ -281,7 +280,37 @@ export function StudentHomeScreen() {
         })
       }
     }
-    // Se não há sessão ativa, é apenas local (sem sessão não há como persistir)
+  }
+
+  // Toggle exercício expandido (mostra séries)
+  const toggleExpandExercise = (exId: string) => {
+    setExpandedExercises(prev => {
+      const n = new Set(prev)
+      n.has(exId) ? n.delete(exId) : n.add(exId)
+      return n
+    })
+  }
+
+  // Toggle série individual
+  const toggleSerie = (exId: string, serieIdx: number, totalSeries: number) => {
+    const key = `${exId}-${serieIdx}`
+    setDoneSeries(prev => {
+      const n = new Set(prev)
+      n.has(key) ? n.delete(key) : n.add(key)
+
+      // Se todas as séries do exercício estão marcadas, marca o exercício como done
+      const allDone = Array.from({ length: totalSeries }, (_, i) =>
+        i === serieIdx ? !prev.has(key) : n.has(`${exId}-${i}`)
+      ).every(Boolean)
+
+      if (allDone && !doneExercises.has(exId)) {
+        toggleExercise(exId)
+      } else if (!allDone && doneExercises.has(exId)) {
+        toggleExercise(exId)
+      }
+
+      return n
+    })
   }
 
   const toggleWorkout = (id: string) =>
@@ -302,6 +331,101 @@ export function StudentHomeScreen() {
     setMenuVisible(false)
   }
 
+  // Renderiza as séries de um exercício expandido
+  const renderSeries = (ex: Exercise, workoutId: string) => {
+    const exId    = ex.id ?? ex.name
+    const enabled = activeSessionWorkoutId === workoutId
+    const isDrop  = ex.isDrop ?? false
+
+    if (isDrop) {
+      // ── Drop set: cada série tem reps e carga diferentes
+      const entries = parseDropSets(ex.dropSets)
+      if (entries.length === 0) return null
+
+      return (
+        <View style={s.seriesContainer}>
+          <View style={s.dropSetBanner}>
+            <Ionicons name="trending-down-outline" size={12} color={colors.warning} />
+            <Text style={s.dropSetBannerText}>Drop Set — {entries.length} séries</Text>
+          </View>
+          {entries.map((entry, di) => {
+            const key  = `${exId}-${di}`
+            const done = doneSeries.has(key)
+            return (
+              <TouchableOpacity
+                key={di}
+                style={[s.serieRow, done && s.serieRowDone]}
+                onPress={() => toggleSerie(exId, di, entries.length)}
+                activeOpacity={0.7}
+              >
+                <View style={[s.serieBadge, done && s.serieBadgeDone]}>
+                  {done
+                    ? <Ionicons name="checkmark" size={12} color={colors.white} />
+                    : <Text style={s.serieBadgeText}>S{di + 1}</Text>
+                  }
+                </View>
+                <View style={s.serieInfo}>
+                  <Text style={[s.serieReps, done && s.serieTextDone]}>
+                    {entry.reps || '—'} reps
+                  </Text>
+                  {entry.load ? (
+                    <View style={s.serieLoadChip}>
+                      <Ionicons name="barbell-outline" size={10} color={colors.textSecondary} />
+                      <Text style={s.serieLoadText}>{formatLoad(entry.load)}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {done && (
+                  <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                )}
+              </TouchableOpacity>
+            )
+          })}
+        </View>
+      )
+    }
+
+    // ── Exercício normal: N séries iguais
+    const totalSeries = parseInt(ex.sets) || 1
+    return (
+      <View style={s.seriesContainer}>
+        {Array.from({ length: totalSeries }, (_, si) => {
+          const key  = `${exId}-${si}`
+          const done = doneSeries.has(key)
+          return (
+            <TouchableOpacity
+              key={si}
+              style={[s.serieRow, done && s.serieRowDone]}
+              onPress={() => toggleSerie(exId, si, totalSeries)}
+              activeOpacity={0.7}
+            >
+              <View style={[s.serieBadge, done && s.serieBadgeDone]}>
+                {done
+                  ? <Ionicons name="checkmark" size={12} color={colors.white} />
+                  : <Text style={s.serieBadgeText}>S{si + 1}</Text>
+                }
+              </View>
+              <View style={s.serieInfo}>
+                <Text style={[s.serieReps, done && s.serieTextDone]}>
+                  {ex.reps || '—'} reps
+                </Text>
+                {ex.load ? (
+                  <View style={s.serieLoadChip}>
+                    <Ionicons name="barbell-outline" size={10} color={colors.textSecondary} />
+                    <Text style={s.serieLoadText}>{formatLoad(ex.load)}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {done && (
+                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+              )}
+            </TouchableOpacity>
+          )
+        })}
+      </View>
+    )
+  }
+
   const renderExerciseItem = (
     ex: Exercise,
     key: string | number,
@@ -310,46 +434,96 @@ export function StudentHomeScreen() {
     workoutId: string,
     labelPrefix?: string,
   ) => {
-    const done    = doneExercises.has(ex.id ?? String(index))
-    const enabled = activeSessionWorkoutId === workoutId
-    const isLast  = index === total - 1
+    const exId      = ex.id ?? String(index)
+    const done      = doneExercises.has(exId)
+    const enabled   = activeSessionWorkoutId === workoutId
+    const isLast    = index === total - 1
+    const isExpanded = expandedExercises.has(exId)
+    const isDrop    = ex.isDrop ?? false
+
+    // Conta séries feitas
+    const totalSeries = isDrop
+      ? parseDropSets(ex.dropSets).length
+      : (parseInt(ex.sets) || 1)
+    const doneSeriesCount = Array.from({ length: totalSeries }, (_, i) =>
+      doneSeries.has(`${exId}-${i}`)
+    ).filter(Boolean).length
 
     return (
-      <View key={key} style={[s.exerciseRow, !isLast && s.exerciseDivider]}>
-        <TouchableOpacity onPress={() => toggleExercise(ex.id ?? String(index))} activeOpacity={0.7}>
-          <Ionicons
-            name={done ? 'checkmark-circle' : 'ellipse-outline'}
-            size={22}
-            color={done ? colors.success : colors.border}
-          />
-        </TouchableOpacity>
+      <View key={key}>
+        <View style={[s.exerciseRow, !isLast && !isExpanded && s.exerciseDivider]}>
+          {/* Checkbox do exercício */}
+          <TouchableOpacity onPress={() => toggleExercise(exId)} activeOpacity={0.7}>
+            <Ionicons
+              name={done ? 'checkmark-circle' : 'ellipse-outline'}
+              size={22}
+              color={done ? colors.success : colors.border}
+            />
+          </TouchableOpacity>
 
-        <View style={s.exerciseInfo}>
-          <Text style={[s.exerciseName, done && s.exerciseDone]}>
-            {labelPrefix ? `${labelPrefix}  ` : ''}{ex.name}
-          </Text>
-          <View style={s.exerciseMeta}>
+          <View style={s.exerciseInfo}>
+            <Text style={[s.exerciseName, done && s.exerciseDone]}>
+              {labelPrefix ? `${labelPrefix}  ` : ''}{ex.name}
+            </Text>
+            <View style={s.exerciseMeta}>
+              {ex.type !== 'cardio' && !isDrop && (
+                <Text style={s.exerciseMetaText}>{ex.sets} × {ex.reps}</Text>
+              )}
+              {ex.type !== 'cardio' && isDrop && (
+                <View style={s.metaChip}>
+                  <Ionicons name="trending-down-outline" size={10} color={colors.warning} />
+                  <Text style={[s.exerciseMetaText, { color: colors.warning }]}>
+                    Drop · {ex.sets} séries
+                  </Text>
+                </View>
+              )}
+              {ex.type === 'cardio' && ex.duration && (
+                <View style={s.metaChip}>
+                  <Ionicons name="bicycle" size={10} color={colors.info} />
+                  <Text style={[s.exerciseMetaText, { color: colors.info }]}>{ex.duration}</Text>
+                </View>
+              )}
+              {ex.load && !isDrop ? (
+                <View style={s.metaChip}>
+                  <Ionicons name="barbell-outline" size={10} color={colors.textSecondary} />
+                  <Text style={s.exerciseMetaText}>{formatLoad(ex.load)}</Text>
+                </View>
+              ) : null}
+              {/* Progresso de séries */}
+              {ex.type !== 'cardio' && doneSeriesCount > 0 && (
+                <View style={s.metaChip}>
+                  <Ionicons name="checkmark-circle" size={10} color={colors.success} />
+                  <Text style={[s.exerciseMetaText, { color: colors.success }]}>
+                    {doneSeriesCount}/{totalSeries}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={s.exerciseActions}>
             {ex.type !== 'cardio' && (
-              <Text style={s.exerciseMetaText}>{ex.sets} × {ex.reps}</Text>
+              <RestButton restTime={ex.restTime} enabled={enabled} />
             )}
-            {ex.type === 'cardio' && ex.duration && (
-              <View style={s.metaChip}>
-                <Ionicons name="bicycle" size={10} color={colors.info} />
-                <Text style={[s.exerciseMetaText, { color: colors.info }]}>{ex.duration}</Text>
-              </View>
+            {/* Botão expandir séries */}
+            {ex.type !== 'cardio' && (
+              <TouchableOpacity
+                style={s.expandSeriesBtn}
+                onPress={() => toggleExpandExercise(exId)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
             )}
-            {ex.load ? (
-              <View style={s.metaChip}>
-                <Ionicons name="barbell-outline" size={10} color={colors.textSecondary} />
-                <Text style={s.exerciseMetaText}>{formatLoad(ex.load)}</Text>
-              </View>
-            ) : null}
           </View>
         </View>
 
-        {ex.type !== 'cardio' && (
-          <RestButton restTime={ex.restTime} enabled={enabled} />
-        )}
+        {/* Séries expandidas */}
+        {isExpanded && ex.type !== 'cardio' && renderSeries(ex, workoutId)}
       </View>
     )
   }
@@ -372,7 +546,6 @@ export function StudentHomeScreen() {
         const groupLabel = ex.groupLabel ?? 'Grupo'
         const groupItems: typeof items = []
         while (i < items.length && items[i].groupId === groupId) { groupItems.push(items[i]); i++ }
-
         rendered.push(
           <View key={`group-${groupId}`} style={s.groupBlock}>
             <View style={s.groupBlockHeader}>
@@ -390,6 +563,7 @@ export function StudentHomeScreen() {
       rendered.push(renderExerciseItem(ex, ex.id ?? i, i, items.length, workout.id))
       i++
     }
+
     return rendered
   }
 
@@ -524,7 +698,6 @@ export function StudentHomeScreen() {
 
               return (
                 <View key={workout.id} style={[s.workoutCard, isOpen && s.workoutCardOpen, isActive && s.workoutCardActive]}>
-
                   {isActive && (
                     <View style={s.activeBadge}>
                       <View style={s.activeDot} />
@@ -642,7 +815,7 @@ export function StudentHomeScreen() {
             setSessionModal(false)
             setActiveSessionWorkoutId(null)
             setActiveSessionId(null)
-            loadData() // loadData já vai buscar os exercícios do dia
+            loadData()
           }}
         />
       )}
@@ -743,6 +916,27 @@ const s = StyleSheet.create({
   exerciseMeta:    { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing['1'], marginTop: 2 },
   exerciseMetaText:{ fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
   metaChip:        { flexDirection: 'row', alignItems: 'center', gap: 2 },
+
+  // Ações do exercício (rest + expand)
+  exerciseActions:  { flexDirection: 'row', alignItems: 'center', gap: spacing['1'] },
+  expandSeriesBtn:  { width: 28, height: 28, borderRadius: radii.md, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+
+  // Séries
+  seriesContainer: { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, marginBottom: spacing['2'], overflow: 'hidden' },
+  serieRow:        { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], paddingVertical: spacing['2'], paddingHorizontal: spacing['3'], borderBottomWidth: 1, borderBottomColor: colors.divider },
+  serieRowDone:    { backgroundColor: `${colors.success}08` },
+  serieBadge:      { width: 26, height: 26, borderRadius: radii.md, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  serieBadgeDone:  { backgroundColor: colors.success },
+  serieBadgeText:  { fontFamily: typography.family.bold, fontSize: 10, color: colors.textSecondary },
+  serieInfo:       { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
+  serieReps:       { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.textPrimary },
+  serieTextDone:   { color: colors.textDisabled, textDecorationLine: 'line-through' },
+  serieLoadChip:   { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surface, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
+  serieLoadText:   { fontFamily: typography.family.regular, fontSize: 10, color: colors.textSecondary },
+
+  // Drop set banner
+  dropSetBanner:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing['3'], paddingVertical: spacing['2'], backgroundColor: `${colors.warning}15`, borderBottomWidth: 1, borderBottomColor: `${colors.warning}20` },
+  dropSetBannerText: { fontFamily: typography.family.semiBold, fontSize: 10, color: colors.warning },
 
   restBtn:             { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 4, minWidth: 60 },
   restBtnRunning:      { backgroundColor: colors.primary },
