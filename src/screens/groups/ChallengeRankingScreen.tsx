@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useNavigation, useRoute } from '@react-navigation/native'
 import Constants from 'expo-constants'
 import { groupService } from '../../services/group.service'
-import type { ChallengeRanking } from '../../services/group.service'
+import type { ChallengeRanking, GroupChallenge } from '../../services/group.service'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 
@@ -22,6 +22,37 @@ const getBaseUrl = () => {
 
 const MEDAL_COLORS = ['#F59E0B', '#9CA3AF', '#CD7C2F']
 const MEDAL_ICONS  = ['trophy', 'medal', 'ribbon'] as const
+
+// Label de score conforme tipo do desafio
+const scoreLabel = (challenge: GroupChallenge, score: number): string => {
+  if (challenge.type === 'CHECKIN_COUNT') return `${score} treino${score !== 1 ? 's' : ''}`
+  if (challenge.type === 'SCORE')         return `${score} pt${score !== 1 ? 's' : ''}`
+  if (challenge.type === 'TOTAL_TIME') {
+    const h = Math.floor(score / 60)
+    const m = score % 60
+    return h > 0 ? `${h}h ${m}min` : `${m}min`
+  }
+  return `${score}`
+}
+
+// Label da meta conforme tipo
+const goalLabel = (challenge: GroupChallenge): string => {
+  if (challenge.type === 'CHECKIN_COUNT') return `${challenge.goal} treinos`
+  if (challenge.type === 'SCORE')         return `${challenge.goal} pontos`
+  if (challenge.type === 'TOTAL_TIME') {
+    const h = Math.floor(challenge.goal / 60)
+    const m = challenge.goal % 60
+    return h > 0 ? `${h}h ${m}min` : `${challenge.goal}min`
+  }
+  return `${challenge.goal}`
+}
+
+// Ícone e cor do tipo
+const TYPE_CONFIG = {
+  CHECKIN_COUNT: { icon: 'checkmark-circle-outline' as const, color: colors.primary,  label: 'Nº Treinos'  },
+  SCORE:         { icon: 'trophy-outline'            as const, color: '#F59E0B',       label: 'Pontuação'   },
+  TOTAL_TIME:    { icon: 'timer-outline'             as const, color: colors.success,  label: 'Tempo Total' },
+}
 
 export function ChallengeRankingScreen() {
   const navigation = useNavigation<any>()
@@ -56,17 +87,24 @@ export function ChallengeRankingScreen() {
   if (!data) return null
 
   const { challenge, ranking } = data
-  const goal = challenge.goal
+  const typeCfg = TYPE_CONFIG[challenge.type ?? 'CHECKIN_COUNT']
 
   return (
     <SafeAreaView style={s.safe}>
+
+      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <Text style={s.headerTitle} numberOfLines={1}>{challenge.title}</Text>
-          <Text style={s.headerSub}>Meta: {goal} treinos</Text>
+          <Text style={s.headerSub}>Meta: {goalLabel(challenge)}</Text>
+        </View>
+        {/* Badge tipo do desafio */}
+        <View style={[s.typeBadge, { backgroundColor: `${typeCfg.color}20` }]}>
+          <Ionicons name={typeCfg.icon} size={14} color={typeCfg.color} />
+          <Text style={[s.typeBadgeText, { color: typeCfg.color }]}>{typeCfg.label}</Text>
         </View>
       </View>
 
@@ -77,21 +115,67 @@ export function ChallengeRankingScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={s.summaryCard}>
-            <Text style={s.summaryTitle}>Placar</Text>
+            {/* Info do tipo de desafio */}
+            <View style={[s.summaryTypePill, { backgroundColor: `${typeCfg.color}15` }]}>
+              <Ionicons name={typeCfg.icon} size={16} color={typeCfg.color} />
+              <Text style={[s.summaryTypeText, { color: typeCfg.color }]}>{typeCfg.label}</Text>
+            </View>
+
+            <Text style={s.summaryTitle}>Ranking</Text>
             <Text style={s.summaryCompleted}>
-              {ranking.filter(r => r.done).length}/{ranking.length} membros completaram
+              {ranking.filter(r => r.done).length}/{ranking.length} membros atingiram a meta
             </Text>
+
+            {/* Config do desafio */}
+            <View style={s.summaryConfig}>
+              {challenge.weeklyCheckinLimit && (
+                <View style={s.configChip}>
+                  <Ionicons name="calendar-outline" size={12} color={colors.textSecondary} />
+                  <Text style={s.configChipText}>Máx. {challenge.weeklyCheckinLimit}x/semana</Text>
+                </View>
+              )}
+              {challenge.minSessionMinutes && (
+                <View style={s.configChip}>
+                  <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
+                  <Text style={s.configChipText}>Mín. {challenge.minSessionMinutes}min</Text>
+                </View>
+              )}
+              {challenge.maxSessionMinutes && (
+                <View style={s.configChip}>
+                  <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
+                  <Text style={s.configChipText}>Máx. {challenge.maxSessionMinutes}min</Text>
+                </View>
+              )}
+              {challenge.type === 'SCORE' && (
+                <>
+                  <View style={s.configChip}>
+                    <Ionicons name="barbell-outline" size={12} color={colors.primary} />
+                    <Text style={s.configChipText}>{challenge.scoreStrength}pt musculação</Text>
+                  </View>
+                  <View style={s.configChip}>
+                    <Ionicons name="bicycle-outline" size={12} color={colors.info} />
+                    <Text style={s.configChipText}>{challenge.scoreCardio}pt cardio</Text>
+                  </View>
+                  <View style={s.configChip}>
+                    <Ionicons name="football-outline" size={12} color={colors.success} />
+                    <Text style={s.configChipText}>{challenge.scoreSports}pt esporte</Text>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
         }
         renderItem={({ item, index }) => {
           const isMe      = item.user.id === user?.id
           const avatarUrl = item.user.avatar ? `${getBaseUrl()}${item.user.avatar}` : null
-          const pct       = Math.min((item.checkins / goal) * 100, 100)
+          const score     = item.score ?? item.checkins
+          const pct       = Math.min((score / challenge.goal) * 100, 100)
           const medal     = index < 3 ? MEDAL_COLORS[index] : null
-          const medalIcon = index < 3 ? MEDAL_ICONS[index] : null
+          const medalIcon = index < 3 ? MEDAL_ICONS[index]  : null
 
           return (
             <View style={[s.rankCard, isMe && s.rankCardMe]}>
+
               {/* Posição */}
               <View style={s.rankPos}>
                 {medal
@@ -114,7 +198,7 @@ export function ChallengeRankingScreen() {
               <View style={s.rankInfo}>
                 <View style={s.rankNameRow}>
                   <Text style={[s.rankName, isMe && { color: colors.primary }]} numberOfLines={1}>
-                    {item.user.name} {isMe ? '(você)' : ''}
+                    {item.user.name}{isMe ? ' (você)' : ''}
                   </Text>
                   {item.done && (
                     <View style={s.doneBadge}>
@@ -123,6 +207,7 @@ export function ChallengeRankingScreen() {
                     </View>
                   )}
                 </View>
+
                 {/* Barra de progresso */}
                 <View style={s.progressBar}>
                   <View style={[s.progressFill, {
@@ -130,7 +215,18 @@ export function ChallengeRankingScreen() {
                     backgroundColor: item.done ? colors.success : isMe ? colors.primary : colors.textSecondary,
                   }]} />
                 </View>
-                <Text style={s.rankCheckins}>{item.checkins}/{goal} check-ins</Text>
+
+                {/* Score label adaptado ao tipo */}
+                <View style={s.rankScoreRow}>
+                  <Text style={s.rankScore}>
+                    {scoreLabel(challenge, score)}
+                  </Text>
+                  <Text style={s.rankGoal}>/ {goalLabel(challenge)}</Text>
+                  {/* Nº de check-ins para SCORE e TOTAL_TIME */}
+                  {challenge.type !== 'CHECKIN_COUNT' && (
+                    <Text style={s.rankCheckinCount}>· {item.checkins} treino{item.checkins !== 1 ? 's' : ''}</Text>
+                  )}
+                </View>
               </View>
             </View>
           )
@@ -149,11 +245,20 @@ const s = StyleSheet.create({
   headerTitle:  { fontFamily: typography.family.bold, fontSize: typography.size.lg, color: colors.textPrimary },
   headerSub:    { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
 
+  // ✅ Badge tipo no header
+  typeBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: spacing['1'] },
+  typeBadgeText: { fontFamily: typography.family.medium, fontSize: 10 },
+
   list: { paddingHorizontal: spacing['5'], paddingBottom: spacing['10'] },
 
-  summaryCard:      { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['4'], alignItems: 'center', gap: spacing['1'], ...shadows.sm },
+  summaryCard:      { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['4'], alignItems: 'center', gap: spacing['2'], ...shadows.sm },
+  summaryTypePill:  { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], borderRadius: radii.full, paddingHorizontal: spacing['3'], paddingVertical: spacing['1'] },
+  summaryTypeText:  { fontFamily: typography.family.semiBold, fontSize: typography.size.xs },
   summaryTitle:     { fontFamily: typography.family.bold, fontSize: typography.size.xl, color: colors.textPrimary },
   summaryCompleted: { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textSecondary },
+  summaryConfig:    { flexDirection: 'row', flexWrap: 'wrap', gap: spacing['1'], justifyContent: 'center', marginTop: spacing['1'] },
+  configChip:       { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surfaceHigh, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 3 },
+  configChipText:   { fontFamily: typography.family.regular, fontSize: 10, color: colors.textSecondary },
 
   rankCard:               { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing['4'], marginBottom: spacing['3'], gap: spacing['3'], ...shadows.sm },
   rankCardMe:             { borderWidth: 1.5, borderColor: `${colors.primary}40`, backgroundColor: `${colors.primary}08` },
@@ -162,12 +267,15 @@ const s = StyleSheet.create({
   rankAvatar:             { width: 44, height: 44, borderRadius: radii.full, borderWidth: 2, borderColor: colors.border },
   rankAvatarPlaceholder:  { width: 44, height: 44, borderRadius: radii.full, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.border },
   rankAvatarInitial:      { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
-  rankInfo:      { flex: 1, gap: spacing['1'] },
-  rankNameRow:   { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], flexWrap: 'wrap' },
-  rankName:      { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.textPrimary, flex: 1 },
-  doneBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.success}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
-  doneBadgeText: { fontFamily: typography.family.medium, fontSize: 10, color: colors.success },
-  progressBar:   { height: 6, backgroundColor: colors.surfaceHigh, borderRadius: 3, overflow: 'hidden' },
-  progressFill:  { height: '100%', borderRadius: 3 },
-  rankCheckins:  { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
+  rankInfo:               { flex: 1, gap: spacing['1'] },
+  rankNameRow:            { flexDirection: 'row', alignItems: 'center', gap: spacing['2'], flexWrap: 'wrap' },
+  rankName:               { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.textPrimary, flex: 1 },
+  doneBadge:              { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${colors.success}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2 },
+  doneBadgeText:          { fontFamily: typography.family.medium, fontSize: 10, color: colors.success },
+  progressBar:            { height: 6, backgroundColor: colors.surfaceHigh, borderRadius: 3, overflow: 'hidden' },
+  progressFill:           { height: '100%', borderRadius: 3 },
+  rankScoreRow:           { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rankScore:              { fontFamily: typography.family.bold, fontSize: typography.size.sm, color: colors.primary },
+  rankGoal:               { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textDisabled },
+  rankCheckinCount:       { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textSecondary },
 })

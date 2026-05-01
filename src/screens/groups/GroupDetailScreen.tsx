@@ -47,6 +47,14 @@ const maskDate = (v: string) => {
   return d
 }
 
+const [challengeType,       setChallengeType]       = useState<'CHECKIN_COUNT' | 'SCORE' | 'TOTAL_TIME'>('CHECKIN_COUNT')
+const [weeklyLimit,         setWeeklyLimit]         = useState('')
+const [minMinutes,          setMinMinutes]          = useState('')
+const [maxMinutes,          setMaxMinutes]          = useState('')
+const [scoreStrength,       setScoreStrength]       = useState('3')
+const [scoreCardio,         setScoreCardio]         = useState('2')
+const [scoreSports,         setScoreSports]         = useState('1')
+
 // ─── ChallengeItem ────────────────────────────
 
 interface ChallengeItemProps {
@@ -92,13 +100,13 @@ function ChallengeItem({ c, groupId, onRanking }: ChallengeItemProps) {
             backgroundColor: pct >= 100 ? colors.success : colors.primary,
           }]} />
         </View>
-        {/* ✅ Dica sobre como contabilizar */}
+        {/* Dica sobre como contabilizar */}
         <Text style={s.progressHint}>
           Faça check-in e checkout na tela de treinos para contabilizar
         </Text>
       </View>
 
-      {/* ✅ Apenas botão de ranking — sem botão de check-in */}
+      {/* Apenas botão de ranking — sem botão de check-in */}
       <TouchableOpacity
         style={s.rankingBtnFull}
         onPress={() => onRanking(c.id)}
@@ -202,15 +210,25 @@ export function GroupDetailScreen() {
     try {
       setCreatingChallenge(true)
       await groupService.createChallenge(groupId, {
-        title:       challengeTitle.trim(),
-        description: challengeDesc.trim() || undefined,
+        title:             challengeTitle.trim(),
+        description:       challengeDesc.trim() || undefined,
         goal,
-        startDate:   parseDate(challengeStart),
-        endDate:     parseDate(challengeEnd),
+        startDate:         parseDate(challengeStart),
+        endDate:           parseDate(challengeEnd),
+        type:              challengeType,
+        weeklyCheckinLimit: weeklyLimit ? parseInt(weeklyLimit) : undefined,
+        minSessionMinutes:  minMinutes  ? parseInt(minMinutes)  : undefined,
+        maxSessionMinutes:  maxMinutes  ? parseInt(maxMinutes)  : undefined,
+        scoreStrength:      challengeType === 'SCORE' ? parseInt(scoreStrength) || 3 : undefined,
+        scoreCardio:        challengeType === 'SCORE' ? parseInt(scoreCardio)   || 2 : undefined,
+        scoreSports:        challengeType === 'SCORE' ? parseInt(scoreSports)   || 1 : undefined,
       })
       setChallengeModal(false)
       setChallengeTitle(''); setChallengeDesc(''); setChallengeGoal('7')
       setChallengeStart(''); setChallengeEnd('')
+      setChallengeType('CHECKIN_COUNT')
+      setWeeklyLimit(''); setMinMinutes(''); setMaxMinutes('')
+      setScoreStrength('3'); setScoreCardio('2'); setScoreSports('1')
       load(true)
     } catch (err: any) {
       Alert.alert('Erro', err?.message ?? 'Não foi possível criar o desafio.')
@@ -350,7 +368,7 @@ export function GroupDetailScreen() {
         )}
       </View>
 
-      {/* ✅ FlatLists separados por tipo */}
+      {/* FlatLists separados por tipo */}
       {activeTab === 'challenges' ? (
         <FlatList<GroupChallenge>
           data={challenges}
@@ -414,59 +432,152 @@ export function GroupDetailScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={s.sheetBody} keyboardShouldPersistTaps="handled">
+
+            {/* Título */}
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Título *</Text>
-              <TextInput
-                style={s.input} value={challengeTitle} onChangeText={setChallengeTitle}
-                placeholder="Ex: 30 dias de treino" placeholderTextColor={colors.textDisabled} maxLength={60}
-              />
+              <TextInput style={s.input} value={challengeTitle} onChangeText={setChallengeTitle}
+                placeholder="Ex: 30 dias de treino" placeholderTextColor={colors.textDisabled} maxLength={60} />
             </View>
+
+            {/* Descrição */}
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Descrição (opcional)</Text>
-              <TextInput
-                style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
+              <TextInput style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
                 value={challengeDesc} onChangeText={setChallengeDesc}
                 placeholder="Ex: Treinar ao menos 30 vezes em 30 dias!" placeholderTextColor={colors.textDisabled}
-                multiline maxLength={200}
-              />
+                multiline maxLength={200} />
             </View>
+
+            {/* ✅ Tipo do desafio */}
             <View style={s.inputGroup}>
-              <Text style={s.inputLabel}>Meta (número de treinos) *</Text>
-              <TextInput
-                style={s.input} value={challengeGoal} onChangeText={setChallengeGoal}
-                keyboardType="numeric" placeholder="Ex: 30" placeholderTextColor={colors.textDisabled} maxLength={3}
-              />
+              <Text style={s.inputLabel}>Tipo do desafio *</Text>
+              <View style={s.typeRow}>
+                {([
+                  { key: 'CHECKIN_COUNT', label: 'Nº Treinos',  icon: 'checkmark-circle-outline' },
+                  { key: 'SCORE',         label: 'Pontuação',   icon: 'trophy-outline'           },
+                  { key: 'TOTAL_TIME',    label: 'Tempo Total', icon: 'timer-outline'            },
+                ] as const).map(t => (
+                  <TouchableOpacity
+                    key={t.key}
+                    style={[s.typeChip, challengeType === t.key && s.typeChipActive]}
+                    onPress={() => setChallengeType(t.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name={t.icon} size={16} color={challengeType === t.key ? colors.white : colors.textSecondary} />
+                    <Text style={[s.typeChipText, challengeType === t.key && s.typeChipTextActive]}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {/* Hint por tipo */}
+              <Text style={s.typeHint}>
+                {challengeType === 'CHECKIN_COUNT' && 'Meta = número de treinos realizados'}
+                {challengeType === 'SCORE'         && 'Meta = pontos acumulados por tipo de treino'}
+                {challengeType === 'TOTAL_TIME'    && 'Meta = minutos totais de treino'}
+              </Text>
             </View>
+
+            {/* Meta */}
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>
+                Meta *{' '}
+                <Text style={s.inputLabelHint}>
+                  {challengeType === 'CHECKIN_COUNT' ? '(treinos)' : challengeType === 'SCORE' ? '(pontos)' : '(minutos)'}
+                </Text>
+              </Text>
+              <TextInput style={s.input} value={challengeGoal} onChangeText={setChallengeGoal}
+                keyboardType="numeric" placeholder={challengeType === 'CHECKIN_COUNT' ? '30' : challengeType === 'SCORE' ? '100' : '300'}
+                placeholderTextColor={colors.textDisabled} maxLength={6} />
+            </View>
+
+            {/* ✅ Pontuação por tipo — só aparece se tipo SCORE */}
+            {challengeType === 'SCORE' && (
+              <View style={s.inputGroup}>
+                <Text style={s.inputLabel}>Pontuação por tipo de treino</Text>
+                <View style={s.scoreRow}>
+                  <View style={s.scoreItem}>
+                    <View style={s.scoreIconRow}>
+                      <Ionicons name="barbell-outline" size={14} color={colors.primary} />
+                      <Text style={s.scoreLabel}>Musculação</Text>
+                    </View>
+                    <TextInput style={s.scoreInput} value={scoreStrength} onChangeText={setScoreStrength}
+                      keyboardType="numeric" maxLength={2} placeholderTextColor={colors.textDisabled} />
+                  </View>
+                  <View style={s.scoreItem}>
+                    <View style={s.scoreIconRow}>
+                      <Ionicons name="bicycle-outline" size={14} color={colors.info} />
+                      <Text style={s.scoreLabel}>Cardio</Text>
+                    </View>
+                    <TextInput style={s.scoreInput} value={scoreCardio} onChangeText={setScoreCardio}
+                      keyboardType="numeric" maxLength={2} placeholderTextColor={colors.textDisabled} />
+                  </View>
+                  <View style={s.scoreItem}>
+                    <View style={s.scoreIconRow}>
+                      <Ionicons name="football-outline" size={14} color={colors.success} />
+                      <Text style={s.scoreLabel}>Esportes</Text>
+                    </View>
+                    <TextInput style={s.scoreInput} value={scoreSports} onChangeText={setScoreSports}
+                      keyboardType="numeric" maxLength={2} placeholderTextColor={colors.textDisabled} />
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Datas */}
             <View style={s.dateRow}>
               <View style={[s.inputGroup, { flex: 1 }]}>
                 <Text style={s.inputLabel}>Início *</Text>
-                <TextInput
-                  style={s.input} value={challengeStart}
+                <TextInput style={s.input} value={challengeStart}
                   onChangeText={v => setChallengeStart(maskDate(v))}
                   placeholder="DD/MM/AAAA" placeholderTextColor={colors.textDisabled}
-                  keyboardType="numeric" maxLength={10}
-                />
+                  keyboardType="numeric" maxLength={10} />
               </View>
               <View style={[s.inputGroup, { flex: 1 }]}>
                 <Text style={s.inputLabel}>Fim *</Text>
-                <TextInput
-                  style={s.input} value={challengeEnd}
+                <TextInput style={s.input} value={challengeEnd}
                   onChangeText={v => setChallengeEnd(maskDate(v))}
                   placeholder="DD/MM/AAAA" placeholderTextColor={colors.textDisabled}
-                  keyboardType="numeric" maxLength={10}
-                />
+                  keyboardType="numeric" maxLength={10} />
               </View>
             </View>
+
+            {/* ✅ Configurações opcionais */}
+            <View style={s.optionalSection}>
+              <Text style={s.optionalTitle}>Configurações opcionais</Text>
+
+              <View style={s.inputGroup}>
+                <Text style={s.inputLabel}>Limite de treinos por semana</Text>
+                <TextInput style={s.input} value={weeklyLimit} onChangeText={setWeeklyLimit}
+                  keyboardType="numeric" placeholder="Ex: 5 (sem limite se vazio)"
+                  placeholderTextColor={colors.textDisabled} maxLength={2} />
+                <Text style={s.inputHintText}>Treinos acima do limite não contam pontos/tempo</Text>
+              </View>
+
+              <View style={s.timeRow}>
+                <View style={[s.inputGroup, { flex: 1 }]}>
+                  <Text style={s.inputLabel}>Tempo mín. (min)</Text>
+                  <TextInput style={s.input} value={minMinutes} onChangeText={setMinMinutes}
+                    keyboardType="numeric" placeholder="Ex: 30"
+                    placeholderTextColor={colors.textDisabled} maxLength={3} />
+                </View>
+                <View style={[s.inputGroup, { flex: 1 }]}>
+                  <Text style={s.inputLabel}>Tempo máx. (min)</Text>
+                  <TextInput style={s.input} value={maxMinutes} onChangeText={setMaxMinutes}
+                    keyboardType="numeric" placeholder="Ex: 120"
+                    placeholderTextColor={colors.textDisabled} maxLength={3} />
+                </View>
+              </View>
+              <Text style={s.inputHintText}>
+                {minMinutes ? `Mínimo ${minMinutes} min para contar. ` : ''}
+                {maxMinutes ? `Máximo ${maxMinutes} min contabilizados.` : ''}
+              </Text>
+            </View>
+
             <TouchableOpacity
               style={[s.saveBtn, creatingChallenge && { opacity: 0.6 }]}
-              onPress={handleCreateChallenge}
-              disabled={creatingChallenge}
-              activeOpacity={0.8}
+              onPress={handleCreateChallenge} disabled={creatingChallenge} activeOpacity={0.8}
             >
-              {creatingChallenge
-                ? <ActivityIndicator color={colors.white} />
-                : <Text style={s.saveBtnText}>Criar desafio</Text>
-              }
+              {creatingChallenge ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>Criar desafio</Text>}
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -523,7 +634,7 @@ const s = StyleSheet.create({
   progressFill:    { height: '100%', borderRadius: 3 },
   progressHint:    { fontFamily: typography.family.regular, fontSize: 10, color: colors.textDisabled, marginTop: 2 },
 
-  // ✅ Botão ranking ocupa largura total
+  // Botão ranking ocupa largura total
   rankingBtnFull: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: `${colors.primary}15`, borderRadius: radii.lg, height: 44, borderWidth: 1.5, borderColor: `${colors.primary}30` },
   rankingBtnText: { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.primary },
 
@@ -557,4 +668,23 @@ const s = StyleSheet.create({
   dateRow:     { flexDirection: 'row', gap: spacing['3'] },
   saveBtn:     { backgroundColor: colors.primary, borderRadius: radii.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
+
+  typeRow:          { flexDirection: 'row', gap: spacing['2'] },
+  typeChip:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: spacing['3'], borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, borderWidth: 1.5, borderColor: colors.border },
+  typeChipActive:   { backgroundColor: colors.primary, borderColor: colors.primary },
+  typeChipText:     { fontFamily: typography.family.medium, fontSize: 10, color: colors.textSecondary },
+  typeChipTextActive: { color: colors.white },
+  typeHint:         { fontFamily: typography.family.regular, fontSize: 10, color: colors.textDisabled, marginTop: 4 },
+  inputLabelHint:   { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textDisabled },
+  inputHintText:    { fontFamily: typography.family.regular, fontSize: 10, color: colors.textDisabled },
+
+  scoreRow:      { flexDirection: 'row', gap: spacing['2'] },
+  scoreItem:     { flex: 1, gap: 4 },
+  scoreIconRow:  { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  scoreLabel:    { fontFamily: typography.family.regular, fontSize: 10, color: colors.textSecondary },
+  scoreInput:    { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.border, height: 44, textAlign: 'center', fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.textPrimary },
+
+  optionalSection: { backgroundColor: colors.surfaceHigh, borderRadius: radii.lg, padding: spacing['3'], gap: spacing['3'], borderWidth: 1, borderColor: colors.border },
+  optionalTitle:   { fontFamily: typography.family.semiBold, fontSize: typography.size.xs, color: colors.textSecondary },
+  timeRow:         { flexDirection: 'row', gap: spacing['2'] },
 })

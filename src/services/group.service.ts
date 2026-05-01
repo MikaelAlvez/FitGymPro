@@ -33,8 +33,15 @@ export interface GroupChallenge {
   startDate:   string
   endDate:     string
   createdAt:   string
+  type:        ChallengeType
+  weeklyCheckinLimit:  number | null
+  minSessionMinutes:   number | null
+  maxSessionMinutes:   number | null
+  scoreStrength: number
+  scoreCardio:   number
+  scoreSports:   number
   _count?:     { checkins: number }
-  checkins?:   { id: string; checkedAt: string }[]  // checkins do usuário logado
+  checkins?:   { id: string; checkedAt: string; points: number; minutes: number; workoutType: string | null }[]
 }
 
 export interface ChallengeRanking {
@@ -42,9 +49,13 @@ export interface ChallengeRanking {
   ranking: {
     user:     { id: string; name: string; avatar: string | null; userCode: string }
     checkins: number
+    score:    number  // pontos totais (SCORE), minutos totais (TOTAL_TIME) ou nº treinos (CHECKIN_COUNT)
     done:     boolean
   }[]
 }
+
+export type ChallengeType = 'CHECKIN_COUNT' | 'SCORE' | 'TOTAL_TIME'
+export type WorkoutType   = 'strength' | 'cardio' | 'sports'
 
 export const groupService = {
   // Grupos
@@ -89,7 +100,18 @@ export const groupService = {
 
   // Desafios
   createChallenge: (groupId: string, data: {
-    title: string; description?: string; goal: number; startDate: string; endDate: string
+    title:       string
+    description?: string
+    goal:        number
+    startDate:   string
+    endDate:     string
+    type?:       ChallengeType
+    weeklyCheckinLimit?:  number
+    minSessionMinutes?:   number
+    maxSessionMinutes?:   number
+    scoreStrength?: number
+    scoreCardio?:   number
+    scoreSports?:   number
   }) =>
     apiRequest<GroupChallenge>(`/groups/${groupId}/challenges`, {
       method: 'POST', authenticated: true, body: JSON.stringify(data),
@@ -101,11 +123,21 @@ export const groupService = {
   getRanking: (groupId: string, challengeId: string) =>
     apiRequest<ChallengeRanking>(`/groups/${groupId}/challenges/${challengeId}/ranking`, { authenticated: true }),
 
-  checkin: (groupId: string, challengeId: string, data?: { sessionId?: string; note?: string }) =>
-    apiRequest<{ checkin: any; total: number; goal: number; completed: boolean }>(
-      `/groups/${groupId}/challenges/${challengeId}/checkin`, {
-        method: 'POST', authenticated: true, body: JSON.stringify(data ?? {}),
-      }),
+  checkin: (groupId: string, challengeId: string, data?: {
+    sessionId?:   string
+    note?:        string
+    workoutType?: WorkoutType
+  }) =>
+    apiRequest<{
+      checkin: any
+      total: number
+      goal: number
+      completed: boolean
+      countedInWeeklyLimit: boolean
+      weeklyLimitReached: boolean
+    }>(`/groups/${groupId}/challenges/${challengeId}/checkin`, {
+      method: 'POST', authenticated: true, body: JSON.stringify(data ?? {}),
+    }),
 
   removeCheckin: (groupId: string, challengeId: string, checkinId: string) =>
     apiRequest<{ message: string }>(

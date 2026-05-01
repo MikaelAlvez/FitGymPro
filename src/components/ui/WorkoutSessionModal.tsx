@@ -11,10 +11,12 @@ import { sessionService }     from '../../services/session.service'
 import { groupService }       from '../../services/group.service'
 import { uploadSessionPhoto } from '../../services/upload.service'
 import type { WorkoutSession } from '../../services/session.service'
+import type { ChallengeType } from '../../services/group.service'
 import { colors, typography, spacing, radii } from '../../theme'
 
 const isExpoGo = Constants.appOwnership === 'expo'
 
+// ActiveChallenge com type
 interface ActiveChallenge {
   id:            string
   title:         string
@@ -22,6 +24,7 @@ interface ActiveChallenge {
   myCheckins:    number
   totalCheckins: number
   endDate:       string
+  type:          ChallengeType 
 }
 
 interface ActiveChallengeGroup {
@@ -32,12 +35,12 @@ interface ActiveChallengeGroup {
 }
 
 interface Props {
-  visible:     boolean
-  workoutId:   string
-  workoutName: string
-  onClose:     () => void
-  onFinished:  () => void
-  onCheckinDone?:   (sessionId: string) => void  
+  visible:        boolean
+  workoutId:      string
+  workoutName:    string
+  onClose:        () => void
+  onFinished:     () => void
+  onCheckinDone?: (sessionId: string) => void
 }
 
 type Phase = 'checkin' | 'running' | 'checkout'
@@ -57,6 +60,18 @@ const formatDaysLeft = (endDate: string) => {
   return `${diff} dias restantes`
 }
 
+const TYPE_LABEL: Record<ChallengeType, string> = {
+  CHECKIN_COUNT: 'Nº Treinos',
+  SCORE:         'Pontuação',
+  TOTAL_TIME:    'Tempo Total',
+}
+
+const TYPE_ICON: Record<ChallengeType, React.ComponentProps<typeof Ionicons>['name']> = {
+  CHECKIN_COUNT: 'checkmark-circle-outline',
+  SCORE:         'trophy-outline',
+  TOTAL_TIME:    'timer-outline',
+}
+
 export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, onFinished, onCheckinDone }: Props) {
   const [phase,      setPhase]      = useState<Phase>('checkin')
   const [session,    setSession]    = useState<WorkoutSession | null>(null)
@@ -70,10 +85,12 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
   const [photoUri,   setPhotoUri]   = useState<string | null>(null)
   const [loadingLoc, setLoadingLoc] = useState(false)
 
-  // Grupos com desafios ativos
-  const [activeGroups,     setActiveGroups]     = useState<ActiveChallengeGroup[]>([])
+  const [activeGroups,       setActiveGroups]       = useState<ActiveChallengeGroup[]>([])
   const [selectedChallenges, setSelectedChallenges] = useState<Set<string>>(new Set())
-  const [loadingGroups,    setLoadingGroups]    = useState(false)
+  const [loadingGroups,      setLoadingGroups]      = useState(false)
+
+  // Estado dentro do componente
+  const [workoutTypes, setWorkoutTypes] = useState<Record<string, 'strength' | 'cardio' | 'sports'>>({})
 
   const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null)
   const notifIdRef = useRef<string | null>(null)
@@ -104,15 +121,16 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
     if (!visible) stopTimer()
   }, [visible])
 
-  // Carrega grupos com desafios ativos quando fase muda para checkout
   useEffect(() => {
     if (phase !== 'checkout') return
     ;(async () => {
       setLoadingGroups(true)
       try {
         const groups = await groupService.getActiveChallenges()
-        setActiveGroups(groups)
-        setSelectedChallenges(new Set()) // limpa seleção ao abrir
+        // Cast para incluir type (backend já retorna, adicionamos ao tipo local)
+        setActiveGroups(groups as ActiveChallengeGroup[])
+        setSelectedChallenges(new Set())
+        setWorkoutTypes({})
       } catch {
         setActiveGroups([])
       } finally {
@@ -124,13 +142,14 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
   const toggleChallenge = (challengeId: string) => {
     setSelectedChallenges(prev => {
       const next = new Set(prev)
-      if (next.has(challengeId)) {
-        next.delete(challengeId)
-      } else {
-        next.add(challengeId)
-      }
+      next.has(challengeId) ? next.delete(challengeId) : next.add(challengeId)
       return next
     })
+  }
+
+  // Dentro do componente
+  const updateWorkoutType = (challengeId: string, type: 'strength' | 'cardio' | 'sports') => {
+    setWorkoutTypes(prev => ({ ...prev, [challengeId]: type }))
   }
 
   const startTimer = (initial = 0) => {
@@ -188,6 +207,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
   const resetForm = () => {
     setCaption(''); setNotes(''); setNotesEnd(''); setLocation(''); setPhotoUri(null)
     setSelectedChallenges(new Set())
+    setWorkoutTypes({})
   }
 
   const handlePickPhoto = async () => {
@@ -227,7 +247,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
       resetForm()
       startTimer()
       await scheduleNotification()
-      onCheckinDone?.(s.id) 
+      onCheckinDone?.(s.id)
     } catch (err: any) {
       setUploading(false)
       Alert.alert('Erro', err?.message ?? 'Não foi possível iniciar o treino.')
@@ -250,23 +270,21 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
         photoEnd: photoUrl,
       })
 
-      // Faz checkin nos desafios selecionados
       if (selectedChallenges.size > 0) {
         const checkinPromises: Promise<any>[] = []
-
         for (const group of activeGroups) {
           for (const challenge of group.challenges) {
             if (selectedChallenges.has(challenge.id)) {
               checkinPromises.push(
                 groupService.checkin(group.groupId, challenge.id, {
-                  sessionId: session.id,
-                  note: `Treino: ${workoutName}`,
-                }).catch(() => null) // silencia erro individual para não bloquear o checkout
+                  sessionId:   session.id,
+                  note:        `Treino: ${workoutName}`,
+                  workoutType: workoutTypes[challenge.id],
+                }).catch(() => null)
               )
             }
           }
         }
-
         await Promise.all(checkinPromises)
       }
 
@@ -416,7 +434,7 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                 </View>
               </View>
 
-              {/* Seleção de grupos/desafios — só no checkout */}
+              {/* Desafios — só no checkout */}
               {phase === 'checkout' && (
                 <View style={s.groupsSection}>
                   <View style={s.groupsSectionHeader}>
@@ -437,50 +455,85 @@ export function WorkoutSessionModal({ visible, workoutId, workoutName, onClose, 
                     <View style={s.groupsList}>
                       {activeGroups.map(group => (
                         <View key={group.groupId} style={s.groupBlock}>
-                          {/* Nome do grupo */}
                           <View style={s.groupBlockHeader}>
                             <View style={s.groupCodeDot} />
                             <Text style={s.groupBlockName}>{group.groupName}</Text>
                             <Text style={s.groupBlockCode}>{group.groupCode}</Text>
                           </View>
 
-                          {/* Desafios do grupo */}
                           {group.challenges.map(challenge => {
                             const selected = selectedChallenges.has(challenge.id)
                             const pct      = Math.min((challenge.myCheckins / challenge.goal) * 100, 100)
                             const daysLeft = formatDaysLeft(challenge.endDate)
 
                             return (
-                              <TouchableOpacity
-                                key={challenge.id}
-                                style={[s.challengeOption, selected && s.challengeOptionSelected]}
-                                onPress={() => toggleChallenge(challenge.id)}
-                                activeOpacity={0.8}
-                              >
-                                {/* Checkbox */}
-                                <View style={[s.checkbox, selected && s.checkboxSelected]}>
-                                  {selected && <Ionicons name="checkmark" size={14} color={colors.white} />}
+                              // Fragment como wrapper para evitar JSX adjacente
+                              <View key={challenge.id}>
+                                {/* Badge do tipo do desafio */}
+                                <View style={s.challengeTypeBadge}>
+                                  <Ionicons name={TYPE_ICON[challenge.type]} size={11} color={colors.primary} />
+                                  <Text style={s.challengeTypeBadgeText}>{TYPE_LABEL[challenge.type]}</Text>
                                 </View>
 
-                                <View style={s.challengeOptionInfo}>
-                                  <Text style={[s.challengeOptionTitle, selected && { color: colors.primary }]}>
-                                    {challenge.title}
-                                  </Text>
-                                  <View style={s.challengeOptionMeta}>
-                                    <Text style={s.challengeOptionProgress}>
-                                      {challenge.myCheckins}/{challenge.goal} treinos
+                                <TouchableOpacity
+                                  style={[s.challengeOption, selected && s.challengeOptionSelected]}
+                                  onPress={() => toggleChallenge(challenge.id)}
+                                  activeOpacity={0.8}
+                                >
+                                  <View style={[s.checkbox, selected && s.checkboxSelected]}>
+                                    {selected && <Ionicons name="checkmark" size={14} color={colors.white} />}
+                                  </View>
+
+                                  <View style={s.challengeOptionInfo}>
+                                    <Text style={[s.challengeOptionTitle, selected && { color: colors.primary }]}>
+                                      {challenge.title}
                                     </Text>
-                                    <Text style={s.challengeOptionDays}>{daysLeft}</Text>
+                                    <View style={s.challengeOptionMeta}>
+                                      <Text style={s.challengeOptionProgress}>
+                                        {challenge.myCheckins}/{challenge.goal}
+                                        {challenge.type === 'CHECKIN_COUNT' ? ' treinos' : challenge.type === 'SCORE' ? ' pts' : ' min'}
+                                      </Text>
+                                      <Text style={s.challengeOptionDays}>{daysLeft}</Text>
+                                    </View>
+                                    <View style={s.miniProgressBar}>
+                                      <View style={[s.miniProgressFill, {
+                                        width: `${pct}%` as any,
+                                        backgroundColor: pct >= 100 ? colors.success : selected ? colors.primary : colors.textDisabled,
+                                      }]} />
+                                    </View>
                                   </View>
-                                  {/* Mini barra de progresso */}
-                                  <View style={s.miniProgressBar}>
-                                    <View style={[s.miniProgressFill, {
-                                      width: `${pct}%` as any,
-                                      backgroundColor: pct >= 100 ? colors.success : selected ? colors.primary : colors.textDisabled,
-                                    }]} />
+                                </TouchableOpacity>
+
+                                {/* Seletor de tipo de treino para desafios SCORE */}
+                                {selected && challenge.type === 'SCORE' && (
+                                  <View style={s.workoutTypeRow}>
+                                    <Text style={s.workoutTypeLabel}>Tipo de treino:</Text>
+                                    <View style={s.workoutTypeOptions}>
+                                      {([
+                                        { key: 'strength' as const, label: 'Musculação', icon: 'barbell-outline'  as const },
+                                        { key: 'cardio'   as const, label: 'Cardio',     icon: 'bicycle-outline'  as const },
+                                        { key: 'sports'   as const, label: 'Esporte',    icon: 'football-outline' as const },
+                                      ]).map(t => (
+                                        <TouchableOpacity
+                                          key={t.key}
+                                          style={[s.workoutTypeChip, workoutTypes[challenge.id] === t.key && s.workoutTypeChipActive]}
+                                          onPress={() => updateWorkoutType(challenge.id, t.key)}
+                                          activeOpacity={0.8}
+                                        >
+                                          <Ionicons
+                                            name={t.icon}
+                                            size={12}
+                                            color={workoutTypes[challenge.id] === t.key ? colors.white : colors.textSecondary}
+                                          />
+                                          <Text style={[s.workoutTypeChipText, workoutTypes[challenge.id] === t.key && s.workoutTypeChipTextActive]}>
+                                            {t.label}
+                                          </Text>
+                                        </TouchableOpacity>
+                                      ))}
+                                    </View>
                                   </View>
-                                </View>
-                              </TouchableOpacity>
+                                )}
+                              </View>
                             )
                           })}
                         </View>
@@ -542,8 +595,8 @@ const s = StyleSheet.create({
   body:        { padding: spacing['6'], gap: spacing['4'], paddingBottom: spacing['10'] },
 
   timerSection:    { gap: spacing['3'] },
-  timerCard: { backgroundColor: colors.surfaceHigh, borderRadius: radii['2xl'], paddingVertical: spacing['10'], paddingHorizontal: spacing['8'], alignItems: 'center', gap: spacing['3'], borderWidth: 1.5, borderColor: `${colors.primary}30` },
-  timerText: { fontFamily: typography.family.bold, fontSize: 72, color: colors.primary, letterSpacing: 4 },
+  timerCard:       { backgroundColor: colors.surfaceHigh, borderRadius: radii['2xl'], paddingVertical: spacing['10'], paddingHorizontal: spacing['8'], alignItems: 'center', gap: spacing['3'], borderWidth: 1.5, borderColor: `${colors.primary}30` },
+  timerText:       { fontFamily: typography.family.bold, fontSize: 72, color: colors.primary, letterSpacing: 4 },
   timerLabel:      { fontFamily: typography.family.medium, fontSize: typography.size.sm, color: colors.textSecondary },
   checkoutBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: colors.success, borderRadius: radii.lg, height: 52 },
   checkoutBtnText: { fontFamily: typography.family.bold, fontSize: typography.size.base, color: colors.white },
@@ -564,7 +617,6 @@ const s = StyleSheet.create({
   locationRow: { flexDirection: 'row', gap: spacing['2'], alignItems: 'center' },
   locationBtn: { width: 52, height: 52, borderRadius: radii.lg, backgroundColor: colors.surfaceHigh, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
 
-  // Seção de grupos/desafios
   groupsSection:       { backgroundColor: colors.surfaceHigh, borderRadius: radii.xl, padding: spacing['4'], gap: spacing['3'], borderWidth: 1.5, borderColor: `${colors.primary}20` },
   groupsSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
   groupsSectionTitle:  { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.textPrimary },
@@ -573,12 +625,16 @@ const s = StyleSheet.create({
   noGroupsBox:  { paddingVertical: spacing['3'], alignItems: 'center' },
   noGroupsText: { fontFamily: typography.family.regular, fontSize: typography.size.sm, color: colors.textDisabled },
 
-  groupsList:  { gap: spacing['3'] },
-  groupBlock:  { gap: spacing['2'] },
+  groupsList:       { gap: spacing['3'] },
+  groupBlock:       { gap: spacing['2'] },
   groupBlockHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing['2'] },
   groupCodeDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
   groupBlockName:   { fontFamily: typography.family.semiBold, fontSize: typography.size.sm, color: colors.textPrimary, flex: 1 },
   groupBlockCode:   { fontFamily: typography.family.regular, fontSize: typography.size.xs, color: colors.textDisabled, letterSpacing: 1 },
+
+  // Badge tipo do desafio
+  challengeTypeBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', backgroundColor: `${colors.primary}15`, borderRadius: radii.full, paddingHorizontal: spacing['2'], paddingVertical: 2, marginBottom: 2 },
+  challengeTypeBadgeText: { fontFamily: typography.family.medium, fontSize: 9, color: colors.primary },
 
   challengeOption:         { flexDirection: 'row', alignItems: 'center', gap: spacing['3'], backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing['3'], borderWidth: 1.5, borderColor: colors.border },
   challengeOptionSelected: { borderColor: colors.primary, backgroundColor: `${colors.primary}08` },
@@ -597,6 +653,15 @@ const s = StyleSheet.create({
 
   selectedSummary:     { flexDirection: 'row', alignItems: 'center', gap: spacing['1'], justifyContent: 'center' },
   selectedSummaryText: { fontFamily: typography.family.medium, fontSize: typography.size.xs, color: colors.success },
+
+  // Seletor de tipo de treino
+  workoutTypeRow:            { backgroundColor: `${colors.primary}08`, borderRadius: radii.lg, padding: spacing['3'], gap: 6, borderWidth: 1, borderColor: `${colors.primary}20` },
+  workoutTypeLabel:          { fontFamily: typography.family.medium, fontSize: 10, color: colors.textSecondary },
+  workoutTypeOptions:        { flexDirection: 'row', gap: spacing['1'] },
+  workoutTypeChip:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: spacing['2'], borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
+  workoutTypeChipActive:     { backgroundColor: colors.primary, borderColor: colors.primary },
+  workoutTypeChipText:       { fontFamily: typography.family.medium, fontSize: 10, color: colors.textSecondary },
+  workoutTypeChipTextActive: { color: colors.white },
 
   startBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: colors.primary, borderRadius: radii.lg, height: 52 },
   finishBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['2'], backgroundColor: colors.success, borderRadius: radii.lg, height: 52 },
