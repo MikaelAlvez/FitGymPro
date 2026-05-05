@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Constants from 'expo-constants'
 
-const getBaseUrl = () => {
+/*const getBaseUrl = () => {
   const debuggerHost = Constants.expoConfig?.hostUri
     ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
     ?? (Constants.manifest as any)?.debuggerHost
@@ -10,9 +10,9 @@ const getBaseUrl = () => {
     return `http://${host}:3333`
   }
   return 'http://10.0.2.2:3333'
-}
+}*/
 
-const BASE_URL = getBaseUrl()
+const BASE_URL = 'https://api-fitgympro-production.up.railway.app'
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN:  '@fitgym:token',

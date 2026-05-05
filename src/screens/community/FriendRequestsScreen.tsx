@@ -10,14 +10,7 @@ import Constants from 'expo-constants'
 import { friendService } from '../../services/friend.service'
 import type { FriendRequest } from '../../services/friend.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
-
-const getBaseUrl = () => {
-  const host = Constants.expoConfig?.hostUri
-    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
-    ?? (Constants.manifest as any)?.debuggerHost
-  if (host) return `http://${host.split(':')[0]}:3333`
-  return 'http://10.0.2.2:3333'
-}
+import { getBaseUrl } from '../../utils/getBaseUrl'
 
 const ROLE_LABEL: Record<string, string> = {
   STUDENT:  'Aluno',

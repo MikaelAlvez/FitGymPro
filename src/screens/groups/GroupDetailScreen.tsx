@@ -12,14 +12,7 @@ import { groupService } from '../../services/group.service'
 import type { Group, GroupChallenge, GroupMember } from '../../services/group.service'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
-
-const getBaseUrl = () => {
-  const host = Constants.expoConfig?.hostUri
-    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
-    ?? (Constants.manifest as any)?.debuggerHost
-  if (host) return `http://${host.split(':')[0]}:3333`
-  return 'http://10.0.2.2:3333'
-}
+import { getBaseUrl } from '../../utils/getBaseUrl'
 
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', {
   day: '2-digit', month: 'short', year: 'numeric',

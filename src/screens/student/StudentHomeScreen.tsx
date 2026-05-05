@@ -20,14 +20,7 @@ import { WorkoutFormModal }    from '../../components/ui/WorkoutFormModal'
 import { WorkoutSessionModal } from '../../components/ui/WorkoutSessionModal'
 import type { WorkoutPayload } from '../../components/ui/WorkoutFormModal'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
-
-const getBaseUrl = () => {
-  const host = Constants.expoConfig?.hostUri
-    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
-    ?? (Constants.manifest as any)?.debuggerHost
-  if (host) return `http://${host.split(':')[0]}:3333`
-  return 'http://10.0.2.2:3333'
-}
+import { getBaseUrl } from '../../utils/getBaseUrl'
 
 const TODAY_KEY = (() => {
   const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']

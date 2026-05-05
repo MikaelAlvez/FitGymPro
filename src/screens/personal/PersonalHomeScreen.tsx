@@ -13,14 +13,7 @@ import { userService } from '../../services/user.service'
 import type { PersonalProfile } from '../../services/user.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
 import { useNavigation, useFocusEffect } from '@react-navigation/native'
-
-const getBaseUrl = () => {
-  const host = Constants.expoConfig?.hostUri
-    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
-    ?? (Constants.manifest as any)?.debuggerHost
-  if (host) return `http://${host.split(':')[0]}:3333`
-  return 'http://10.0.2.2:3333'
-}
+import { getBaseUrl } from '../../utils/getBaseUrl'
 
 // Adicionado active
 interface Student {

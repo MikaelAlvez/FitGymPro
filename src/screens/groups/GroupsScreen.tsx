@@ -13,14 +13,7 @@ import { groupService } from '../../services/group.service'
 import type { Group } from '../../services/group.service'
 import { uploadSessionPhoto } from '../../services/upload.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
-
-const getBaseUrl = () => {
-  const host = Constants.expoConfig?.hostUri
-    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
-    ?? (Constants.manifest as any)?.debuggerHost
-  if (host) return `http://${host.split(':')[0]}:3333`
-  return 'http://10.0.2.2:3333'
-}
+import { getBaseUrl } from '../../utils/getBaseUrl'
 
 const isGroupCode = (text: string) => /^GRP-[A-Z0-9]{6}$/.test(text.trim().toUpperCase())
 

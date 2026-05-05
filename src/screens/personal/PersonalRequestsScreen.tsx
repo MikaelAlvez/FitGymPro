@@ -10,14 +10,7 @@ import { personalRequestService } from '../../services/personal-request.service'
 import type { PersonalRequest }   from '../../services/personal-request.service'
 import { useRequests }            from '../../contexts/RequestsContext'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
-
-const getBaseUrl = () => {
-  const host = Constants.expoConfig?.hostUri
-    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
-    ?? (Constants.manifest as any)?.debuggerHost
-  if (host) return `http://${host.split(':')[0]}:3333`
-  return 'http://10.0.2.2:3333'
-}
+import { getBaseUrl } from '../../utils/getBaseUrl'
 
 const EXPERIENCE_LABEL: Record<string, string> = {
   beginner:     'Iniciante',

@@ -6,19 +6,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
-import { useNavigation } from '@react-navigation/native'  // ✅ import no topo
+import { useNavigation } from '@react-navigation/native' 
 import { userService } from '../../services/user.service'
 import { friendService } from '../../services/friend.service'
 import type { FriendStatusResult } from '../../services/friend.service'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
-
-const getBaseUrl = () => {
-  const host = Constants.expoConfig?.hostUri
-    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
-    ?? (Constants.manifest as any)?.debuggerHost
-  if (host) return `http://${host.split(':')[0]}:3333`
-  return 'http://10.0.2.2:3333'
-}
+import { getBaseUrl } from '../../utils/getBaseUrl'
 
 const isUserCode = (text: string) => /^[A-Z]{2,3}-[A-Z0-9]{6}$/.test(text.trim().toUpperCase())
 

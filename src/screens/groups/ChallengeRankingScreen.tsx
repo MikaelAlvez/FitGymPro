@@ -11,14 +11,7 @@ import { groupService } from '../../services/group.service'
 import type { ChallengeRanking, GroupChallenge } from '../../services/group.service'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, typography, spacing, radii, shadows } from '../../theme'
-
-const getBaseUrl = () => {
-  const host = Constants.expoConfig?.hostUri
-    ?? Constants.manifest2?.extra?.expoGo?.debuggerHost
-    ?? (Constants.manifest as any)?.debuggerHost
-  if (host) return `http://${host.split(':')[0]}:3333`
-  return 'http://10.0.2.2:3333'
-}
+import { getBaseUrl } from '../../utils/getBaseUrl'
 
 const MEDAL_COLORS = ['#F59E0B', '#9CA3AF', '#CD7C2F']
 const MEDAL_ICONS  = ['trophy', 'medal', 'ribbon'] as const
