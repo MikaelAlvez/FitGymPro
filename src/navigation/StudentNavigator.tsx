@@ -7,14 +7,21 @@ import { StudentHomeScreen }       from '../screens/student/StudentHomeScreen'
 import { StudentWorkoutsScreen }   from '../screens/student/StudentWorkoutsScreen'
 import { StudentFeedScreen }       from '../screens/student/StudentFeedScreen'
 import { StudentDashboardScreen }  from '../screens/student/StudentDashboardScreen'
-import { StudentPersonalsScreen }  from '../screens/student/StudentPersonalsScreen'
-import { StudentProfileScreen }    from '../screens/student/StudentProfileScreen'
+// import { StudentPersonalsScreen }  from '../screens/student/StudentPersonalsScreen'
+// import { StudentProfileScreen }    from '../screens/student/StudentProfileScreen'
 import { CommunitySearchScreen }   from '../screens/community/CommunitySearchScreen'
 import { FriendRequestsScreen }    from '../screens/community/FriendRequestsScreen'
-import { GroupsScreen }           from '../screens/groups/GroupsScreen'
-import { GroupDetailScreen }      from '../screens/groups/GroupDetailScreen'
-import { ChallengeRankingScreen } from '../screens/groups/ChallengeRankingScreen'
+import { GroupsScreen }            from '../screens/groups/GroupsScreen'
+// import { GroupDetailScreen }       from '../screens/groups/GroupDetailScreen'
+// import { ChallengeRankingScreen }  from '../screens/groups/ChallengeRankingScreen'
 import { colors, typography }      from '../theme'
+
+// Placeholders temporários
+import { View, Text } from 'react-native'
+const GroupDetailScreen     = () => <View><Text>GroupDetail</Text></View>
+const ChallengeRankingScreen = () => <View><Text>ChallengeRanking</Text></View>
+const StudentPersonalsScreen = () => <View><Text>Personals</Text></View>
+const StudentProfileScreen   = () => <View><Text>Profile</Text></View>
 
 
 // ─── Tab ─────────────────────────────────────

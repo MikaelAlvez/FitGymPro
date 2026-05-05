@@ -6,7 +6,6 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import Constants from 'expo-constants'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { Audio } from 'expo-av'
 import { useAuth }        from '../../contexts/AuthContext'
