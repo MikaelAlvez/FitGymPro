@@ -14,6 +14,7 @@ import * as SplashScreen from 'expo-splash-screen'
 import { AuthProvider }  from './src/contexts/AuthContext'
 import { RootNavigator } from './src/navigation/RootNavigator'
 import { colors } from './src/theme'
+import { ErrorBoundary } from './src/components/ui/ErrorBoundary'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -46,11 +47,13 @@ export default function App() {
   if (!fontsLoaded) return null
 
   return (
-    <SafeAreaProvider onLayout={onLayoutRootView}>
-      <StatusBar style="light" backgroundColor="transparent" translucent />
-      <AuthProvider>
-        <RootNavigator />
-      </AuthProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider onLayout={onLayoutRootView}>
+        <StatusBar style="light" backgroundColor="transparent" translucent />
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   )
 }
