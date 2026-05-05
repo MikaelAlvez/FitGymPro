@@ -13,7 +13,6 @@ import {
 import * as SplashScreen from 'expo-splash-screen'
 import { AuthProvider }  from './src/contexts/AuthContext'
 import { RootNavigator } from './src/navigation/RootNavigator'
-import { colors } from './src/theme'
 import { ErrorBoundary } from './src/components/ui/ErrorBoundary'
 
 SplashScreen.preventAutoHideAsync()

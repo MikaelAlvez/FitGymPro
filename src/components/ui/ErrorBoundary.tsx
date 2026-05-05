@@ -5,16 +5,14 @@ interface State { hasError: boolean; error: string }
 
 export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
   state: State = { hasError: false, error: '' }
-
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error: error.message }
   }
-
   render() {
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>Erro no app</Text>
+          <Text style={styles.title}>Erro</Text>
           <Text style={styles.message}>{this.state.error}</Text>
           <TouchableOpacity onPress={() => this.setState({ hasError: false, error: '' })}>
             <Text style={styles.retry}>Tentar novamente</Text>
